@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.modules.customers.router import router as customers_router
 from app.modules.offers.router import router as offers_router
+from app.modules.users.router import router as users_router
 
 app = FastAPI(title="WeberGuardian API", version="0.1.0")
 
@@ -24,3 +25,4 @@ def health():
 
 app.include_router(customers_router, prefix="/api/v1")
 app.include_router(offers_router, prefix="/api/v1")
+app.include_router(users_router, prefix="/api/v1")

@@ -3,6 +3,32 @@
 
 const BASE = "http://localhost:8000/api/v1";
 
+// Dev-only identity (X-Dev-User). In prod behind SharePoint/Entra this
+// header disappears and identity travels with the platform token instead.
+let devUser: string | null = localStorage.getItem("devUser");
+
+export function setDevUser(id: string | null) {
+  devUser = id;
+  if (id) localStorage.setItem("devUser", id);
+  else localStorage.removeItem("devUser");
+}
+
+export function getDevUser(): string | null {
+  return devUser;
+}
+
+function headers(): HeadersInit {
+  const h: Record<string, string> = { "Content-Type": "application/json" };
+  if (devUser) h["X-Dev-User"] = devUser;
+  return h;
+}
+
+export type Me = { external_id: string; role: string; subsidiary_id: string | null };
+
+export function me(): Promise<Me> {
+  return fetch(`${BASE}/users/me`, { headers: headers() }).then((r) => checked(r, "GET me"));
+}
+
 export type Customer = {
   id: string;
   customer_id: string;
@@ -62,13 +88,13 @@ async function checked(res: Response, what: string) {
 }
 
 export function listCustomers(): Promise<Customer[]> {
-  return fetch(`${BASE}/customers`).then((r) => checked(r, "GET customers"));
+  return fetch(`${BASE}/customers`, { headers: headers() }).then((r) => checked(r, "GET customers"));
 }
 
 export function calculate(pricing: Pricing): Promise<Breakdown> {
   return fetch(`${BASE}/offers/calculate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: headers(),
     body: JSON.stringify(pricing),
   }).then((r) => checked(r, "POST calculate"));
 }
@@ -83,13 +109,13 @@ export function createOffer(payload: {
 }): Promise<unknown> {
   return fetch(`${BASE}/offers`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: headers(),
     body: JSON.stringify(payload),
   }).then((r) => checked(r, "POST offer"));
 }
 
 export function listOffers(customer_id: string): Promise<unknown[]> {
-  return fetch(`${BASE}/offers?customer_id=${encodeURIComponent(customer_id)}`).then((r) =>
-    checked(r, "GET offers")
-  );
+  return fetch(`${BASE}/offers?customer_id=${encodeURIComponent(customer_id)}`, {
+    headers: headers(),
+  }).then((r) => checked(r, "GET offers"));
 }

@@ -17,6 +17,7 @@ from app.core.db import Base
 # import models so autogenerate sees them
 import app.modules.customers.models  # noqa: F401
 import app.modules.offers.models  # noqa: F401
+import app.modules.users.models  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

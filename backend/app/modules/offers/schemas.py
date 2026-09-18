@@ -110,5 +110,6 @@ class OfferOut(BaseModel):
     total: Decimal
     total_end: Decimal
     general_comments: str | None
+    created_by: uuid.UUID | None
     created_at: datetime
     items: list[OfferItemOut] = Field(default_factory=list)

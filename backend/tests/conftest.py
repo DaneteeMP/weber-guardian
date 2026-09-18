@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from app.core.db import Base
 import app.modules.customers.models  # noqa: F401
 import app.modules.offers.models  # noqa: F401
+import app.modules.users.models  # noqa: F401
 
 
 @pytest.fixture

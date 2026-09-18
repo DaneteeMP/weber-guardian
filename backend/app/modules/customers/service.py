@@ -1,5 +1,5 @@
 """Customer logic. Receives a Session, returns models. No HTTP here."""
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -15,9 +15,17 @@ class CustomerAlreadyExists(Exception):
         self.customer_id = customer_id
 
 
-def list_customers(db: Session, limit: int = 50, offset: int = 0) -> list[Customer]:
-    """Simple list with minimal pagination (limit/offset). Nothing more in F0."""
-    return list(db.scalars(select(Customer).order_by(Customer.created_at.desc()).limit(limit).offset(offset)))
+def list_customers(
+    db: Session, limit: int = 50, offset: int = 0, subsidiary_id: str | None = None
+) -> list[Customer]:
+    """List with pagination and subsidiary scope. None = global, sees everything.
+
+    Scoped callers see their subsidiary plus legacy rows without one (NULL).
+    """
+    stmt = select(Customer).order_by(Customer.created_at.desc())
+    if subsidiary_id is not None:
+        stmt = stmt.where(or_(Customer.subsidiary_id == subsidiary_id, Customer.subsidiary_id.is_(None)))
+    return list(db.scalars(stmt.limit(limit).offset(offset)))
 
 
 def create_customer(db: Session, data: CustomerCreate) -> Customer:

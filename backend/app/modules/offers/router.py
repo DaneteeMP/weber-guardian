@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.core.security import CurrentUser, get_current_user, require_role
 from app.modules.offers import service
 from app.modules.offers.schemas import (
     OfferCalculateIn,
@@ -17,7 +18,10 @@ router = APIRouter(prefix="/offers", tags=["offers"])
 
 
 @router.post("/calculate", response_model=OfferCalculateOut)
-def calculate_endpoint(payload: OfferCalculateIn):
+def calculate_endpoint(
+    payload: OfferCalculateIn,
+    current: CurrentUser = Depends(get_current_user),
+):
     return service.calculate_price(payload)
 
 
@@ -27,22 +31,33 @@ def list_endpoint(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
+    current: CurrentUser = Depends(get_current_user),
 ):
-    return service.list_offers(db, customer_id=customer_id, limit=limit, offset=offset)
+    return service.list_offers(
+        db, customer_id=customer_id, limit=limit, offset=offset, subsidiary_id=current.subsidiary_id
+    )
 
 
 @router.get("/{offer_id}", response_model=OfferOut)
-def get_endpoint(offer_id: uuid.UUID, db: Session = Depends(get_db)):
-    offer = service.get_offer(db, offer_id)
+def get_endpoint(
+    offer_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current: CurrentUser = Depends(get_current_user),
+):
+    offer = service.get_offer(db, offer_id, subsidiary_id=current.subsidiary_id)
     if offer is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Offer not found")
     return offer
 
 
 @router.post("", response_model=OfferOut, status_code=status.HTTP_201_CREATED)
-def create_endpoint(payload: OfferCreate, db: Session = Depends(get_db)):
+def create_endpoint(
+    payload: OfferCreate,
+    db: Session = Depends(get_db),
+    current: CurrentUser = Depends(require_role("admin", "sales")),
+):
     try:
-        return service.create_offer(db, payload)
+        return service.create_offer(db, payload, created_by=current.id)
     except service.UnknownCustomer as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except service.OfferAlreadyExists as exc:

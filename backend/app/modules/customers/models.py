@@ -3,6 +3,7 @@
 - id: internal PK (UUID). Used by FKs. Never changes.
 - customer_id: EXTERNAL identifier (SAP/Salesforce/Weber). UNIQUE, only for
   lookup and sync. Never the PK: if SAP changes it, nothing internal breaks.
+- subsidiary_id: owning subsidiary (e.g. "ES"). NULL = visible to every scope.
 """
 import uuid
 from datetime import datetime
@@ -22,4 +23,5 @@ class Customer(Base):
     city: Mapped[str | None] = mapped_column(String(128), nullable=True)
     province: Mapped[str | None] = mapped_column(String(128), nullable=True)
     country: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    subsidiary_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

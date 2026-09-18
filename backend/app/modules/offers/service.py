@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -73,7 +73,7 @@ def _fallback_number() -> str:
     return f"G-02-{year}-{uuid.uuid4().hex[:8].upper()}"
 
 
-def create_offer(db: Session, data: OfferCreate) -> Offer:
+def create_offer(db: Session, data: OfferCreate, created_by: uuid.UUID | None = None) -> Offer:
     """Create header + items atomically. Server computes all prices."""
     customer = db.scalar(select(Customer).where(Customer.customer_id == data.customer_id))
     if customer is None:
@@ -105,6 +105,7 @@ def create_offer(db: Session, data: OfferCreate) -> Offer:
         total=priced.total,
         total_end=priced.total_end,
         general_comments=data.general_comments,
+        created_by=created_by,
     )
     for pos, item in enumerate(data.items, start=1):
         offer.items.append(
@@ -130,14 +131,32 @@ def create_offer(db: Session, data: OfferCreate) -> Offer:
     return offer
 
 
-def list_offers(db: Session, customer_id: str | None = None, limit: int = 50, offset: int = 0) -> list[Offer]:
-    """List offers, optionally filtered by external customer_id."""
+def list_offers(
+    db: Session,
+    customer_id: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    subsidiary_id: str | None = None,
+) -> list[Offer]:
+    """List offers with optional customer filter and subsidiary scope (None = global).
+
+    Scoped callers see their subsidiary plus customers without one (NULL legacy).
+    """
     stmt = select(Offer).options(selectinload(Offer.items)).order_by(Offer.created_at.desc())
     if customer_id:
         stmt = stmt.where(Offer.customer_id == customer_id)
+    if subsidiary_id is not None:
+        stmt = stmt.join(Customer, Offer.customer_id == Customer.customer_id).where(
+            or_(Customer.subsidiary_id == subsidiary_id, Customer.subsidiary_id.is_(None))
+        )
     return list(db.scalars(stmt.limit(limit).offset(offset)))
 
 
-def get_offer(db: Session, offer_id: uuid.UUID) -> Offer | None:
-    """Fetch one offer with its items, or None."""
-    return db.scalar(select(Offer).options(selectinload(Offer.items)).where(Offer.id == offer_id))
+def get_offer(db: Session, offer_id: uuid.UUID, subsidiary_id: str | None = None) -> Offer | None:
+    """Fetch one offer with its items, or None (out-of-scope reads as missing)."""
+    stmt = select(Offer).options(selectinload(Offer.items)).where(Offer.id == offer_id)
+    if subsidiary_id is not None:
+        stmt = stmt.join(Customer, Offer.customer_id == Customer.customer_id).where(
+            Customer.subsidiary_id == subsidiary_id
+        )
+    return db.scalar(stmt)

@@ -11,6 +11,7 @@ class CustomerCreate(BaseModel):
     city: str | None = Field(default=None, min_length=1, max_length=128)
     province: str | None = Field(default=None, min_length=1, max_length=128)
     country: str | None = Field(default=None, min_length=1, max_length=64)
+    subsidiary_id: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class CustomerOut(BaseModel):
@@ -22,4 +23,5 @@ class CustomerOut(BaseModel):
     city: str | None
     province: str | None
     country: str | None
+    subsidiary_id: str | None
     created_at: datetime

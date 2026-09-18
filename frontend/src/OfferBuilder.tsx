@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { calculate, createOffer, listCustomers, listOffers, type Breakdown, type Customer } from "./api";
 import FieldRow from "./components/FieldRow";
 import SectionCard from "./components/SectionCard";
+import { t, type Lang } from "./i18n";
 
 const num = (v: string, fallback: number) => {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 };
 
-export default function OfferBuilder() {
+export default function OfferBuilder({ lang }: { lang: Lang }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +67,7 @@ export default function OfferBuilder() {
     setError(null);
     setSaved(null);
     try {
-      if (!customerId) throw new Error("Select a customer first");
+      if (!customerId) throw new Error(t(lang, "ob_select_first"));
       await createOffer({
         customer_id: customerId,
         id_guardian_offer: offerNumber || undefined,
@@ -93,7 +94,7 @@ export default function OfferBuilder() {
           workload: num(i.workload, 0),
         })),
       });
-      setSaved("Offer saved");
+      setSaved(t(lang, "ob_saved"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     }
@@ -104,9 +105,9 @@ export default function OfferBuilder() {
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="text-white px-6 py-3 flex items-center justify-between" style={{ background: "linear-gradient(135deg, #1D4F91, #2563EB)" }}>
-        <h1 className="text-xl font-bold tracking-wide">GUARDIAN OFFER</h1>
+        <h1 className="text-xl font-bold tracking-wide">{t(lang, "ob_title")}</h1>
         <button onClick={handleSave} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium">
-          SAVE OFFER
+          {t(lang, "ob_save")}
         </button>
       </div>
 
@@ -114,10 +115,10 @@ export default function OfferBuilder() {
         {error && <p className="text-sm text-red-600 bg-white rounded shadow p-2">{error}</p>}
         {saved && <p className="text-sm text-green-700 bg-white rounded shadow p-2">{saved}</p>}
 
-        <SectionCard title="Customer & offer">
+        <SectionCard title={t(lang, "ob_customer_offer")}>
           <div className="grid grid-cols-2 gap-4">
             <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className={`${input} bg-blue-50`}>
-              <option value="">Select client...</option>
+              <option value="">{t(lang, "ob_select_client")}</option>
               {customers.map((c) => (
                 <option key={c.customer_id} value={c.customer_id}>
                   {c.customer_id} — {c.account_name}
@@ -131,7 +132,7 @@ export default function OfferBuilder() {
 
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-5">
-            <SectionCard title="Hours & travel input">
+            <SectionCard title={t(lang, "ob_hours_travel")}>
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs">Work hours<input value={workHours} onChange={(e) => setWorkHours(e.target.value)} className={input} /></label>
                 <label className="text-xs">Report hours<input value={reportHours} onChange={(e) => setReportHours(e.target.value)} className={input} /></label>
@@ -147,7 +148,7 @@ export default function OfferBuilder() {
           </div>
 
           <div className="col-span-4">
-            <SectionCard title="Breakdown (from backend)">
+            <SectionCard title={t(lang, "ob_breakdown")}>
               {!calc ? (
                 <p className="text-xs text-gray-400">Type inputs to preview…</p>
               ) : (
@@ -170,21 +171,21 @@ export default function OfferBuilder() {
           </div>
 
           <div className="col-span-3">
-            <SectionCard title="Items">
+            <SectionCard title={t(lang, "ob_items")}>
               {items.map((it, i) => (
                 <div key={i} className="grid grid-cols-2 gap-1 mb-2 border-b pb-2">
                   <input value={it.equipment} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, equipment: e.target.value } : x)))} placeholder="Equipment" className={input} />
                   <input value={it.workload} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, workload: e.target.value } : x)))} placeholder="Workload" className={input} />
                   <input value={it.description} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} placeholder="Description" className={`${input} col-span-2`} />
                   <input value={it.import_amount} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, import_amount: e.target.value } : x)))} placeholder="Amount" className={input} />
-                  <button onClick={() => setItems((p) => p.filter((_, j) => j !== i))} className="text-xs text-red-600 hover:underline">Remove</button>
+                  <button onClick={() => setItems((p) => p.filter((_, j) => j !== i))} className="text-xs text-red-600 hover:underline">{t(lang, "ob_remove")}</button>
                 </div>
               ))}
               <button
                 onClick={() => setItems((p) => [...p, { equipment: "", description: "", import_amount: "0", workload: "0" }])}
                 className="text-xs text-blue-600 hover:underline"
               >
-                + Add line
+                {t(lang, "ob_add_line")}
               </button>
             </SectionCard>
           </div>

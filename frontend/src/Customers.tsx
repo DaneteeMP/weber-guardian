@@ -1,20 +1,10 @@
 import { useEffect, useState } from "react";
-
-// Mirrors backend CustomerOut (app/modules/customers/schemas.py).
-// No business rules here: the backend owns validation (422) and duplicates (409).
-type Customer = {
-  id: string;
-  customer_id: string;
-  account_name: string;
-  city: string | null;
-  province: string | null;
-  country: string | null;
-  created_at: string;
-};
+import { getDevUser, listCustomers, type Customer } from "./api";
+import { t, type Lang } from "./i18n";
 
 const API_URL = "http://localhost:8000/api/v1/customers";
 
-export default function Customers() {
+export default function Customers({ lang }: { lang: Lang }) {
   const [rows, setRows] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,9 +16,7 @@ export default function Customers() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(API_URL);
-      if (!res.ok) throw new Error(`GET failed: ${res.status}`);
-      setRows(await res.json());
+      setRows(await listCustomers());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load failed");
     } finally {
@@ -44,9 +32,12 @@ export default function Customers() {
     e.preventDefault();
     setError(null);
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const dev = getDevUser();
+      if (dev) headers["X-Dev-User"] = dev;
       const res = await fetch(API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           customer_id: customerId,
           account_name: accountName,
@@ -72,28 +63,28 @@ export default function Customers() {
 
   return (
     <main style={{ maxWidth: 800, margin: "2rem auto", fontFamily: "sans-serif" }}>
-      <h1>Customers (F0)</h1>
+      <h1>{t(lang, "cust_title")}</h1>
 
       <form onSubmit={handleSubmit} style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <input
-          placeholder="SAP Debitor ID (customer_id)"
+          placeholder={t(lang, "cust_id_ph")}
           value={customerId}
           onChange={(e) => setCustomerId(e.target.value)}
         />
         <input
-          placeholder="Account Name"
+          placeholder={t(lang, "cust_name_ph")}
           value={accountName}
           onChange={(e) => setAccountName(e.target.value)}
         />
         <input
-          placeholder="Country (optional)"
+          placeholder={t(lang, "cust_country_ph")}
           value={country}
           onChange={(e) => setCountry(e.target.value)}
         />
-        <button type="submit">Create</button>
+        <button type="submit">{t(lang, "cust_create")}</button>
       </form>
 
-      {loading && <p>Loading…</p>}
+      {loading && <p>{t(lang, "cust_loading")}</p>}
       {error && <p style={{ color: "crimson" }}>{error}</p>}
 
       <table border={1} cellPadding={6} style={{ borderCollapse: "collapse", width: "100%" }}>
