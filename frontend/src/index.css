@@ -1,0 +1,5 @@
+@import "tailwindcss";
+
+@theme {
+  --color-weber-blue: #1d4f91;
+}
