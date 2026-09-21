@@ -41,6 +41,16 @@ def _decode(content: bytes) -> str:
     raise ValueError("unreadable file: not utf-8 nor cp1252")
 
 
+def _known_values(db: Session, column, values: set[str]) -> set[str]:
+    """DB existence check in 1000-item chunks: a single IN with tens of
+    thousands of parameters blows up Postgres statement limits."""
+    found: set[str] = set()
+    batch = list(values)
+    for i in range(0, len(batch), 1000):
+        found.update(db.scalars(select(column).where(column.in_(batch[i : i + 1000]))).all())
+    return found
+
+
 def _clean(value: str | None) -> str | None:
     """Empty/blank strings become NULL; values are stripped."""
     if value is None:
@@ -148,12 +158,8 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
             errors=errors,
         )
 
-    existing_customers = set(
-        db.scalars(select(Customer.customer_id).where(Customer.customer_id.in_(customers.keys()))).all()
-    )
-    existing_materials = set(
-        db.scalars(select(Equipment.material_no).where(Equipment.material_no.in_(seen_materials))).all()
-    )
+    existing_customers = _known_values(db, Customer.customer_id, set(customers.keys()))
+    existing_materials = _known_values(db, Equipment.material_no, seen_materials)
 
     report = ImportReport(
         dry_run=dry_run,

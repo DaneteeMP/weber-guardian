@@ -1,6 +1,4 @@
 """Price contracts (Pydantic). Read-only: rows are seeded, admin CRUD arrives in F4."""
-import uuid
-from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
