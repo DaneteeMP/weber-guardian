@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.customers.models import Customer
-from app.modules.equipment.models import Equipment
+from app.modules.equipment.models import Equipment, row_hash_of
 from app.modules.imports.schemas import ImportReport, RowError
 
 # Real SAP exports reach ~7 MB (tens of thousands of rows). 20 MB caps
@@ -100,7 +100,8 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
 
     errors: list[RowError] = []
     customers: dict[str, dict] = {}
-    seen_materials: set[str] = set()
+    seen_hashes: set[str] = set()
+    file_dup_skipped = 0
     pending_equipment: list[dict] = []
     total_rows = 0
 
@@ -132,20 +133,30 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
                 RowError(line=lineno, reason=f"{sap_id}: conflicting Account Name ('{account}')")
             )
             continue
-        if material in seen_materials:
-            errors.append(RowError(line=lineno, reason=f"{sap_id}: duplicate Material No. in file ('{material}')"))
-            continue
-        seen_materials.add(material)
-        pending_equipment.append(
-            {
-                "customer_id": sap_id,
-                "equipment_name": _clean(raw.get(HEADER_EQUIPMENT)),
-                "machine_type": _clean(raw.get(HEADER_MACHINE)),
-                "component_type": _clean(raw.get(HEADER_COMPONENT)),
-                "material_no": material,
-                "purchase_date": _clean(raw.get(HEADER_PURCHASE)),
-            }
+        item = {
+            "customer_id": sap_id,
+            "equipment_name": _clean(raw.get(HEADER_EQUIPMENT)),
+            "machine_type": _clean(raw.get(HEADER_MACHINE)),
+            "component_type": _clean(raw.get(HEADER_COMPONENT)),
+            "material_no": material,
+            "purchase_date": _clean(raw.get(HEADER_PURCHASE)),
+        }
+        item_hash = row_hash_of(
+            item["customer_id"],
+            item["equipment_name"],
+            item["machine_type"],
+            item["component_type"],
+            item["material_no"],
+            item["purchase_date"],
         )
+        if item_hash in seen_hashes:
+            # Exact duplicate row in the file (same installed instance listed
+            # twice, or overlapping exports): skip, do not fail the import.
+            file_dup_skipped += 1
+            continue
+        seen_hashes.add(item_hash)
+        item["row_hash"] = item_hash
+        pending_equipment.append(item)
 
     if errors:
         return ImportReport(
@@ -159,7 +170,7 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
         )
 
     existing_customers = _known_values(db, Customer.customer_id, set(customers.keys()))
-    existing_materials = _known_values(db, Equipment.material_no, seen_materials)
+    existing_hashes = _known_values(db, Equipment.row_hash, {e["row_hash"] for e in pending_equipment})
 
     report = ImportReport(
         dry_run=dry_run,
@@ -173,8 +184,8 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
     new_customers = {cid: data for cid, data in customers.items() if cid not in existing_customers}
     report.customers_skipped = len(customers) - len(new_customers)
     report.customers_created = len(new_customers)
-    new_equipment = [e for e in pending_equipment if e["material_no"] not in existing_materials]
-    report.equipment_skipped = len(pending_equipment) - len(new_equipment)
+    new_equipment = [e for e in pending_equipment if e["row_hash"] not in existing_hashes]
+    report.equipment_skipped = len(pending_equipment) - len(new_equipment) + file_dup_skipped
     report.equipment_created = len(new_equipment)
 
     if dry_run:

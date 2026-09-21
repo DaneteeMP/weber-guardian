@@ -15,4 +15,5 @@ class EquipmentOut(BaseModel):
     component_type: str | None
     material_no: str
     purchase_date: str | None
+    row_hash: str
     created_at: datetime

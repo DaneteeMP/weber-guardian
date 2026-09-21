@@ -56,6 +56,24 @@ def test_cp1252_fallback_reads_legacy_bytes(db):
     assert stored is not None and "Bizerba" in stored.account_name
 
 
+def test_repeated_part_numbers_across_customers_are_kept(db):
+    """material_no is a part reference, not an instance id: the same
+    'MSG 460-2' at two customers (or twice at one) imports as two rows."""
+    row_a = '"0001012933";"";"UAB Riela servisas";"304-565";"Slicer";"";"MSG 460-2";"";"CCS304";"Lithuania"\n'
+    row_b = '"0001035313";"";"Walowsky Int. Maschinenhandel GmbH";"305-220";"Slicer";"";"MSG 460-2";"";"CCS305";"Germany"\n'
+    report = run_import(db, (HEADER + row_a + row_b).encode(), subsidiary_id=None, dry_run=False)
+    assert report.errors == []
+    assert report.equipment_created == 2
+
+
+def test_exact_duplicate_rows_are_skipped_not_errors(db):
+    report = run_import(db, (HEADER + ROW_ES + ROW_ES).encode(), subsidiary_id=None, dry_run=False)
+    assert report.errors == []
+    assert report.equipment_created == 1
+    assert report.equipment_skipped == 1
+    assert db.scalar(select(func.count()).select_from(Equipment)) == 1
+
+
 def test_missing_columns_rejected(db):
     report = run_import(db, b"foo;bar\n1;2\n", subsidiary_id=None, dry_run=True)
     assert len(report.errors) == 1
