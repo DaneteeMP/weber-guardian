@@ -102,6 +102,7 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
     customers: dict[str, dict] = {}
     seen_hashes: set[str] = set()
     file_dup_skipped = 0
+    bare_skipped = 0
     pending_equipment: list[dict] = []
     total_rows = 0
 
@@ -112,14 +113,12 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
         sap_id = _clean(raw.get(HEADER_SAP))
         account = _clean(raw.get(HEADER_ACCOUNT))
         material = _clean(raw.get(HEADER_MATERIAL))
+        equipment_name = _clean(raw.get(HEADER_EQUIPMENT))
         if not sap_id:
             errors.append(RowError(line=lineno, reason="empty SAP Debitor ID"))
             continue
         if not account:
             errors.append(RowError(line=lineno, reason=f"{sap_id}: empty Account Name"))
-            continue
-        if not material:
-            errors.append(RowError(line=lineno, reason=f"{sap_id}: empty Material No."))
             continue
         known = customers.get(sap_id)
         if known is None:
@@ -133,9 +132,13 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
                 RowError(line=lineno, reason=f"{sap_id}: conflicting Account Name ('{account}')")
             )
             continue
+        if equipment_name is None and material is None:
+            # Customer-only row: nothing installable, keep the customer.
+            bare_skipped += 1
+            continue
         item = {
             "customer_id": sap_id,
-            "equipment_name": _clean(raw.get(HEADER_EQUIPMENT)),
+            "equipment_name": equipment_name,
             "machine_type": _clean(raw.get(HEADER_MACHINE)),
             "component_type": _clean(raw.get(HEADER_COMPONENT)),
             "material_no": material,
@@ -185,7 +188,7 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
     report.customers_skipped = len(customers) - len(new_customers)
     report.customers_created = len(new_customers)
     new_equipment = [e for e in pending_equipment if e["row_hash"] not in existing_hashes]
-    report.equipment_skipped = len(pending_equipment) - len(new_equipment) + file_dup_skipped
+    report.equipment_skipped = len(pending_equipment) - len(new_equipment) + file_dup_skipped + bare_skipped
     report.equipment_created = len(new_equipment)
 
     if dry_run:

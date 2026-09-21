@@ -13,7 +13,7 @@ class EquipmentOut(BaseModel):
     equipment_name: str | None
     machine_type: str | None
     component_type: str | None
-    material_no: str
+    material_no: str | None
     purchase_date: str | None
     row_hash: str
     created_at: datetime

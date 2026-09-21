@@ -40,12 +40,25 @@ def test_real_run_is_idempotent(db):
 
 
 def test_any_row_error_aborts_everything(db):
-    bad = '"0001012933";"";"UAB Riela servisas";"304-565";"Slicer";"";"";"";"CCS304";"Lithuania"\n'
+    bad = '"0001012933";"";"";"304-565";"Slicer";"";"CCS 304-565";"";"CCS304";"Lithuania"\n'
     report = run_import(db, (HEADER + ROW_ES + bad).encode(), subsidiary_id=None, dry_run=False)
     assert len(report.errors) == 1
     assert report.errors[0].line == 3
+    assert "empty Account Name" in report.errors[0].reason
     assert db.scalar(select(func.count()).select_from(Customer)) == 0
     assert db.scalar(select(func.count()).select_from(Equipment)) == 0
+
+
+def test_machine_level_row_imports_equipment_with_null_material(db):
+    row = '"0001059335";"";"Fresh and Ready Foods Lenexa";"WLN10002-31803";"";"15/9/2025";"";"";"WLN10002";"USA"\n'
+    report = run_import(db, (HEADER + row).encode(), subsidiary_id=None, dry_run=False)
+    assert report.errors == []
+    assert report.equipment_created == 1
+    stored = db.scalar(select(Equipment).where(Equipment.customer_id == "0001059335"))
+    assert stored is not None
+    assert stored.material_no is None
+    assert stored.equipment_name == "WLN10002-31803"
+    assert stored.purchase_date == "15/9/2025"
 
 
 def test_cp1252_fallback_reads_legacy_bytes(db):

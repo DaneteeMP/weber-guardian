@@ -6,6 +6,9 @@ import (F3). material_no is a PART reference, not an instance id: the same
 and even twice for one customer (same spare in two machines). Identity is
 therefore the full-row hash (row_hash UNIQUE): exact duplicate rows are the
 same installed instance and collapse; any differing field is a new one.
+material_no is NULLABLE: machine-level rows (equipment + purchase date but
+no component breakdown, e.g. "WLN10002-31803" with empty Material No.)
+import as equipment with NULL material instead of being rejected.
 customer_id references customers.customer_id (the SAP id from the file).
 """
 import hashlib
@@ -42,7 +45,7 @@ class Equipment(Base):
     equipment_name: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     machine_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     component_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    material_no: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    material_no: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     purchase_date: Mapped[str | None] = mapped_column(String(32), nullable=True)
     row_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
