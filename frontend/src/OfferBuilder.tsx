@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { calculate, createOffer, listCustomers, listOffers, type Breakdown, type Customer } from "./api";
+import { calculate, createOffer, getPrices, listCustomers, listOffers, me, type Breakdown, type Customer } from "./api";
 import FieldRow from "./components/FieldRow";
 import SectionCard from "./components/SectionCard";
 import { t, type Lang } from "./i18n";
@@ -31,6 +31,18 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
 
   useEffect(() => {
     listCustomers().then(setCustomers).catch((e) => setError(String(e)));
+    // Prefill rates from the subsidiary catalog (falls back to demo defaults).
+    me()
+      .then((mine) => (mine.subsidiary_id ? getPrices(mine.subsidiary_id) : null))
+      .then((p) => {
+        if (!p) return;
+        setKmRate(p.km_rate);
+        setTechRate(p.tech_rate);
+        setDietFull(p.diet_full_rate);
+        setDietHalf(p.diet_half_rate);
+        setHotelRate(p.hotel_rate);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {

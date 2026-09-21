@@ -119,3 +119,40 @@ export function listOffers(customer_id: string): Promise<unknown[]> {
     headers: headers(),
   }).then((r) => checked(r, "GET offers"));
 }
+
+export type Prices = {
+  subsidiary_id: string;
+  currency: string;
+  km_rate: string;
+  tech_rate: string;
+  diet_full_rate: string;
+  diet_half_rate: string;
+  hotel_rate: string;
+};
+
+export function getPrices(subsidiary_id: string): Promise<Prices> {
+  return fetch(`${BASE}/prices/${encodeURIComponent(subsidiary_id)}`, {
+    headers: headers(),
+  }).then((r) => checked(r, "GET prices"));
+}
+
+export type ImportReport = {
+  dry_run: boolean;
+  total_rows: number;
+  customers_created: number;
+  customers_skipped: number;
+  equipment_created: number;
+  equipment_skipped: number;
+  errors: { line: number; reason: string }[];
+};
+
+export function uploadCsv(file: File, dryRun: boolean, subsidiaryId?: string): Promise<ImportReport> {
+  const form = new FormData();
+  form.append("file", file);
+  const h: Record<string, string> = {};
+  const dev = getDevUser();
+  if (dev) h["X-Dev-User"] = dev;
+  let url = `${BASE}/imports/upload?dry_run=${dryRun}`;
+  if (subsidiaryId) url += `&subsidiary_id=${encodeURIComponent(subsidiaryId)}`;
+  return fetch(url, { method: "POST", headers: h, body: form }).then((r) => checked(r, "POST upload"));
+}

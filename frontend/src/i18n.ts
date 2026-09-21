@@ -14,6 +14,7 @@ export const LANGS: { code: Lang; label: string }[] = [
 const es = {
   nav_offers: "Ofertas Guardian",
   nav_customers: "Clientes",
+  nav_import: "Importar",
   cust_title: "Clientes (F0)",
   cust_id_ph: "SAP Debitor ID (customer_id)",
   cust_name_ph: "Nombre de cuenta",
@@ -38,6 +39,7 @@ export type Strings = typeof es;
 const en: Strings = {
   nav_offers: "Guardian offers",
   nav_customers: "Customers",
+  nav_import: "Import",
   cust_title: "Customers (F0)",
   cust_id_ph: "SAP Debitor ID (customer_id)",
   cust_name_ph: "Account Name",
@@ -60,6 +62,7 @@ const en: Strings = {
 const de: Strings = {
   nav_offers: "Guardian-Angebote",
   nav_customers: "Kunden",
+  nav_import: "Import",
   cust_title: "Kunden (F0)",
   cust_id_ph: "SAP-Debitor-ID (customer_id)",
   cust_name_ph: "Kontiname",
@@ -82,6 +85,7 @@ const de: Strings = {
 const pt: Strings = {
   nav_offers: "Ofertas Guardian",
   nav_customers: "Clientes",
+  nav_import: "Importar",
   cust_title: "Clientes (F0)",
   cust_id_ph: "SAP Debitor ID (customer_id)",
   cust_name_ph: "Nome da conta",
@@ -104,6 +108,7 @@ const pt: Strings = {
 const it: Strings = {
   nav_offers: "Offerte Guardian",
   nav_customers: "Clienti",
+  nav_import: "Importa",
   cust_title: "Clienti (F0)",
   cust_id_ph: "SAP Debitor ID (customer_id)",
   cust_name_ph: "Nome account",

@@ -4,8 +4,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.core.db import Base
+import app.modules.basic_kit.models  # noqa: F401
 import app.modules.customers.models  # noqa: F401
+import app.modules.distances.models  # noqa: F401
+import app.modules.equipment.models  # noqa: F401
 import app.modules.offers.models  # noqa: F401
+import app.modules.prices.models  # noqa: F401
 import app.modules.users.models  # noqa: F401
 
 

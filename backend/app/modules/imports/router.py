@@ -1,0 +1,25 @@
+"""Import HTTP. Thin: reads the file bytes, calls the service, maps the report."""
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from sqlalchemy.orm import Session
+
+from app.core.db import get_db
+from app.core.security import CurrentUser, require_role
+from app.modules.imports import service
+from app.modules.imports.schemas import ImportReport
+
+router = APIRouter(prefix="/imports", tags=["imports"])
+
+
+@router.post("/upload", response_model=ImportReport)
+async def upload_endpoint(
+    file: UploadFile,
+    dry_run: bool = Query(default=True),
+    subsidiary_id: str | None = Query(default=None, min_length=1, max_length=64),
+    db: Session = Depends(get_db),
+    current: CurrentUser = Depends(require_role("admin", "sales")),
+):
+    content = await file.read()
+    report = service.run_import(db, content, subsidiary_id=subsidiary_id, dry_run=dry_run)
+    if report.errors:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=report.model_dump())
+    return report

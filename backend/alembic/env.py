@@ -15,8 +15,12 @@ from app.core.config import settings
 from app.core.db import Base
 
 # import models so autogenerate sees them
+import app.modules.basic_kit.models  # noqa: F401
 import app.modules.customers.models  # noqa: F401
+import app.modules.distances.models  # noqa: F401
+import app.modules.equipment.models  # noqa: F401
 import app.modules.offers.models  # noqa: F401
+import app.modules.prices.models  # noqa: F401
 import app.modules.users.models  # noqa: F401
 
 config = context.config
