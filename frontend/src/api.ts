@@ -196,6 +196,77 @@ export function getPrices(subsidiary_id: string): Promise<Prices> {
   }).then((r) => checked(r, "GET prices"));
 }
 
+export function updatePrices(
+  subsidiary_id: string,
+  rates: { currency: string; km_rate: number; tech_rate: number; diet_full_rate: number; diet_half_rate: number; hotel_rate: number }
+): Promise<Prices> {
+  return fetch(`${BASE}/prices/${encodeURIComponent(subsidiary_id)}`, {
+    method: "PUT",
+    headers: headers(),
+    body: JSON.stringify(rates),
+  }).then((r) => checked(r, "PUT prices"));
+}
+
+export type Distance = { province: string; km: string; trip_hours: string };
+
+export function listDistances(): Promise<Distance[]> {
+  return fetch(`${BASE}/distances`, { headers: headers() }).then((r) => checked(r, "GET distances"));
+}
+
+export function upsertDistance(province: string, km: number, trip_hours: number): Promise<Distance> {
+  return fetch(`${BASE}/distances/${encodeURIComponent(province)}`, {
+    method: "PUT",
+    headers: headers(),
+    body: JSON.stringify({ km, trip_hours }),
+  }).then((r) => checked(r, "PUT distance"));
+}
+
+export type Kit = { model: string; workload_basic_kit: string; spare_parts: string };
+
+export function listKits(): Promise<Kit[]> {
+  return fetch(`${BASE}/basic-kit`, { headers: headers() }).then((r) => checked(r, "GET kits"));
+}
+
+export function createKit(model: string, workload_basic_kit: number, spare_parts: number): Promise<Kit> {
+  return fetch(`${BASE}/basic-kit`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ model, workload_basic_kit, spare_parts }),
+  }).then((r) => checked(r, "POST kit"));
+}
+
+export function deleteKit(model: string): Promise<void> {
+  return fetch(`${BASE}/basic-kit/${encodeURIComponent(model)}`, {
+    method: "DELETE",
+    headers: headers(),
+  }).then(async (r) => {
+    if (!r.ok) throw new Error(`DELETE kit failed (${r.status})`);
+  });
+}
+
+export type MachinePrice = { model: string; annual_price: string; inspections_per_year: number; currency: string };
+
+export function listMachinePrices(): Promise<MachinePrice[]> {
+  return fetch(`${BASE}/machine-prices`, { headers: headers() }).then((r) => checked(r, "GET machine prices"));
+}
+
+export function upsertMachinePrice(model: string, annual_price: number, inspections_per_year: number): Promise<MachinePrice> {
+  return fetch(`${BASE}/machine-prices/${encodeURIComponent(model)}`, {
+    method: "PUT",
+    headers: headers(),
+    body: JSON.stringify({ annual_price, inspections_per_year }),
+  }).then((r) => checked(r, "PUT machine price"));
+}
+
+export function deleteMachinePrice(model: string): Promise<void> {
+  return fetch(`${BASE}/machine-prices/${encodeURIComponent(model)}`, {
+    method: "DELETE",
+    headers: headers(),
+  }).then(async (r) => {
+    if (!r.ok) throw new Error(`DELETE machine price failed (${r.status})`);
+  });
+}
+
 export type Dashboard = {
   total_customers: number;
   total_equipment: number;

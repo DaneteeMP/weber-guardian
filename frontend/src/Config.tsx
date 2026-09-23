@@ -1,0 +1,304 @@
+import { useEffect, useState } from "react";
+import {
+  createKit,
+  deleteKit,
+  deleteMachinePrice,
+  listDistances,
+  listKits,
+  listMachinePrices,
+  getPrices,
+  updatePrices,
+  upsertDistance,
+  upsertMachinePrice,
+  type Distance,
+  type Kit,
+  type MachinePrice,
+} from "./api";
+import SectionCard from "./components/SectionCard";
+import { t, type Lang } from "./i18n";
+
+type Section = "rates" | "distances" | "kits" | "machines";
+
+const num = (v: string, fallback: number) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+};
+
+// Admin-only per-subsidiary configuration: rates, distances, kits, machines.
+// Every write goes through the admin-guarded endpoints; reads need identity.
+export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean }) {
+  const [section, setSection] = useState<Section>("rates");
+  const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+
+  const [sub, setSub] = useState("ES");
+  const [rates, setRates] = useState({ km_rate: "0.5", tech_rate: "60", diet_full_rate: "40", diet_half_rate: "20", hotel_rate: "80" });
+
+  const [distances, setDistances] = useState<Distance[]>([]);
+  const [province, setProvince] = useState("");
+  const [km, setKm] = useState("");
+  const [trip, setTrip] = useState("");
+
+  const [kits, setKits] = useState<Kit[]>([]);
+  const [kitModel, setKitModel] = useState("");
+  const [kitHours, setKitHours] = useState("");
+  const [kitSpares, setKitSpares] = useState("");
+
+  const [machines, setMachines] = useState<MachinePrice[]>([]);
+  const [machine, setMachine] = useState("");
+  const [price, setPrice] = useState("");
+  const [inspections, setInspections] = useState("4");
+
+  const input = "border rounded px-2 py-1 text-sm";
+  const btn = "px-3 py-1 rounded text-sm bg-weber-blue text-white disabled:opacity-40";
+  const danger = "text-xs text-red-600 hover:underline";
+
+  async function refreshTables() {
+    try {
+      const [d, k, m] = await Promise.all([listDistances(), listKits(), listMachinePrices()]);
+      setDistances(d);
+      setKits(k);
+      setMachines(m);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  useEffect(() => {
+    if (isAdmin) refreshTables();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
+
+  async function loadRates() {
+    setError(null);
+    try {
+      const p = await getPrices(sub || "ES");
+      setRates({
+        km_rate: p.km_rate,
+        tech_rate: p.tech_rate,
+        diet_full_rate: p.diet_full_rate,
+        diet_half_rate: p.diet_half_rate,
+        hotel_rate: p.hotel_rate,
+      });
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function saveRates() {
+    setError(null);
+    setOk(null);
+    try {
+      await updatePrices(sub || "ES", {
+        currency: "EUR",
+        km_rate: num(rates.km_rate, 0),
+        tech_rate: num(rates.tech_rate, 0),
+        diet_full_rate: num(rates.diet_full_rate, 0),
+        diet_half_rate: num(rates.diet_half_rate, 0),
+        hotel_rate: num(rates.hotel_rate, 0),
+      });
+      setOk("OK");
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  if (!isAdmin) return <p className="p-4 text-sm text-gray-500">{t(lang, "cfg_admin_only")}</p>;
+
+  const tab = (active: boolean) =>
+    `px-3 py-1 rounded text-sm font-medium ${active ? "bg-weber-blue text-white" : "bg-gray-200 hover:bg-gray-300"}`;
+
+  return (
+    <div className="p-4 space-y-3 w-full">
+      <h1 className="text-2xl font-bold text-gray-900">{t(lang, "cfg_title")}</h1>
+      <div className="flex gap-2">
+        {(["rates", "distances", "kits", "machines"] as Section[]).map((s) => (
+          <button key={s} onClick={() => setSection(s)} className={tab(section === s)}>
+            {t(lang, s === "rates" ? "cfg_rates" : s === "distances" ? "cfg_distances" : s === "kits" ? "cfg_kits" : "cfg_machines")}
+          </button>
+        ))}
+      </div>
+      {error && <p className="text-sm text-red-600 bg-white rounded shadow p-2">{error}</p>}
+      {ok && <p className="text-sm text-green-700 bg-white rounded shadow p-2">{ok}</p>}
+
+      {section === "rates" && (
+        <SectionCard title={t(lang, "cfg_rates")}>
+          <div className="flex gap-2 items-center flex-wrap">
+            <input value={sub} onChange={(e) => setSub(e.target.value)} placeholder="ES" className={`${input} w-24`} />
+            <button onClick={loadRates} className="px-3 py-1 rounded text-sm bg-gray-200 hover:bg-gray-300">Load</button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+            {(Object.keys(rates) as (keyof typeof rates)[]).map((k) => (
+              <label key={k} className="text-xs">
+                {k}
+                <input value={rates[k]} onChange={(e) => setRates({ ...rates, [k]: e.target.value })} className={`${input} w-full`} />
+              </label>
+            ))}
+          </div>
+          <button onClick={saveRates} className={`${btn} mt-2`}>
+            {t(lang, "cfg_save")}
+          </button>
+        </SectionCard>
+      )}
+
+      {section === "distances" && (
+        <SectionCard title={t(lang, "cfg_distances")}>
+          <div className="flex gap-2 items-center flex-wrap mb-2">
+            <input value={province} onChange={(e) => setProvince(e.target.value)} placeholder="Province" className={input} />
+            <input value={km} onChange={(e) => setKm(e.target.value)} placeholder="km" className={`${input} w-24`} />
+            <input value={trip} onChange={(e) => setTrip(e.target.value)} placeholder="trip h" className={`${input} w-24`} />
+            <button
+              onClick={async () => {
+                setError(null);
+                try {
+                  await upsertDistance(province, num(km, 0), num(trip, 0));
+                  setProvince("");
+                  setKm("");
+                  setTrip("");
+                  await refreshTables();
+                } catch (e) {
+                  setError(String(e));
+                }
+              }}
+              className={btn}
+            >
+              {t(lang, "cfg_save")}
+            </button>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-weber-blue text-white text-left">
+                <th className="px-3 py-1.5">Province</th>
+                <th className="px-3 py-1.5 text-right">km</th>
+                <th className="px-3 py-1.5 text-right">trip h</th>
+              </tr>
+            </thead>
+            <tbody>
+              {distances.map((d) => (
+                <tr key={d.province} className="border-b">
+                  <td className="px-3 py-1.5">{d.province}</td>
+                  <td className="px-3 py-1.5 text-right font-mono">{d.km}</td>
+                  <td className="px-3 py-1.5 text-right font-mono">{d.trip_hours}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </SectionCard>
+      )}
+
+      {section === "kits" && (
+        <SectionCard title={t(lang, "cfg_kits")}>
+          <div className="flex gap-2 items-center flex-wrap mb-2">
+            <input value={kitModel} onChange={(e) => setKitModel(e.target.value)} placeholder="Model" className={input} />
+            <input value={kitHours} onChange={(e) => setKitHours(e.target.value)} placeholder="hours" className={`${input} w-24`} />
+            <input value={kitSpares} onChange={(e) => setKitSpares(e.target.value)} placeholder="spare €" className={`${input} w-28`} />
+            <button
+              onClick={async () => {
+                setError(null);
+                try {
+                  await createKit(kitModel, num(kitHours, 0), num(kitSpares, 0));
+                  setKitModel("");
+                  setKitHours("");
+                  setKitSpares("");
+                  await refreshTables();
+                } catch (e) {
+                  setError(String(e));
+                }
+              }}
+              className={btn}
+            >
+              {t(lang, "cfg_add")}
+            </button>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-weber-blue text-white text-left">
+                <th className="px-3 py-1.5">Model</th>
+                <th className="px-3 py-1.5 text-right">hours</th>
+                <th className="px-3 py-1.5 text-right">spare €</th>
+                <th className="px-3 py-1.5" />
+              </tr>
+            </thead>
+            <tbody>
+              {kits.map((k) => (
+                <tr key={k.model} className="border-b">
+                  <td className="px-3 py-1.5 font-mono">{k.model}</td>
+                  <td className="px-3 py-1.5 text-right font-mono">{k.workload_basic_kit}</td>
+                  <td className="px-3 py-1.5 text-right font-mono">{k.spare_parts}</td>
+                  <td className="px-3 py-1.5 text-right">
+                    <button
+                      onClick={async () => {
+                        await deleteKit(k.model).catch((e) => setError(String(e)));
+                        await refreshTables();
+                      }}
+                      className={danger}
+                    >
+                      {t(lang, "cfg_delete")}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </SectionCard>
+      )}
+
+      {section === "machines" && (
+        <SectionCard title={t(lang, "cfg_machines")}>
+          <div className="flex gap-2 items-center flex-wrap mb-2">
+            <input value={machine} onChange={(e) => setMachine(e.target.value)} placeholder="Model" className={input} />
+            <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="€/year" className={`${input} w-28`} />
+            <input value={inspections} onChange={(e) => setInspections(e.target.value)} placeholder="insp/year" className={`${input} w-24`} />
+            <button
+              onClick={async () => {
+                setError(null);
+                try {
+                  await upsertMachinePrice(machine, num(price, 0), Math.max(1, Math.floor(num(inspections, 1))));
+                  setMachine("");
+                  setPrice("");
+                  setInspections("4");
+                  await refreshTables();
+                } catch (e) {
+                  setError(String(e));
+                }
+              }}
+              className={btn}
+            >
+              {t(lang, "cfg_save")}
+            </button>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-weber-blue text-white text-left">
+                <th className="px-3 py-1.5">Model</th>
+                <th className="px-3 py-1.5 text-right">€/year</th>
+                <th className="px-3 py-1.5 text-right">insp/year</th>
+                <th className="px-3 py-1.5" />
+              </tr>
+            </thead>
+            <tbody>
+              {machines.map((m) => (
+                <tr key={m.model} className="border-b">
+                  <td className="px-3 py-1.5 font-mono">{m.model}</td>
+                  <td className="px-3 py-1.5 text-right font-mono">{m.annual_price}</td>
+                  <td className="px-3 py-1.5 text-right font-mono">{m.inspections_per_year}</td>
+                  <td className="px-3 py-1.5 text-right">
+                    <button
+                      onClick={async () => {
+                        await deleteMachinePrice(m.model).catch((e) => setError(String(e)));
+                        await refreshTables();
+                      }}
+                      className={danger}
+                    >
+                      {t(lang, "cfg_delete")}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </SectionCard>
+      )}
+    </div>
+  );
+}

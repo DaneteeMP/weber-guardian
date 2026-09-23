@@ -277,29 +277,29 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-100">
-      <div className="text-white px-6 py-3 flex items-center justify-between shadow" style={{ background: "linear-gradient(135deg, #1D4F91, #2563EB)" }}>
+      <div className="bg-weber-blue text-white px-6 py-3 flex items-center justify-between shadow">
         <h1 className="text-xl font-bold tracking-wide">{t(lang, "ob_title")}</h1>
         <div className="flex gap-2">
           <button onClick={handlePrint} disabled={!savedOffer} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium disabled:opacity-40">
-            PRINT PDF
+            {t(lang, "ob_print")}
           </button>
           <button onClick={handleDelete} disabled={!savedOffer} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium disabled:opacity-40">
-            DELETE OFFER
+            {t(lang, "ob_delete_offer")}
           </button>
           <button onClick={handleClose} disabled={!savedOffer} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium disabled:opacity-40">
-            CLOSE OFFER
+            {t(lang, "ob_close_offer")}
           </button>
         </div>
       </div>
 
-      <div className="flex-1 p-4 space-y-3 max-w-[1400px] mx-auto w-full">
+      <div className="flex-1 p-4 space-y-3 w-full">
         {error && <p className="text-sm text-red-600 bg-white rounded-lg shadow p-3">{error}</p>}
         {saved && <p className="text-sm text-green-700 bg-white rounded-lg shadow p-3">{saved}</p>}
 
         <div className="bg-white rounded-lg shadow p-4">
           <div className="grid grid-cols-12 gap-4">
             <div className="col-span-5 border-r pr-4">
-              <div className="text-xs font-bold text-gray-500 uppercase mb-2">Customer data</div>
+              <div className="text-xs font-bold text-gray-500 uppercase mb-2">{t(lang, "ob_customer_data")}</div>
               <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className={`${input} bg-blue-50 mb-2`}>
                 <option value="">{t(lang, "ob_select_client")}</option>
                 {customers.map((c) => (
@@ -319,15 +319,15 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
             <div className="col-span-4 border-r pr-4">
               <div className="space-y-1.5 text-sm">
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500 w-28">Offer no.:</span>
+                  <span className="text-gray-500 w-28">{t(lang, "ob_offer_no")}</span>
                   <span className="font-mono font-bold">{offerNumber || savedOffer?.id.slice(0, 8) || "-"}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500 w-28">Offer date:</span>
+                  <span className="text-gray-500 w-28">{t(lang, "ob_offer_date")}</span>
                   <span>{today}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500 w-28">Guardian type:</span>
+                  <span className="text-gray-500 w-28">{t(lang, "ob_guardian_type")}</span>
                   <select value={guardianType} onChange={(e) => setGuardianType(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
                     {GUARDIAN_TYPES.map((g) => (
                       <option key={g}>{g}</option>
@@ -335,7 +335,7 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
                   </select>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500 w-28">Offer no. (save):</span>
+                  <span className="text-gray-500 w-28">{t(lang, "ob_offer_no_save")}</span>
                   <input value={offerNumber} onChange={(e) => setOfferNumber(e.target.value)} placeholder="W-02-2026-0001" className="border rounded px-1 py-0.5 text-sm font-mono" />
                 </div>
               </div>
@@ -343,7 +343,7 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
 
             <div className="col-span-3 space-y-1.5 text-sm">
               <div className="flex items-center gap-2">
-                <span className="text-gray-500">Language:</span>
+                <span className="text-gray-500">{t(lang, "ob_language")}</span>
                 <select value={language} onChange={(e) => setLanguage(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
                   {LANGUAGES.map((l) => (
                     <option key={l}>{l}</option>
@@ -351,7 +351,7 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
                 </select>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-gray-500">Inspection frequency:</span>
+                <span className="text-gray-500">{t(lang, "ob_frequency")}</span>
                 <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
                   {FREQUENCIES.map((f) => (
                     <option key={f}>{f}</option>
@@ -359,7 +359,7 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
                 </select>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-gray-500">Status:</span>
+                <span className="text-gray-500">{t(lang, "ob_status")}</span>
                 <select value={status} onChange={(e) => setStatus(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
                   {STATUSES.map((s) => (
                     <option key={s}>{s}</option>
@@ -367,7 +367,7 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
                 </select>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-gray-500">Responsible offer:</span>
+                <span className="text-gray-500">{t(lang, "ob_responsible")}</span>
                 <select value={responsible} onChange={(e) => setResponsible(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
                   {RESPONSIBLES.map((r) => (
                     <option key={r} value={r}>
@@ -384,7 +384,7 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
           <div className="col-span-2 space-y-3">
             <div className="bg-white rounded shadow p-2">
               <div className="text-xs font-bold text-gray-500 uppercase mb-1">{t(lang, "ob_no_selected")}</div>
-              <div className="border rounded h-32 overflow-y-auto bg-gray-50">
+              <div className="border rounded h-56 overflow-y-auto bg-gray-50">
                 {availableCodes.length === 0 ? (
                   <div className="p-2 text-xs text-gray-400">Empty</div>
                 ) : (
@@ -408,7 +408,7 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
                   </button>
                 </div>
               </div>
-              <div className="border rounded h-32 overflow-y-auto bg-blue-50">
+              <div className="border rounded h-56 overflow-y-auto bg-blue-50">
                 {selectedEquip.length === 0 ? (
                   <div className="p-2 text-xs text-gray-400">None</div>
                 ) : (
@@ -423,22 +423,22 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
           </div>
 
           <div className="col-span-6">
-            <div className="bg-white rounded shadow h-full flex flex-col">
+            <div className="bg-white rounded shadow h-full min-h-[420px] flex flex-col">
               <div className="overflow-auto flex-1">
                 <table className="w-full text-xs">
                   <thead className="bg-gray-700 text-white sticky top-0">
                     <tr>
-                      <th className="px-2 py-2 text-left w-10">Pos</th>
-                      <th className="px-2 py-2 text-left">Equipment</th>
-                      <th className="px-2 py-2 text-left">Module</th>
-                      <th className="px-2 py-2 text-right w-24">Amount</th>
+                      <th className="px-2 py-2 text-left w-10">{t(lang, "ob_col_pos")}</th>
+                      <th className="px-2 py-2 text-left">{t(lang, "ob_col_equipment")}</th>
+                      <th className="px-2 py-2 text-left">{t(lang, "ob_col_module")}</th>
+                      <th className="px-2 py-2 text-right w-24">{t(lang, "ob_col_amount")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {moduleRows.length === 0 ? (
                       <tr>
                         <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
-                          Select equipment from the left list
+                          {t(lang, "ob_empty_modules")}
                         </td>
                       </tr>
                     ) : (
@@ -486,39 +486,39 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
 
           <div className="col-span-4">
             <div className="bg-white rounded shadow p-3 text-xs space-y-1">
-              <FieldRow label="Trip (Km)">€{calc?.trip_cost ?? "—"}</FieldRow>
-              <FieldRow label="Diets">€{calc?.diets ?? "—"}</FieldRow>
-              <FieldRow label="Hotels">€{calc?.hotel_nights_cost ?? "—"}</FieldRow>
-              <FieldRow label="Trip hours">{calc?.trip_hours ?? "—"}</FieldRow>
-              <FieldRow label="Audit / Work hours">{calc ? (Number(calc.work_hours) + Number(calc.bk_hours)).toFixed(1) : "—"}</FieldRow>
-              <FieldRow label="Hours report">{calc?.report_hours ?? "—"}</FieldRow>
-              <FieldRow label="Hours Basic Kit">{calc?.bk_hours ?? "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_trip")}>€{calc?.trip_cost ?? "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_diets")}>€{calc?.diets ?? "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_hotels")}>€{calc?.hotel_nights_cost ?? "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_trip_hours")}>{calc?.trip_hours ?? "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_work")}>{calc ? (Number(calc.work_hours) + Number(calc.bk_hours)).toFixed(1) : "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_report")}>{calc?.report_hours ?? "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_bk")}>{calc?.bk_hours ?? "—"}</FieldRow>
               <div className="flex justify-between border-t pt-1 font-bold">
-                <span>TOTAL HOURS:</span>
+                <span>{t(lang, "ob_f_total_hours")}</span>
                 <span className="font-mono">{calc?.total_hours ?? "—"}</span>
               </div>
               <div className="flex justify-between text-red-600 font-bold">
-                <span>TOTAL GUARDIAN H.:</span>
+                <span>{t(lang, "ob_f_guard_hours")}</span>
                 <span className="font-mono">{calc?.total_hours ?? "—"}</span>
               </div>
               <div className="flex justify-between border-t pt-1 font-bold">
-                <span>HOURS IMPORT:</span>
+                <span>{t(lang, "ob_f_hours_import")}</span>
                 <span className="font-mono">€{calc?.hours_import ?? "—"}</span>
               </div>
               <div className="flex justify-between font-bold">
-                <span>EXPENSES IMPORT:</span>
+                <span>{t(lang, "ob_f_expenses")}</span>
                 <span className="font-mono">€{calc?.expenses ?? "—"}</span>
               </div>
               <div className="grid grid-cols-2 gap-2 pt-1">
-                <label className="text-xs">Work hours<input value={workHours} onChange={(e) => setWorkHours(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-                <label className="text-xs">Report hours<input value={reportHours} onChange={(e) => setReportHours(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-                <label className="text-xs">Trip base h<input value={tripBase} onChange={(e) => setTripBase(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-                <label className="text-xs">Km<input value={km} onChange={(e) => setKm(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-                <label className="text-xs">€/km<input value={kmRate} onChange={(e) => setKmRate(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-                <label className="text-xs">€/tech-hour<input value={techRate} onChange={(e) => setTechRate(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-                <label className="text-xs">Full diet €<input value={dietFull} onChange={(e) => setDietFull(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-                <label className="text-xs">Half diet €<input value={dietHalf} onChange={(e) => setDietHalf(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-                <label className="text-xs col-span-2">Hotel €<input value={hotelRate} onChange={(e) => setHotelRate(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs">{t(lang, "ob_in_work")}<input value={workHours} onChange={(e) => setWorkHours(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs">{t(lang, "ob_in_report")}<input value={reportHours} onChange={(e) => setReportHours(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs">{t(lang, "ob_in_trip_base")}<input value={tripBase} onChange={(e) => setTripBase(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs">{t(lang, "ob_in_km")}<input value={km} onChange={(e) => setKm(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs">{t(lang, "ob_in_km_rate")}<input value={kmRate} onChange={(e) => setKmRate(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs">{t(lang, "ob_in_tech")}<input value={techRate} onChange={(e) => setTechRate(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs">{t(lang, "ob_in_diet_full")}<input value={dietFull} onChange={(e) => setDietFull(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs">{t(lang, "ob_in_diet_half")}<input value={dietHalf} onChange={(e) => setDietHalf(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs col-span-2">{t(lang, "ob_in_hotel")}<input value={hotelRate} onChange={(e) => setHotelRate(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
               </div>
             </div>
           </div>
@@ -527,26 +527,26 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-8">
             <div className="bg-white rounded shadow p-3">
-              <div className="text-xs font-bold text-gray-500 uppercase mb-1">Comments</div>
-              <textarea value={comments} onChange={(e) => setComments(e.target.value)} className="w-full border rounded p-2 text-sm h-16 resize-none" placeholder="Offer notes..." />
+              <div className="text-xs font-bold text-gray-500 uppercase mb-1">{t(lang, "ob_comments")}</div>
+              <textarea value={comments} onChange={(e) => setComments(e.target.value)} className="w-full border rounded p-2 text-sm h-16 resize-none" placeholder={t(lang, "ob_comments_ph")} />
             </div>
           </div>
           <div className="col-span-4">
             <div className="bg-white rounded shadow p-3 text-sm space-y-2">
               <div className="flex justify-between">
-                <span className="text-gray-600">Total:</span>
+                <span className="text-gray-600">{t(lang, "ob_total")}</span>
                 <span className="font-mono font-bold">{calc ? eur(calc.total) : "—"}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Spare parts kit:</span>
+                <span className="text-gray-600">{t(lang, "ob_spare")}</span>
                 <span className="font-mono">{calc ? eur(calc.bk_price) : "—"}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Discount:</span>
+                <span className="text-gray-600">{t(lang, "ob_discount")}</span>
                 <span className="font-mono text-red-600">{calc ? eur(calc.discount) : "—"}</span>
               </div>
               <div className="flex justify-between border-t pt-2 text-lg font-bold">
-                <span>Total amount:</span>
+                <span>{t(lang, "ob_total_amount")}</span>
                 <span className="font-mono text-blue-700">{calc ? eur(calc.total_end) : "—"}</span>
               </div>
             </div>
@@ -555,7 +555,7 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
 
         {offers.length > 0 && (
           <div className="bg-white rounded shadow p-3">
-            <div className="text-xs font-bold text-gray-500 uppercase mb-2">Client offers ({offers.length})</div>
+            <div className="text-xs font-bold text-gray-500 uppercase mb-2">{t(lang, "ob_client_offers")} ({offers.length})</div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-gray-100">

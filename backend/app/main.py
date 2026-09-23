@@ -8,6 +8,7 @@ from app.modules.dashboard.router import router as dashboard_router
 from app.modules.distances.router import router as distances_router
 from app.modules.equipment.router import router as equipment_router
 from app.modules.imports.router import router as imports_router
+from app.modules.machine_prices.router import router as machine_prices_router
 from app.modules.offers.router import router as offers_router
 from app.modules.prices.router import router as prices_router
 from app.modules.users.router import router as users_router
@@ -39,6 +40,7 @@ app.include_router(customers_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(equipment_router, prefix="/api/v1")
 app.include_router(imports_router, prefix="/api/v1")
+app.include_router(machine_prices_router, prefix="/api/v1")
 app.include_router(offers_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(prices_router, prefix="/api/v1")

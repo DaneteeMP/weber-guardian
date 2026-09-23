@@ -5,11 +5,11 @@ import { t, type Lang } from "./i18n";
 
 const API_URL = "http://localhost:8000/api/v1/customers";
 
-export default function Customers({ lang }: { lang: Lang }) {
+export default function Customers({ lang, externalSearch = "" }: { lang: Lang; externalSearch?: string }) {
   const [rows, setRows] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(externalSearch);
   const [customerId, setCustomerId] = useState("");
   const [accountName, setAccountName] = useState("");
   const [country, setCountry] = useState("");
@@ -29,6 +29,10 @@ export default function Customers({ lang }: { lang: Lang }) {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    setSearch(externalSearch);
+  }, [externalSearch]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -77,7 +81,7 @@ export default function Customers({ lang }: { lang: Lang }) {
   const input = "border rounded px-2 py-1.5 text-sm w-full";
 
   return (
-    <div className="p-4 space-y-3 max-w-6xl mx-auto">
+    <div className="p-4 space-y-3 w-full">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">{t(lang, "cust_title")}</h1>
         <span className="text-sm text-gray-500">
@@ -127,13 +131,13 @@ export default function Customers({ lang }: { lang: Lang }) {
             {loading ? (
               <p className="text-sm text-gray-500">{t(lang, "cust_loading")}</p>
             ) : (
-              <div className="overflow-auto max-h-[560px]">
+              <div className="overflow-auto max-h-[calc(100vh-220px)] min-h-[400px]">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0">
                     <tr className="bg-weber-blue text-white text-left">
-                      <th className="px-3 py-2 font-semibold">SAP ID</th>
+                      <th className="px-3 py-2 font-semibold">{t(lang, "cust_col_sap")}</th>
                       <th className="px-3 py-2 font-semibold">{t(lang, "cust_name_ph")}</th>
-                      <th className="px-3 py-2 font-semibold">{t(lang, "cust_country_ph")}</th>
+                      <th className="px-3 py-2 font-semibold">{t(lang, "cust_col_country")}</th>
                     </tr>
                   </thead>
                   <tbody>

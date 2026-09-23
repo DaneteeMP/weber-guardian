@@ -24,7 +24,7 @@ export default function Dashboard({ lang }: { lang: Lang }) {
   ];
 
   return (
-    <div className="p-4 space-y-3 max-w-6xl mx-auto">
+    <div className="p-4 space-y-3 w-full">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">{t(lang, "nav_dashboard")}</h1>
         <p className="mt-1 text-sm text-gray-500">{t(lang, "dash_subtitle")}</p>
