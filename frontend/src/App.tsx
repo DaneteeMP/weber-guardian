@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Customers from "./Customers";
+import Dashboard from "./Dashboard";
 import ImportData from "./ImportData";
 import OfferBuilder from "./OfferBuilder";
 import { getDevUser, me, setDevUser, type Me } from "./api";
@@ -10,7 +11,7 @@ const DEVS = ["dev-admin", "dev-es", "dev-de", "dev-viewer"];
 // Shell: tabs (no router lib), language selector, dev identity + /me badge.
 // The dev-user dropdown is local-only; behind SharePoint/Entra it goes away.
 export default function App() {
-  const [tab, setTab] = useState<"customers" | "offers" | "import">("offers");
+  const [tab, setTab] = useState<"customers" | "offers" | "import" | "dashboard">("offers");
   const [lang, setLang] = useState<Lang>(() => (localStorage.getItem("lang") as Lang) || "es");
   const [dev, setDev] = useState<string | null>(() => getDevUser());
   const [identity, setIdentity] = useState<Me | null>(null);
@@ -41,6 +42,9 @@ export default function App() {
         </button>
         <button onClick={() => setTab("import")} className={btn(tab === "import")}>
           {t(lang, "nav_import")}
+        </button>
+        <button onClick={() => setTab("dashboard")} className={btn(tab === "dashboard")}>
+          {t(lang, "nav_dashboard")}
         </button>
         <span className="flex-1" />
         <select
@@ -83,6 +87,8 @@ export default function App() {
         <OfferBuilder lang={lang} />
       ) : tab === "import" ? (
         <ImportData lang={lang} />
+      ) : tab === "dashboard" ? (
+        <Dashboard lang={lang} />
       ) : (
         <Customers lang={lang} />
       )}

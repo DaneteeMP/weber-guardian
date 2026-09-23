@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { calculate, createOffer, downloadOfferPdf, getPrices, listCustomers, listOffers, me, type Breakdown, type Customer } from "./api";
+import { calculate, createOffer, downloadOfferPdf, getPrices, listCustomers, listEquipment, listOffers, me, type Breakdown, type Customer, type Equipment } from "./api";
 import FieldRow from "./components/FieldRow";
 import SectionCard from "./components/SectionCard";
 import { t, type Lang } from "./i18n";
@@ -29,6 +29,26 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
   const [offerNumber, setOfferNumber] = useState("");
   const [items, setItems] = useState([{ equipment: "304-565", description: "Slicer", import_amount: "100", workload: "6" }]);
   const [offersCount, setOffersCount] = useState(0);
+  const [equipList, setEquipList] = useState<Equipment[]>([]);
+  const [selectedEquip, setSelectedEquip] = useState<string[]>([]);
+
+  const availableCodes = [...new Set(equipList.map((e) => e.equipment_name).filter((x): x is string => !!x))].filter(
+    (c) => !selectedEquip.includes(c)
+  );
+
+  function toggleEquip(code: string) {
+    setSelectedEquip((p) => (p.includes(code) ? p.filter((c) => c !== code) : [...p, code]));
+  }
+
+  function addSelectedAsLines() {
+    setItems((prev) => {
+      const have = new Set(prev.map((i) => i.equipment));
+      const fresh = selectedEquip
+        .filter((c) => !have.has(c))
+        .map((c) => ({ equipment: c, description: "", import_amount: "0", workload: "0" }));
+      return [...prev, ...fresh];
+    });
+  }
 
   useEffect(() => {
     listCustomers().then(setCustomers).catch((e) => setError(String(e)));
@@ -49,6 +69,15 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
   useEffect(() => {
     if (customerId) {
       listOffers(customerId).then((o) => setOffersCount(o.length)).catch(() => setOffersCount(0));
+      listEquipment(customerId)
+        .then((eq) => {
+          setEquipList(eq);
+          setSelectedEquip([]);
+        })
+        .catch(() => {
+          setEquipList([]);
+          setSelectedEquip([]);
+        });
     }
   }, [customerId, saved]);
 
@@ -169,6 +198,54 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
           </div>
           {offersCount > 0 && <p className="text-xs text-gray-500 mt-1">This customer already has {offersCount} offer(s).</p>}
         </SectionCard>
+
+        {equipList.length > 0 && (
+          <SectionCard title={`${t(lang, "ob_items")} — cliente`}>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="text-xs font-bold text-gray-500 uppercase mb-1">{t(lang, "ob_no_selected")}</div>
+                <div className="border rounded h-24 overflow-y-auto bg-gray-50">
+                  {availableCodes.length === 0 ? (
+                    <div className="p-2 text-xs text-gray-400">—</div>
+                  ) : (
+                    availableCodes.map((c) => (
+                      <div key={c} onClick={() => toggleEquip(c)} className="px-2 py-1 text-xs hover:bg-blue-100 cursor-pointer border-b last:border-0">
+                        {c}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-bold text-gray-500 uppercase">{t(lang, "ob_selected")}</span>
+                  <div className="flex gap-2">
+                    <button onClick={() => setSelectedEquip(availableCodes.concat(selectedEquip))} className="text-[10px] text-blue-600 hover:underline">
+                      {t(lang, "ob_all")}
+                    </button>
+                    <button onClick={() => setSelectedEquip([])} className="text-[10px] text-red-600 hover:underline">
+                      {t(lang, "ob_none")}
+                    </button>
+                  </div>
+                </div>
+                <div className="border rounded h-24 overflow-y-auto bg-blue-50">
+                  {selectedEquip.length === 0 ? (
+                    <div className="p-2 text-xs text-gray-400">—</div>
+                  ) : (
+                    selectedEquip.map((c) => (
+                      <div key={c} onClick={() => toggleEquip(c)} className="px-2 py-1 text-xs cursor-pointer border-b last:border-0 font-medium hover:bg-red-100 bg-blue-200">
+                        {c}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+            <button onClick={addSelectedAsLines} disabled={selectedEquip.length === 0} className="mt-2 px-3 py-1 rounded text-xs bg-weber-blue text-white disabled:opacity-40">
+              {t(lang, "ob_add_lines")}
+            </button>
+          </SectionCard>
+        )}
 
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-5">

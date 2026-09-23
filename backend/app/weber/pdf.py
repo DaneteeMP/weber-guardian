@@ -42,6 +42,20 @@ SUBSIDIARY_ALIASES = {
     "españa": "ES",
     "espana": "ES",
     "spain": "ES",
+    "ibérica": "ES",
+    "iberica": "ES",
+    "bnl": "BNL",
+    "benelux": "BNL",
+    "nederland": "BNL",
+    "netherlands": "BNL",
+    "holland": "BNL",
+    "de": "DE",
+    "deutschland": "DE",
+    "alemania": "DE",
+    "germany": "DE",
+    "breidenbach": "DE",
+    "ar": "AR",
+    "argentina": "AR",
 }
 
 
@@ -97,7 +111,8 @@ def build_offer_pdf(doc: OfferDocument) -> bytes:
     story.append(Spacer(1, 15 * mm))
     story.append(Paragraph(contract_es.EXECUTOR_LABEL, body))
     story.append(Paragraph(f"<b>{executor['name']}</b>", body))
-    story.append(Paragraph(executor["street"], body))
+    if executor["street"]:
+        story.append(Paragraph(executor["street"], body))
     story.append(Paragraph(executor["city"], body))
     story.append(Paragraph(executor["country"], body))
     story.append(Paragraph(contract_es.EXECUTOR_ALIAS, body))

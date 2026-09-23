@@ -134,6 +134,21 @@ export function listOffers(customer_id: string): Promise<unknown[]> {
   }).then((r) => checked(r, "GET offers"));
 }
 
+export type Equipment = {
+  id: string;
+  customer_id: string;
+  equipment_name: string | null;
+  machine_type: string | null;
+  component_type: string | null;
+  material_no: string | null;
+};
+
+export function listEquipment(customer_id: string): Promise<Equipment[]> {
+  return fetch(`${BASE}/equipment?customer_id=${encodeURIComponent(customer_id)}`, {
+    headers: headers(),
+  }).then((r) => checked(r, "GET equipment"));
+}
+
 export type Prices = {
   subsidiary_id: string;
   currency: string;
@@ -148,6 +163,18 @@ export function getPrices(subsidiary_id: string): Promise<Prices> {
   return fetch(`${BASE}/prices/${encodeURIComponent(subsidiary_id)}`, {
     headers: headers(),
   }).then((r) => checked(r, "GET prices"));
+}
+
+export type Dashboard = {
+  total_customers: number;
+  total_equipment: number;
+  total_offers: number;
+  total_offer_lines: number;
+  countries: { country: string; count: number }[];
+};
+
+export function getDashboard(): Promise<Dashboard> {
+  return fetch(`${BASE}/dashboard`, { headers: headers() }).then((r) => checked(r, "GET dashboard"));
 }
 
 export type ImportReport = {

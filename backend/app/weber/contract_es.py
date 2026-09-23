@@ -15,6 +15,27 @@ EXECUTORS: dict[str, dict[str, str]] = {
         "country": "España",
         "place_date": "Sant Fruitós de Bages",
     },
+    "BNL": {
+        "name": "WEBER BENELUX B.V.",
+        "street": "Hoogeveenenweg 210",
+        "city": "2913 LV Nieuwerkerk aan den IJssel",
+        "country": "Nederland",
+        "place_date": "Nieuwerkerk aan den IJssel",
+    },
+    "DE": {
+        "name": "Weber Deutschland Vertrieb & Service GmbH",
+        "street": "Günther-Weber-Str. 3",
+        "city": "35236 Breidenbach",
+        "country": "Deutschland",
+        "place_date": "Breidenbach",
+    },
+    "AR": {
+        "name": "Weber Argentina S.R.L.",
+        "street": "",
+        "city": "Buenos Aires",
+        "country": "Argentina",
+        "place_date": "Buenos Aires",
+    },
 }
 
 TITLE = "CONTRATO DE MANTENIMIENTO"

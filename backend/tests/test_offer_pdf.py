@@ -74,6 +74,12 @@ def test_renderer_rejects_unknown_language_and_subsidiary():
         build_offer_pdf(_doc(subsidiary_id="NOWHERE"))
 
 
+def test_renderer_supports_all_executor_subsidiaries():
+    for subsidiary_id in ("ES", "BNL", "DE", "AR", "España", "Deutschland"):
+        pdf = build_offer_pdf(_doc(subsidiary_id=subsidiary_id))
+        assert pdf[:5] == b"%PDF-"
+
+
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setattr(security.settings, "dev_auth_enabled", True)

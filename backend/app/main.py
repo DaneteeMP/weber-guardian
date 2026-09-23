@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.modules.basic_kit.router import router as basic_kit_router
 from app.modules.customers.router import router as customers_router
+from app.modules.dashboard.router import router as dashboard_router
 from app.modules.distances.router import router as distances_router
 from app.modules.equipment.router import router as equipment_router
 from app.modules.imports.router import router as imports_router
@@ -35,6 +36,7 @@ def health():
 
 
 app.include_router(customers_router, prefix="/api/v1")
+app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(equipment_router, prefix="/api/v1")
 app.include_router(imports_router, prefix="/api/v1")
 app.include_router(offers_router, prefix="/api/v1")
