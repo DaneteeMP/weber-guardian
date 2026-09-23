@@ -74,26 +74,42 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
     setSelectedEquip((p) => (p.includes(code) ? p.filter((c) => c !== code) : [...p, code]));
   }
 
-  // Picker drives the quote directly: selecting adds a line, deselecting
-  // removes the line it added. Hand-typed lines are never touched.
-  const autoEquip = useRef<Set<string>>(new Set());
+  // Picker drives the quote directly: selecting a machine expands ALL its
+  // component rows into lines; deselecting removes the lines it added.
+  // Hand-typed lines are never touched.
+  const autoLines = useRef<Set<string>>(new Set());
   const prevSelected = useRef<string[]>([]);
+  const lineKey = (equipment: string, description: string) => `${equipment}||${description}`;
   useEffect(() => {
     const prev = prevSelected.current;
     const added = selectedEquip.filter((c) => !prev.includes(c));
     const removed = prev.filter((c) => !selectedEquip.includes(c));
     prevSelected.current = selectedEquip;
     if (added.length === 0 && removed.length === 0) return;
-    const gone = new Set(removed.filter((c) => autoEquip.current.has(c)));
-    added.forEach((c) => autoEquip.current.add(c));
-    removed.forEach((c) => autoEquip.current.delete(c));
-    setItems((lines) => [
-      ...lines.filter((l) => !gone.has(l.equipment)),
-      ...added
-        .filter((c) => !lines.some((l) => l.equipment === c))
-        .map((c) => ({ equipment: c, description: "", import_amount: "0", workload: "0" })),
-    ]);
-  }, [selectedEquip]);
+    const rowsOf = (code: string) => equipList.filter((e) => e.equipment_name === code);
+    const doomed = new Set<string>();
+    for (const code of removed) {
+      for (const row of rowsOf(code)) {
+        const key = lineKey(code, row.component_type ?? "");
+        if (autoLines.current.delete(key)) doomed.add(key);
+      }
+    }
+    const fresh: { equipment: string; description: string; import_amount: string; workload: string }[] = [];
+    setItems((lines) => {
+      const have = new Set(lines.map((l) => lineKey(l.equipment, l.description)));
+      for (const code of added) {
+        for (const row of rowsOf(code)) {
+          const key = lineKey(code, row.component_type ?? "");
+          if (!have.has(key)) {
+            autoLines.current.add(key);
+            fresh.push({ equipment: code, description: row.component_type ?? "", import_amount: "0", workload: "0" });
+            have.add(key);
+          }
+        }
+      }
+      return [...lines.filter((l) => !doomed.has(lineKey(l.equipment, l.description))), ...fresh];
+    });
+  }, [selectedEquip, equipList]);
 
   useEffect(() => {
     listCustomers().then(setCustomers).catch((e) => setError(String(e)));
