@@ -456,12 +456,19 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
               </div>
               <div className="p-2 border-t">
                 <div className="text-xs font-bold text-gray-500 uppercase mb-1">{t(lang, "ob_items")}</div>
+                <div className="grid grid-cols-12 gap-1 mb-1 text-[10px] font-bold text-gray-500 uppercase">
+                  <span className="col-span-3">Equipment</span>
+                  <span className="col-span-4">Module</span>
+                  <span className="col-span-2 text-right">Amount €</span>
+                  <span className="col-span-2 text-right">Hours</span>
+                  <span className="col-span-1" />
+                </div>
                 {items.map((it, i) => (
                   <div key={i} className="grid grid-cols-12 gap-1 mb-1">
-                    <input value={it.equipment} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, equipment: e.target.value } : x)))} placeholder="Equipment" className="col-span-3 border rounded px-1 py-0.5 text-xs" />
-                    <input value={it.description} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} placeholder="Module" className="col-span-4 border rounded px-1 py-0.5 text-xs" />
-                    <input value={it.import_amount} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, import_amount: e.target.value } : x)))} placeholder="0" className="col-span-2 border rounded px-1 py-0.5 text-xs text-right" />
-                    <input value={it.workload} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, workload: e.target.value } : x)))} placeholder="h" className="col-span-2 border rounded px-1 py-0.5 text-xs text-right" />
+                    <input value={it.equipment} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, equipment: e.target.value } : x)))} placeholder="304-565" className="col-span-3 border rounded px-1 py-0.5 text-xs" />
+                    <input value={it.description} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} placeholder="—" className="col-span-4 border rounded px-1 py-0.5 text-xs" />
+                    <input value={it.import_amount} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, import_amount: e.target.value } : x)))} placeholder="0.00" className="col-span-2 border rounded px-1 py-0.5 text-xs text-right" />
+                    <input value={it.workload} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, workload: e.target.value } : x)))} placeholder="0.0" className="col-span-2 border rounded px-1 py-0.5 text-xs text-right" />
                     <button onClick={() => setItems((p) => p.filter((_, j) => j !== i))} className="col-span-1 text-xs text-red-600 hover:underline">
                       ×
                     </button>
