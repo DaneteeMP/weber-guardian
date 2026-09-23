@@ -38,7 +38,7 @@ export default function TopBar({
   return (
     <header className="bg-white shadow">
       <div className="flex items-center gap-4 px-4 py-2">
-        <span className="text-2xl font-black italic text-weber-blue tracking-tight">weber</span>
+        <img src="/guardian-logo.png" alt="Guardian" className="h-9 w-auto" />
         <span className="text-sm font-semibold text-gray-700">Guardian HQ</span>
         <input
           value={search}
