@@ -70,6 +70,12 @@ class OfferCalculateOut(BaseModel):
     currency: str
 
 
+class OfferStatusUpdate(BaseModel):
+    """Status change (e.g. CLOSE OFFER). Values validated against the domain list."""
+
+    status: str = Field(min_length=1, max_length=32)
+
+
 class OfferCreate(BaseModel):
     """Create input. Totals are computed server-side, never accepted."""
 

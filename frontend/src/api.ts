@@ -103,6 +103,9 @@ export function createOffer(payload: {
   customer_id: string;
   id_guardian_offer?: string;
   status: string;
+  responsible_person?: string;
+  language?: string;
+  inspection_frequency?: string;
   pricing: Pricing;
   items: OfferItemIn[];
   general_comments?: string;
@@ -128,10 +131,38 @@ export async function downloadOfferPdf(id: string): Promise<{ blob: Blob; filena
   return { blob: await res.blob(), filename };
 }
 
-export function listOffers(customer_id: string): Promise<unknown[]> {
+export type OfferListItem = {
+  id: string;
+  id_guardian_offer: string;
+  date_guardian?: string | null;
+  language?: string | null;
+  status?: string | null;
+  inspection_frequency?: string | null;
+  total?: string | number | null;
+  total_end?: string | number | null;
+};
+
+export function listOffers(customer_id: string): Promise<OfferListItem[]> {
   return fetch(`${BASE}/offers?customer_id=${encodeURIComponent(customer_id)}`, {
     headers: headers(),
   }).then((r) => checked(r, "GET offers"));
+}
+
+export function deleteOffer(id: string): Promise<void> {
+  return fetch(`${BASE}/offers/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: headers(),
+  }).then(async (r) => {
+    if (!r.ok) throw new Error(`DELETE offer failed (${r.status})`);
+  });
+}
+
+export function closeOffer(id: string): Promise<OfferListItem> {
+  return fetch(`${BASE}/offers/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: headers(),
+    body: JSON.stringify({ status: "Finished" }),
+  }).then((r) => checked(r, "PATCH offer"));
 }
 
 export type Equipment = {

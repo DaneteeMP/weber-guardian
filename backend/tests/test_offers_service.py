@@ -2,9 +2,11 @@
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import func, select
 
 from app.modules.customers.schemas import CustomerCreate
 from app.modules.customers.service import create_customer
+from app.modules.offers.models import Offer, OfferItem
 from app.modules.offers.schemas import OfferCalculateIn, OfferCreate, OfferItemCreate
 from app.modules.offers.service import (
     OfferAlreadyExists,
@@ -69,10 +71,6 @@ def test_create_offer_unknown_customer_raises_404_domain(db):
 
 
 def test_duplicate_number_raises_409_and_leaves_no_orphans(db):
-    from sqlalchemy import func, select
-
-    from app.modules.offers.models import Offer, OfferItem
-
     _customer(db)
     create_offer(db, _offer_data(number="W-02-2026-0001"))
     with pytest.raises(OfferAlreadyExists):
@@ -90,3 +88,25 @@ def test_list_offers_filters_by_customer(db):
     only = list_offers(db, customer_id="0001012933")
     assert len(only) == 1
     assert only[0].customer_id == "0001012933"
+
+
+def test_delete_offer_removes_header_and_lines(db):
+    from app.modules.offers.service import delete_offer, get_offer
+
+    _customer(db)
+    offer = create_offer(db, _offer_data())
+    assert delete_offer(db, offer.id) is True
+    assert get_offer(db, offer.id) is None
+    assert db.scalar(select(func.count()).select_from(OfferItem)) == 0
+    assert delete_offer(db, offer.id) is False
+
+
+def test_set_offer_status_and_bad_value(db):
+    from app.modules.offers.service import BadStatus, set_offer_status
+
+    _customer(db)
+    offer = create_offer(db, _offer_data())
+    closed = set_offer_status(db, offer.id, "Finished")
+    assert closed is not None and closed.status == "Finished"
+    with pytest.raises(BadStatus):
+        set_offer_status(db, offer.id, "Burnt")

@@ -12,6 +12,7 @@ from app.modules.offers.schemas import (
     OfferCalculateOut,
     OfferCreate,
     OfferOut,
+    OfferStatusUpdate,
 )
 
 router = APIRouter(prefix="/offers", tags=["offers"])
@@ -62,6 +63,32 @@ def create_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except service.OfferAlreadyExists as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.delete("/{offer_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_endpoint(
+    offer_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current: CurrentUser = Depends(require_role("admin", "sales")),
+):
+    if not service.delete_offer(db, offer_id, subsidiary_id=current.subsidiary_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Offer not found")
+
+
+@router.patch("/{offer_id}", response_model=OfferOut)
+def status_endpoint(
+    offer_id: uuid.UUID,
+    payload: OfferStatusUpdate,
+    db: Session = Depends(get_db),
+    current: CurrentUser = Depends(require_role("admin", "sales")),
+):
+    try:
+        offer = service.set_offer_status(db, offer_id, payload.status, subsidiary_id=current.subsidiary_id)
+    except service.BadStatus as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    if offer is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Offer not found")
+    return offer
 
 
 @router.get("/{offer_id}/pdf")

@@ -163,6 +163,42 @@ def get_offer(db: Session, offer_id: uuid.UUID, subsidiary_id: str | None = None
     return db.scalar(stmt)
 
 
+def delete_offer(db: Session, offer_id: uuid.UUID, subsidiary_id: str | None = None) -> bool:
+    """Delete header and lines (items fall via ON DELETE CASCADE). False when missing/out of scope."""
+    offer = get_offer(db, offer_id, subsidiary_id=subsidiary_id)
+    if offer is None:
+        return False
+    db.delete(offer)
+    db.commit()
+    return True
+
+
+class BadStatus(Exception):
+    """Domain error: unknown status value. Router maps it to 422."""
+
+    def __init__(self, status: str):
+        super().__init__(f"Unknown status: {status}")
+        self.status = status
+
+
+ALLOWED_STATUSES = ("Draft", "Pending response", "Finished", "Cancelled", "Rejected")
+
+
+def set_offer_status(
+    db: Session, offer_id: uuid.UUID, status: str, subsidiary_id: str | None = None
+) -> Offer | None:
+    """Change status (e.g. CLOSE OFFER -> Finished). None when missing/out of scope."""
+    if status not in ALLOWED_STATUSES:
+        raise BadStatus(status)
+    offer = get_offer(db, offer_id, subsidiary_id=subsidiary_id)
+    if offer is None:
+        return None
+    offer.status = status
+    db.commit()
+    db.refresh(offer)
+    return offer
+
+
 def get_offer_document(db: Session, offer_id: uuid.UUID, subsidiary_id: str | None = None) -> OfferDocument | None:
     """Load the official document data (offer + customer + lines), or None."""
     offer = get_offer(db, offer_id, subsidiary_id=subsidiary_id)

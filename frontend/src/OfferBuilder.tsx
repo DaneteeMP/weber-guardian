@@ -1,5 +1,20 @@
-import { useEffect, useState } from "react";
-import { calculate, createOffer, downloadOfferPdf, getPrices, listCustomers, listEquipment, listOffers, me, type Breakdown, type Customer, type Equipment } from "./api";
+import { useEffect, useMemo, useState } from "react";
+import {
+  calculate,
+  closeOffer,
+  createOffer,
+  deleteOffer,
+  downloadOfferPdf,
+  getPrices,
+  listCustomers,
+  listEquipment,
+  listOffers,
+  me,
+  type Breakdown,
+  type Customer,
+  type Equipment,
+  type OfferListItem,
+} from "./api";
 import FieldRow from "./components/FieldRow";
 import SectionCard from "./components/SectionCard";
 import { t, type Lang } from "./i18n";
@@ -9,12 +24,20 @@ const num = (v: string, fallback: number) => {
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 };
 
+const GUARDIAN_TYPES = ["Basic Kit", "Audit", "Off-Guardian", "Campaign"];
+const LANGUAGES = ["Spanish", "Portuguese"];
+const FREQUENCIES = ["Annual", "Semi-annual", "Biennial"];
+const STATUSES = ["Draft", "Pending response", "Finished", "Cancelled", "Rejected"];
+const RESPONSIBLES = ["", "Xevi Mira", "David"];
+
+const COLORS = ["#e3f2fd", "#fce4ec", "#e8f5e9", "#fff3e0", "#f3e5f5", "#e0f7fa", "#fff9c4", "#efebe9"];
+
 export default function OfferBuilder({ lang }: { lang: Lang }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState("");
+  const [customer, setCustomer] = useState<Customer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
-  const [savedOfferId, setSavedOfferId] = useState<string | null>(null);
   const [calc, setCalc] = useState<Breakdown | null>(null);
 
   const [workHours, setWorkHours] = useState("10");
@@ -27,13 +50,24 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
   const [dietHalf, setDietHalf] = useState("20");
   const [hotelRate, setHotelRate] = useState("80");
   const [offerNumber, setOfferNumber] = useState("");
+  const [language, setLanguage] = useState("Spanish");
+  const [frequency, setFrequency] = useState("Annual");
+  const [status, setStatus] = useState("Pending response");
+  const [responsible, setResponsible] = useState("");
+  const [guardianType, setGuardianType] = useState("Audit");
+  const [comments, setComments] = useState("");
   const [items, setItems] = useState([{ equipment: "304-565", description: "Slicer", import_amount: "100", workload: "6" }]);
-  const [offersCount, setOffersCount] = useState(0);
+  const [offers, setOffers] = useState<OfferListItem[]>([]);
+  const [savedOffer, setSavedOffer] = useState<{ id: string; status: string } | null>(null);
   const [equipList, setEquipList] = useState<Equipment[]>([]);
   const [selectedEquip, setSelectedEquip] = useState<string[]>([]);
 
-  const availableCodes = [...new Set(equipList.map((e) => e.equipment_name).filter((x): x is string => !!x))].filter(
-    (c) => !selectedEquip.includes(c)
+  const availableCodes = useMemo(
+    () =>
+      [...new Set(equipList.map((e) => e.equipment_name).filter((x): x is string => !!x))].filter(
+        (c) => !selectedEquip.includes(c)
+      ),
+    [equipList, selectedEquip]
   );
 
   function toggleEquip(code: string) {
@@ -52,7 +86,6 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
 
   useEffect(() => {
     listCustomers().then(setCustomers).catch((e) => setError(String(e)));
-    // Prefill rates from the subsidiary catalog (falls back to demo defaults).
     me()
       .then((mine) => (mine.subsidiary_id ? getPrices(mine.subsidiary_id) : null))
       .then((p) => {
@@ -67,8 +100,10 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
   }, []);
 
   useEffect(() => {
+    setCustomer(customers.find((c) => c.customer_id === customerId) ?? null);
+    setSavedOffer(null);
     if (customerId) {
-      listOffers(customerId).then((o) => setOffersCount(o.length)).catch(() => setOffersCount(0));
+      listOffers(customerId).then(setOffers).catch(() => setOffers([]));
       listEquipment(customerId)
         .then((eq) => {
           setEquipList(eq);
@@ -78,12 +113,16 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
           setEquipList([]);
           setSelectedEquip([]);
         });
+    } else {
+      setOffers([]);
+      setEquipList([]);
+      setSelectedEquip([]);
     }
-  }, [customerId, saved]);
+  }, [customerId, customers]);
 
   // Live preview: authoritative breakdown comes from the backend on every input change.
   useEffect(() => {
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       calculate({
         work_hours: num(workHours, 0),
         bk_hours: 0,
@@ -102,19 +141,29 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
         .then(setCalc)
         .catch((e) => setError(String(e)));
     }, 300);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [workHours, reportHours, tripBase, km, kmRate, techRate, dietFull, dietHalf, hotelRate]);
+
+  async function refreshOffers() {
+    if (customerId) {
+      await listOffers(customerId).then(setOffers).catch(() => {});
+    }
+  }
 
   async function handleSave() {
     setError(null);
     setSaved(null);
-    setSavedOfferId(null);
+    setSavedOffer(null);
     try {
       if (!customerId) throw new Error(t(lang, "ob_select_first"));
       const created = await createOffer({
         customer_id: customerId,
         id_guardian_offer: offerNumber || undefined,
-        status: "Draft",
+        status,
+        responsible_person: responsible || undefined,
+        language,
+        inspection_frequency: frequency,
+        general_comments: comments || undefined,
         pricing: {
           work_hours: num(workHours, 0),
           bk_hours: 0,
@@ -138,17 +187,44 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
         })),
       });
       setSaved(t(lang, "ob_saved"));
-      setSavedOfferId(created.id);
+      setSavedOffer({ id: created.id, status });
+      await refreshOffers();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
+    }
+  }
+
+  async function handleDelete() {
+    if (!savedOffer) return;
+    setError(null);
+    try {
+      await deleteOffer(savedOffer.id);
+      setSavedOffer(null);
+      setSaved(null);
+      await refreshOffers();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed");
+    }
+  }
+
+  async function handleClose() {
+    if (!savedOffer) return;
+    setError(null);
+    try {
+      const closed = await closeOffer(savedOffer.id);
+      setSavedOffer({ id: savedOffer.id, status: closed.status ?? "Finished" });
+      setStatus("Finished");
+      await refreshOffers();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Close failed");
     }
   }
 
   async function handlePrint() {
     setError(null);
     try {
-      if (!savedOfferId) return;
-      const { blob, filename } = await downloadOfferPdf(savedOfferId);
+      if (!savedOffer) return;
+      const { blob, filename } = await downloadOfferPdf(savedOffer.id);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -160,153 +236,323 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
     }
   }
 
-  const input = "border rounded px-2 py-1 text-sm w-full";
+  const input = "border rounded px-2 py-1.5 text-sm w-full";
+  const today = new Date().toLocaleDateString("en-GB");
+
+  const moduleRows = items.map((m, i) => ({ pos: i + 1, equipment: m.equipment, module: m.description, amount: num(m.import_amount, 0) }));
+  const colorMap: Record<string, string> = {};
+  [...new Set(items.map((m) => m.equipment))].forEach((eq, i) => {
+    colorMap[eq] = COLORS[i % COLORS.length];
+  });
+
+  const eur = (v: string | number | null | undefined) =>
+    `${Number(v ?? 0).toLocaleString("en-GB", { minimumFractionDigits: 2 })} €`;
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="text-white px-6 py-3 flex items-center justify-between" style={{ background: "linear-gradient(135deg, #1D4F91, #2563EB)" }}>
+    <div className="min-h-screen flex flex-col bg-gray-100">
+      <div className="text-white px-6 py-3 flex items-center justify-between shadow" style={{ background: "linear-gradient(135deg, #1D4F91, #2563EB)" }}>
         <h1 className="text-xl font-bold tracking-wide">{t(lang, "ob_title")}</h1>
         <div className="flex gap-2">
-          <button
-            onClick={handlePrint}
-            disabled={!savedOfferId}
-            className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium disabled:opacity-40"
-          >
+          <button onClick={handlePrint} disabled={!savedOffer} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium disabled:opacity-40">
             PRINT PDF
           </button>
-          <button onClick={handleSave} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium">
-            {t(lang, "ob_save")}
+          <button onClick={handleDelete} disabled={!savedOffer} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium disabled:opacity-40">
+            DELETE OFFER
+          </button>
+          <button onClick={handleClose} disabled={!savedOffer} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium disabled:opacity-40">
+            CLOSE OFFER
           </button>
         </div>
       </div>
 
-      <div className="p-4 space-y-3 max-w-6xl mx-auto">
-        {error && <p className="text-sm text-red-600 bg-white rounded shadow p-2">{error}</p>}
-        {saved && <p className="text-sm text-green-700 bg-white rounded shadow p-2">{saved}</p>}
+      <div className="flex-1 p-4 space-y-3 max-w-[1400px] mx-auto w-full">
+        {error && <p className="text-sm text-red-600 bg-white rounded-lg shadow p-3">{error}</p>}
+        {saved && <p className="text-sm text-green-700 bg-white rounded-lg shadow p-3">{saved}</p>}
 
-        <SectionCard title={t(lang, "ob_customer_offer")}>
-          <div className="grid grid-cols-2 gap-4">
-            <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className={`${input} bg-blue-50`}>
-              <option value="">{t(lang, "ob_select_client")}</option>
-              {customers.map((c) => (
-                <option key={c.customer_id} value={c.customer_id}>
-                  {c.customer_id} — {c.account_name}
-                </option>
-              ))}
-            </select>
-            <input value={offerNumber} onChange={(e) => setOfferNumber(e.target.value)} placeholder="Offer no. (optional, e.g. W-02-2026-0001)" className={input} />
-          </div>
-          {offersCount > 0 && <p className="text-xs text-gray-500 mt-1">This customer already has {offersCount} offer(s).</p>}
-        </SectionCard>
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="grid grid-cols-12 gap-4">
+            <div className="col-span-5 border-r pr-4">
+              <div className="text-xs font-bold text-gray-500 uppercase mb-2">Customer data</div>
+              <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className={`${input} bg-blue-50 mb-2`}>
+                <option value="">{t(lang, "ob_select_client")}</option>
+                {customers.map((c) => (
+                  <option key={c.customer_id} value={c.customer_id}>
+                    {c.customer_id} {c.account_name}
+                  </option>
+                ))}
+              </select>
+              {customer && (
+                <div className="text-sm">
+                  <div className="font-semibold">{customer.account_name}</div>
+                  <div className="text-gray-600">{customer.country ?? ""}</div>
+                </div>
+              )}
+            </div>
 
-        {equipList.length > 0 && (
-          <SectionCard title={`${t(lang, "ob_items")} — cliente`}>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <div className="text-xs font-bold text-gray-500 uppercase mb-1">{t(lang, "ob_no_selected")}</div>
-                <div className="border rounded h-24 overflow-y-auto bg-gray-50">
-                  {availableCodes.length === 0 ? (
-                    <div className="p-2 text-xs text-gray-400">—</div>
-                  ) : (
-                    availableCodes.map((c) => (
-                      <div key={c} onClick={() => toggleEquip(c)} className="px-2 py-1 text-xs hover:bg-blue-100 cursor-pointer border-b last:border-0">
-                        {c}
-                      </div>
-                    ))
-                  )}
+            <div className="col-span-4 border-r pr-4">
+              <div className="space-y-1.5 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500 w-28">Offer no.:</span>
+                  <span className="font-mono font-bold">{offerNumber || savedOffer?.id.slice(0, 8) || "-"}</span>
                 </div>
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold text-gray-500 uppercase">{t(lang, "ob_selected")}</span>
-                  <div className="flex gap-2">
-                    <button onClick={() => setSelectedEquip(availableCodes.concat(selectedEquip))} className="text-[10px] text-blue-600 hover:underline">
-                      {t(lang, "ob_all")}
-                    </button>
-                    <button onClick={() => setSelectedEquip([])} className="text-[10px] text-red-600 hover:underline">
-                      {t(lang, "ob_none")}
-                    </button>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500 w-28">Offer date:</span>
+                  <span>{today}</span>
                 </div>
-                <div className="border rounded h-24 overflow-y-auto bg-blue-50">
-                  {selectedEquip.length === 0 ? (
-                    <div className="p-2 text-xs text-gray-400">—</div>
-                  ) : (
-                    selectedEquip.map((c) => (
-                      <div key={c} onClick={() => toggleEquip(c)} className="px-2 py-1 text-xs cursor-pointer border-b last:border-0 font-medium hover:bg-red-100 bg-blue-200">
-                        {c}
-                      </div>
-                    ))
-                  )}
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500 w-28">Guardian type:</span>
+                  <select value={guardianType} onChange={(e) => setGuardianType(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
+                    {GUARDIAN_TYPES.map((g) => (
+                      <option key={g}>{g}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500 w-28">Offer no. (save):</span>
+                  <input value={offerNumber} onChange={(e) => setOfferNumber(e.target.value)} placeholder="W-02-2026-0001" className="border rounded px-1 py-0.5 text-sm font-mono" />
                 </div>
               </div>
             </div>
-            <button onClick={addSelectedAsLines} disabled={selectedEquip.length === 0} className="mt-2 px-3 py-1 rounded text-xs bg-weber-blue text-white disabled:opacity-40">
-              {t(lang, "ob_add_lines")}
-            </button>
-          </SectionCard>
-        )}
+
+            <div className="col-span-3 space-y-1.5 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">Language:</span>
+                <select value={language} onChange={(e) => setLanguage(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
+                  {LANGUAGES.map((l) => (
+                    <option key={l}>{l}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">Inspection frequency:</span>
+                <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
+                  {FREQUENCIES.map((f) => (
+                    <option key={f}>{f}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">Status:</span>
+                <select value={status} onChange={(e) => setStatus(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
+                  {STATUSES.map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">Responsible offer:</span>
+                <select value={responsible} onChange={(e) => setResponsible(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
+                  {RESPONSIBLES.map((r) => (
+                    <option key={r} value={r}>
+                      {r || "-"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-5">
-            <SectionCard title={t(lang, "ob_hours_travel")}>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="text-xs">Work hours<input value={workHours} onChange={(e) => setWorkHours(e.target.value)} className={input} /></label>
-                <label className="text-xs">Report hours<input value={reportHours} onChange={(e) => setReportHours(e.target.value)} className={input} /></label>
-                <label className="text-xs">Trip base h<input value={tripBase} onChange={(e) => setTripBase(e.target.value)} className={input} /></label>
-                <label className="text-xs">Km<input value={km} onChange={(e) => setKm(e.target.value)} className={input} /></label>
-                <label className="text-xs">€/km<input value={kmRate} onChange={(e) => setKmRate(e.target.value)} className={input} /></label>
-                <label className="text-xs">€/tech-hour<input value={techRate} onChange={(e) => setTechRate(e.target.value)} className={input} /></label>
-                <label className="text-xs">Full diet €<input value={dietFull} onChange={(e) => setDietFull(e.target.value)} className={input} /></label>
-                <label className="text-xs">Half diet €<input value={dietHalf} onChange={(e) => setDietHalf(e.target.value)} className={input} /></label>
-                <label className="text-xs">Hotel €<input value={hotelRate} onChange={(e) => setHotelRate(e.target.value)} className={input} /></label>
+          <div className="col-span-2 space-y-3">
+            <div className="bg-white rounded shadow p-2">
+              <div className="text-xs font-bold text-gray-500 uppercase mb-1">{t(lang, "ob_no_selected")}</div>
+              <div className="border rounded h-32 overflow-y-auto bg-gray-50">
+                {availableCodes.length === 0 ? (
+                  <div className="p-2 text-xs text-gray-400">Empty</div>
+                ) : (
+                  availableCodes.map((c) => (
+                    <div key={c} onClick={() => toggleEquip(c)} className="px-2 py-1 text-xs hover:bg-blue-100 cursor-pointer border-b last:border-0">
+                      {c}
+                    </div>
+                  ))
+                )}
               </div>
-            </SectionCard>
+            </div>
+            <div className="bg-white rounded shadow p-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-gray-500 uppercase">{t(lang, "ob_selected")}</span>
+                <div className="flex gap-1">
+                  <button onClick={() => setSelectedEquip(availableCodes.concat(selectedEquip))} className="text-[10px] text-blue-600 hover:underline">
+                    {t(lang, "ob_all")}
+                  </button>
+                  <button onClick={() => setSelectedEquip([])} className="text-[10px] text-red-600 hover:underline">
+                    {t(lang, "ob_none")}
+                  </button>
+                </div>
+              </div>
+              <div className="border rounded h-32 overflow-y-auto bg-blue-50">
+                {selectedEquip.length === 0 ? (
+                  <div className="p-2 text-xs text-gray-400">None</div>
+                ) : (
+                  selectedEquip.map((c) => (
+                    <div key={c} onClick={() => toggleEquip(c)} className="px-2 py-1 text-xs cursor-pointer border-b last:border-0 font-medium hover:bg-red-100 bg-blue-200">
+                      {c}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            <button onClick={addSelectedAsLines} disabled={selectedEquip.length === 0} className="w-full px-2 py-1 rounded text-xs bg-weber-blue text-white disabled:opacity-40">
+              {t(lang, "ob_add_lines")}
+            </button>
+          </div>
+
+          <div className="col-span-6">
+            <div className="bg-white rounded shadow h-full flex flex-col">
+              <div className="overflow-auto flex-1">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-700 text-white sticky top-0">
+                    <tr>
+                      <th className="px-2 py-2 text-left w-10">Pos</th>
+                      <th className="px-2 py-2 text-left">Equipment</th>
+                      <th className="px-2 py-2 text-left">Module</th>
+                      <th className="px-2 py-2 text-right w-24">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {moduleRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
+                          Select equipment from the left list
+                        </td>
+                      </tr>
+                    ) : (
+                      moduleRows.map((row) => (
+                        <tr key={row.pos} style={{ backgroundColor: colorMap[row.equipment] || "#fff" }} className="border-b">
+                          <td className="px-2 py-1.5 font-medium">{row.pos}</td>
+                          <td className="px-2 py-1.5 font-semibold">{row.equipment}</td>
+                          <td className="px-2 py-1.5">{row.module}</td>
+                          <td className="px-2 py-1.5 text-right font-mono">{eur(row.amount)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="p-2 border-t">
+                <div className="text-xs font-bold text-gray-500 uppercase mb-1">{t(lang, "ob_items")}</div>
+                {items.map((it, i) => (
+                  <div key={i} className="grid grid-cols-12 gap-1 mb-1">
+                    <input value={it.equipment} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, equipment: e.target.value } : x)))} placeholder="Equipment" className="col-span-3 border rounded px-1 py-0.5 text-xs" />
+                    <input value={it.description} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} placeholder="Module" className="col-span-4 border rounded px-1 py-0.5 text-xs" />
+                    <input value={it.import_amount} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, import_amount: e.target.value } : x)))} placeholder="0" className="col-span-2 border rounded px-1 py-0.5 text-xs text-right" />
+                    <input value={it.workload} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, workload: e.target.value } : x)))} placeholder="h" className="col-span-2 border rounded px-1 py-0.5 text-xs text-right" />
+                    <button onClick={() => setItems((p) => p.filter((_, j) => j !== i))} className="col-span-1 text-xs text-red-600 hover:underline">
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => setItems((p) => [...p, { equipment: "", description: "", import_amount: "0", workload: "0" }])}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  {t(lang, "ob_add_lines")}
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="col-span-4">
-            <SectionCard title={t(lang, "ob_breakdown")}>
-              {!calc ? (
-                <p className="text-xs text-gray-400">Type inputs to preview…</p>
-              ) : (
-                <div>
-                  <FieldRow label="Trip">€{calc.trip_cost}</FieldRow>
-                  <FieldRow label="Diets">€{calc.diets}</FieldRow>
-                  <FieldRow label="Hotels">€{calc.hotel_nights_cost}</FieldRow>
-                  <FieldRow label="Trip hours">{calc.trip_hours}</FieldRow>
-                  <FieldRow label="Total hours">{calc.total_hours}</FieldRow>
-                  <FieldRow label="Hours import">€{calc.hours_import}</FieldRow>
-                  <FieldRow label="Expenses">€{calc.expenses}</FieldRow>
-                  <div className="border-t mt-1 pt-1 font-bold">
-                    <FieldRow label="Total">€{calc.total}</FieldRow>
-                    <FieldRow label="Discount">€{calc.discount}</FieldRow>
-                    <FieldRow label="Total amount">€{calc.total_end}</FieldRow>
-                  </div>
-                </div>
-              )}
-            </SectionCard>
-          </div>
-
-          <div className="col-span-3">
-            <SectionCard title={t(lang, "ob_items")}>
-              {items.map((it, i) => (
-                <div key={i} className="grid grid-cols-2 gap-1 mb-2 border-b pb-2">
-                  <input value={it.equipment} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, equipment: e.target.value } : x)))} placeholder="Equipment" className={input} />
-                  <input value={it.workload} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, workload: e.target.value } : x)))} placeholder="Workload" className={input} />
-                  <input value={it.description} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} placeholder="Description" className={`${input} col-span-2`} />
-                  <input value={it.import_amount} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, import_amount: e.target.value } : x)))} placeholder="Amount" className={input} />
-                  <button onClick={() => setItems((p) => p.filter((_, j) => j !== i))} className="text-xs text-red-600 hover:underline">{t(lang, "ob_remove")}</button>
-                </div>
-              ))}
-              <button
-                onClick={() => setItems((p) => [...p, { equipment: "", description: "", import_amount: "0", workload: "0" }])}
-                className="text-xs text-blue-600 hover:underline"
-              >
-                {t(lang, "ob_add_line")}
-              </button>
-            </SectionCard>
+            <div className="bg-white rounded shadow p-3 text-xs space-y-1">
+              <FieldRow label="Trip (Km)">€{calc?.trip_cost ?? "—"}</FieldRow>
+              <FieldRow label="Diets">€{calc?.diets ?? "—"}</FieldRow>
+              <FieldRow label="Hotels">€{calc?.hotel_nights_cost ?? "—"}</FieldRow>
+              <FieldRow label="Trip hours">{calc?.trip_hours ?? "—"}</FieldRow>
+              <FieldRow label="Audit / Work hours">{calc ? (Number(calc.work_hours) + Number(calc.bk_hours)).toFixed(1) : "—"}</FieldRow>
+              <FieldRow label="Hours report">{calc?.report_hours ?? "—"}</FieldRow>
+              <FieldRow label="Hours Basic Kit">{calc?.bk_hours ?? "—"}</FieldRow>
+              <div className="flex justify-between border-t pt-1 font-bold">
+                <span>TOTAL HOURS:</span>
+                <span className="font-mono">{calc?.total_hours ?? "—"}</span>
+              </div>
+              <div className="flex justify-between text-red-600 font-bold">
+                <span>TOTAL GUARDIAN H.:</span>
+                <span className="font-mono">{calc?.total_hours ?? "—"}</span>
+              </div>
+              <div className="flex justify-between border-t pt-1 font-bold">
+                <span>HOURS IMPORT:</span>
+                <span className="font-mono">€{calc?.hours_import ?? "—"}</span>
+              </div>
+              <div className="flex justify-between font-bold">
+                <span>EXPENSES IMPORT:</span>
+                <span className="font-mono">€{calc?.expenses ?? "—"}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <label className="text-xs">Work hours<input value={workHours} onChange={(e) => setWorkHours(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs">Report hours<input value={reportHours} onChange={(e) => setReportHours(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs">Trip base h<input value={tripBase} onChange={(e) => setTripBase(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs">Km<input value={km} onChange={(e) => setKm(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs">€/km<input value={kmRate} onChange={(e) => setKmRate(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs">€/tech-hour<input value={techRate} onChange={(e) => setTechRate(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs">Full diet €<input value={dietFull} onChange={(e) => setDietFull(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs">Half diet €<input value={dietHalf} onChange={(e) => setDietHalf(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+                <label className="text-xs col-span-2">Hotel €<input value={hotelRate} onChange={(e) => setHotelRate(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
+              </div>
+            </div>
           </div>
         </div>
+
+        <div className="grid grid-cols-12 gap-3">
+          <div className="col-span-8">
+            <div className="bg-white rounded shadow p-3">
+              <div className="text-xs font-bold text-gray-500 uppercase mb-1">Comments</div>
+              <textarea value={comments} onChange={(e) => setComments(e.target.value)} className="w-full border rounded p-2 text-sm h-16 resize-none" placeholder="Offer notes..." />
+            </div>
+          </div>
+          <div className="col-span-4">
+            <div className="bg-white rounded shadow p-3 text-sm space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Total:</span>
+                <span className="font-mono font-bold">{calc ? eur(calc.total) : "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Spare parts kit:</span>
+                <span className="font-mono">{calc ? eur(calc.bk_price) : "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Discount:</span>
+                <span className="font-mono text-red-600">{calc ? eur(calc.discount) : "—"}</span>
+              </div>
+              <div className="flex justify-between border-t pt-2 text-lg font-bold">
+                <span>Total amount:</span>
+                <span className="font-mono text-blue-700">{calc ? eur(calc.total_end) : "—"}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {offers.length > 0 && (
+          <div className="bg-white rounded shadow p-3">
+            <div className="text-xs font-bold text-gray-500 uppercase mb-2">Client offers ({offers.length})</div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="px-2 py-1.5 text-left">ID</th>
+                    <th className="px-2 py-1.5 text-left">Language</th>
+                    <th className="px-2 py-1.5 text-left">Status</th>
+                    <th className="px-2 py-1.5 text-left">Frequency</th>
+                    <th className="px-2 py-1.5 text-right">Total</th>
+                    <th className="px-2 py-1.5 text-right">Total End</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {offers.map((o) => (
+                    <tr key={o.id_guardian_offer} className="border-b hover:bg-gray-50">
+                      <td className="px-2 py-1.5 font-mono font-bold text-blue-600">{o.id_guardian_offer}</td>
+                      <td className="px-2 py-1.5">{o.language || "-"}</td>
+                      <td className="px-2 py-1.5">{o.status || "Draft"}</td>
+                      <td className="px-2 py-1.5">{o.inspection_frequency || "-"}</td>
+                      <td className="px-2 py-1.5 text-right font-mono">{eur(o.total)}</td>
+                      <td className="px-2 py-1.5 text-right font-mono font-bold">{eur(o.total_end)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
