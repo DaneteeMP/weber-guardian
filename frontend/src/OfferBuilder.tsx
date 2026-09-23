@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   calculate,
   closeOffer,
@@ -74,15 +74,26 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
     setSelectedEquip((p) => (p.includes(code) ? p.filter((c) => c !== code) : [...p, code]));
   }
 
-  function addSelectedAsLines() {
-    setItems((prev) => {
-      const have = new Set(prev.map((i) => i.equipment));
-      const fresh = selectedEquip
-        .filter((c) => !have.has(c))
-        .map((c) => ({ equipment: c, description: "", import_amount: "0", workload: "0" }));
-      return [...prev, ...fresh];
-    });
-  }
+  // Picker drives the quote directly: selecting adds a line, deselecting
+  // removes the line it added. Hand-typed lines are never touched.
+  const autoEquip = useRef<Set<string>>(new Set());
+  const prevSelected = useRef<string[]>([]);
+  useEffect(() => {
+    const prev = prevSelected.current;
+    const added = selectedEquip.filter((c) => !prev.includes(c));
+    const removed = prev.filter((c) => !selectedEquip.includes(c));
+    prevSelected.current = selectedEquip;
+    if (added.length === 0 && removed.length === 0) return;
+    const gone = new Set(removed.filter((c) => autoEquip.current.has(c)));
+    added.forEach((c) => autoEquip.current.add(c));
+    removed.forEach((c) => autoEquip.current.delete(c));
+    setItems((lines) => [
+      ...lines.filter((l) => !gone.has(l.equipment)),
+      ...added
+        .filter((c) => !lines.some((l) => l.equipment === c))
+        .map((c) => ({ equipment: c, description: "", import_amount: "0", workload: "0" })),
+    ]);
+  }, [selectedEquip]);
 
   useEffect(() => {
     listCustomers().then(setCustomers).catch((e) => setError(String(e)));
@@ -393,9 +404,6 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
                 )}
               </div>
             </div>
-            <button onClick={addSelectedAsLines} disabled={selectedEquip.length === 0} className="w-full px-2 py-1 rounded text-xs bg-weber-blue text-white disabled:opacity-40">
-              {t(lang, "ob_add_lines")}
-            </button>
           </div>
 
           <div className="col-span-6">
