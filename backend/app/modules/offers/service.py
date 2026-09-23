@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.modules.customers.models import Customer
+from app.modules.offers.document import OfferDocument, OfferLine
 from app.modules.offers.models import Offer, OfferItem
 from app.modules.offers.pricing_engine import PricingInput, calculate
 from app.modules.offers.schemas import OfferCalculateIn, OfferCalculateOut, OfferCreate
@@ -157,6 +158,55 @@ def get_offer(db: Session, offer_id: uuid.UUID, subsidiary_id: str | None = None
     stmt = select(Offer).options(selectinload(Offer.items)).where(Offer.id == offer_id)
     if subsidiary_id is not None:
         stmt = stmt.join(Customer, Offer.customer_id == Customer.customer_id).where(
-            Customer.subsidiary_id == subsidiary_id
+            or_(Customer.subsidiary_id == subsidiary_id, Customer.subsidiary_id.is_(None))
         )
     return db.scalar(stmt)
+
+
+def get_offer_document(db: Session, offer_id: uuid.UUID, subsidiary_id: str | None = None) -> OfferDocument | None:
+    """Load the official document data (offer + customer + lines), or None."""
+    offer = get_offer(db, offer_id, subsidiary_id=subsidiary_id)
+    if offer is None:
+        return None
+    customer = db.scalar(select(Customer).where(Customer.customer_id == offer.customer_id))
+    if customer is None:
+        return None
+    return OfferDocument(
+        offer_id=offer.id,
+        number=offer.id_guardian_offer,
+        offer_date=offer.created_at.date() if offer.created_at else None,
+        status=offer.status,
+        language=offer.language or "Spanish",
+        inspection_frequency=offer.inspection_frequency,
+        responsible_person=offer.responsible_person,
+        subsidiary_id=customer.subsidiary_id,
+        account_name=customer.account_name,
+        account_city=customer.city,
+        account_province=customer.province,
+        account_country=customer.country,
+        currency=offer.currency,
+        trip_cost=offer.trip_cost,
+        diets=offer.diets,
+        hotel_cost=offer.hotel_cost,
+        trip_hours=offer.trip_hours,
+        work_hours=offer.work_hours,
+        bk_hours=offer.bk_hours,
+        report_hours=offer.report_hours,
+        total_hours=offer.total_hours,
+        hours_import=offer.hours_import,
+        expenses=offer.expenses,
+        discount=offer.discount,
+        bk_price=offer.bk_price,
+        total=offer.total,
+        total_end=offer.total_end,
+        general_comments=offer.general_comments,
+        lines=tuple(
+            OfferLine(
+                pos=item.row_no,
+                equipment=item.equipment,
+                description=item.description,
+                import_amount=item.import_amount,
+            )
+            for item in sorted(offer.items, key=lambda i: i.row_no)
+        ),
+    )

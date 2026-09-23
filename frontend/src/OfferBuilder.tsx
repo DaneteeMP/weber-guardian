@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { calculate, createOffer, getPrices, listCustomers, listOffers, me, type Breakdown, type Customer } from "./api";
+import { calculate, createOffer, downloadOfferPdf, getPrices, listCustomers, listOffers, me, type Breakdown, type Customer } from "./api";
 import FieldRow from "./components/FieldRow";
 import SectionCard from "./components/SectionCard";
 import { t, type Lang } from "./i18n";
@@ -14,6 +14,7 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
   const [customerId, setCustomerId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [savedOfferId, setSavedOfferId] = useState<string | null>(null);
   const [calc, setCalc] = useState<Breakdown | null>(null);
 
   const [workHours, setWorkHours] = useState("10");
@@ -78,9 +79,10 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
   async function handleSave() {
     setError(null);
     setSaved(null);
+    setSavedOfferId(null);
     try {
       if (!customerId) throw new Error(t(lang, "ob_select_first"));
-      await createOffer({
+      const created = await createOffer({
         customer_id: customerId,
         id_guardian_offer: offerNumber || undefined,
         status: "Draft",
@@ -107,8 +109,25 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
         })),
       });
       setSaved(t(lang, "ob_saved"));
+      setSavedOfferId(created.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
+    }
+  }
+
+  async function handlePrint() {
+    setError(null);
+    try {
+      if (!savedOfferId) return;
+      const { blob, filename } = await downloadOfferPdf(savedOfferId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Print failed");
     }
   }
 
@@ -118,9 +137,18 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
     <div className="min-h-screen bg-gray-100">
       <div className="text-white px-6 py-3 flex items-center justify-between" style={{ background: "linear-gradient(135deg, #1D4F91, #2563EB)" }}>
         <h1 className="text-xl font-bold tracking-wide">{t(lang, "ob_title")}</h1>
-        <button onClick={handleSave} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium">
-          {t(lang, "ob_save")}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handlePrint}
+            disabled={!savedOfferId}
+            className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium disabled:opacity-40"
+          >
+            PRINT PDF
+          </button>
+          <button onClick={handleSave} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium">
+            {t(lang, "ob_save")}
+          </button>
+        </div>
       </div>
 
       <div className="p-4 space-y-3 max-w-6xl mx-auto">

@@ -106,12 +106,26 @@ export function createOffer(payload: {
   pricing: Pricing;
   items: OfferItemIn[];
   general_comments?: string;
-}): Promise<unknown> {
+}): Promise<{ id: string; id_guardian_offer: string }> {
   return fetch(`${BASE}/offers`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify(payload),
   }).then((r) => checked(r, "POST offer"));
+}
+
+export async function downloadOfferPdf(id: string): Promise<{ blob: Blob; filename: string }> {
+  const h: Record<string, string> = {};
+  const dev = getDevUser();
+  if (dev) h["X-Dev-User"] = dev;
+  const res = await fetch(`${BASE}/offers/${encodeURIComponent(id)}/pdf`, { headers: h });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`GET pdf failed (${res.status}): ${text}`);
+  }
+  const cd = res.headers.get("Content-Disposition") ?? "";
+  const filename = cd.match(/filename="([^"]+)"/)?.[1] ?? `Offer_${id}.pdf`;
+  return { blob: await res.blob(), filename };
 }
 
 export function listOffers(customer_id: string): Promise<unknown[]> {

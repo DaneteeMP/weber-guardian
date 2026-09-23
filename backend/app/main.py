@@ -10,8 +10,14 @@ from app.modules.imports.router import router as imports_router
 from app.modules.offers.router import router as offers_router
 from app.modules.prices.router import router as prices_router
 from app.modules.users.router import router as users_router
+from app.weber.pdf import build_offer_pdf
 
 app = FastAPI(title="WeberGuardian API", version="0.1.0")
+
+# Composition root: the only place allowed to wire the Weber adapter into
+# the core. Routers read request.app.state.pdf_renderer; modules never
+# import app.weber.
+app.state.pdf_renderer = build_offer_pdf
 
 # F0 dev only: allow the Vite dev server to call the API from the browser.
 # Tightened with auth + explicit origins in F2.

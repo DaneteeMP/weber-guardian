@@ -1,7 +1,7 @@
 """Offer HTTP. Thin: validates, calls service, returns. No SQL here."""
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -62,3 +62,25 @@ def create_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except service.OfferAlreadyExists as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.get("/{offer_id}/pdf")
+def pdf_endpoint(
+    offer_id: uuid.UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current: CurrentUser = Depends(get_current_user),
+):
+    """Official offer PDF, rendered server-side from backend data only."""
+    doc = service.get_offer_document(db, offer_id, subsidiary_id=current.subsidiary_id)
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Offer not found")
+    try:
+        pdf = request.app.state.pdf_renderer(doc)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="Offer_{doc.number}.pdf"'},
+    )
