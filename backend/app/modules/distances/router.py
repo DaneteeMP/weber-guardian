@@ -40,3 +40,13 @@ def update_endpoint(
     current: CurrentUser = Depends(require_role("admin")),
 ):
     return service.upsert_distance(db, province, payload)
+
+
+@router.delete("/{province}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_endpoint(
+    province: str,
+    db: Session = Depends(get_db),
+    current: CurrentUser = Depends(require_role("admin")),
+):
+    if not service.delete_distance(db, province):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown province")

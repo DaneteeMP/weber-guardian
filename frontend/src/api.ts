@@ -221,6 +221,15 @@ export function upsertDistance(province: string, km: number, trip_hours: number)
   }).then((r) => checked(r, "PUT distance"));
 }
 
+export function deleteDistance(province: string): Promise<void> {
+  return fetch(`${BASE}/distances/${encodeURIComponent(province)}`, {
+    method: "DELETE",
+    headers: headers(),
+  }).then(async (r) => {
+    if (!r.ok) throw new Error(`DELETE distance failed (${r.status})`);
+  });
+}
+
 export type Kit = { model: string; workload_basic_kit: string; spare_parts: string };
 
 export function listKits(): Promise<Kit[]> {

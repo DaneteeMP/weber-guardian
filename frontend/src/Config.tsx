@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   createKit,
+  deleteDistance,
   deleteKit,
   deleteMachinePrice,
   listDistances,
@@ -15,10 +16,16 @@ import {
   type Kit,
   type MachinePrice,
 } from "./api";
+import Modal from "./components/Modal";
 import SectionCard from "./components/SectionCard";
 import { t, type Lang } from "./i18n";
 
 type Section = "rates" | "distances" | "kits" | "machines";
+type Editing =
+  | { kind: "distance"; province: string; km: string; trip: string }
+  | { kind: "kit"; model: string; hours: string; spares: string; isNew: boolean }
+  | { kind: "machine"; model: string; price: string; inspections: string; isNew: boolean }
+  | null;
 
 const num = (v: string, fallback: number) => {
   const n = Number(v);
@@ -26,33 +33,25 @@ const num = (v: string, fallback: number) => {
 };
 
 // Admin-only per-subsidiary configuration: rates, distances, kits, machines.
-// Every write goes through the admin-guarded endpoints; reads need identity.
+// Rows edit in a modal; deletes stay on the row. Every write goes through
+// the admin-guarded endpoints; reads need identity.
 export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean }) {
   const [section, setSection] = useState<Section>("rates");
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Editing>(null);
 
   const [sub, setSub] = useState("ES");
   const [rates, setRates] = useState({ km_rate: "0.5", tech_rate: "60", diet_full_rate: "40", diet_half_rate: "20", hotel_rate: "80" });
 
   const [distances, setDistances] = useState<Distance[]>([]);
-  const [province, setProvince] = useState("");
-  const [km, setKm] = useState("");
-  const [trip, setTrip] = useState("");
-
   const [kits, setKits] = useState<Kit[]>([]);
-  const [kitModel, setKitModel] = useState("");
-  const [kitHours, setKitHours] = useState("");
-  const [kitSpares, setKitSpares] = useState("");
-
   const [machines, setMachines] = useState<MachinePrice[]>([]);
-  const [machine, setMachine] = useState("");
-  const [price, setPrice] = useState("");
-  const [inspections, setInspections] = useState("4");
 
   const input = "border rounded px-2 py-1 text-sm";
   const btn = "px-3 py-1 rounded text-sm bg-weber-blue text-white disabled:opacity-40";
   const danger = "text-xs text-red-600 hover:underline";
+  const edit = "text-xs text-blue-600 hover:underline mr-2";
 
   async function refreshTables() {
     try {
@@ -104,10 +103,39 @@ export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean
     }
   }
 
+  async function saveModal() {
+    if (!editing) return;
+    setError(null);
+    try {
+      if (editing.kind === "distance") {
+        await upsertDistance(editing.province, num(editing.km, 0), num(editing.trip, 0));
+      } else if (editing.kind === "kit") {
+        if (editing.isNew) {
+          await createKit(editing.model, num(editing.hours, 0), num(editing.spares, 0));
+        } else {
+          await updateKit(editing.model, num(editing.hours, 0), num(editing.spares, 0));
+        }
+      } else {
+        await upsertMachinePrice(editing.model, num(editing.price, 0), Math.max(1, Math.floor(num(editing.inspections, 1))));
+      }
+      setEditing(null);
+      await refreshTables();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
   if (!isAdmin) return <p className="p-4 text-sm text-gray-500">{t(lang, "cfg_admin_only")}</p>;
 
   const tab = (active: boolean) =>
     `px-3 py-1 rounded text-sm font-medium ${active ? "bg-weber-blue text-white" : "bg-gray-200 hover:bg-gray-300"}`;
+
+  const modalTitle =
+    !editing || editing.kind === "distance"
+      ? t(lang, "cfg_distances")
+      : editing.kind === "kit"
+        ? t(lang, "cfg_kits")
+        : t(lang, "cfg_machines");
 
   return (
     <div className="p-4 space-y-3 w-full">
@@ -144,28 +172,12 @@ export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean
 
       {section === "distances" && (
         <SectionCard title={t(lang, "cfg_distances")}>
-          <div className="flex gap-2 items-center flex-wrap mb-2">
-            <input value={province} onChange={(e) => setProvince(e.target.value)} placeholder="Province" className={input} />
-            <input value={km} onChange={(e) => setKm(e.target.value)} placeholder="km" className={`${input} w-24`} />
-            <input value={trip} onChange={(e) => setTrip(e.target.value)} placeholder="trip h" className={`${input} w-24`} />
-            <button
-              onClick={async () => {
-                setError(null);
-                try {
-                  await upsertDistance(province, num(km, 0), num(trip, 0));
-                  setProvince("");
-                  setKm("");
-                  setTrip("");
-                  await refreshTables();
-                } catch (e) {
-                  setError(String(e));
-                }
-              }}
-              className={btn}
-            >
-              {t(lang, "cfg_save")}
-            </button>
-          </div>
+          <button
+            onClick={() => setEditing({ kind: "distance", province: "", km: "", trip: "" })}
+            className={`${btn} mb-2`}
+          >
+            {t(lang, "cfg_add")}
+          </button>
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-weber-blue text-white text-left">
@@ -183,14 +195,19 @@ export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean
                   <td className="px-3 py-1.5 text-right font-mono">{d.trip_hours}</td>
                   <td className="px-3 py-1.5 text-right whitespace-nowrap">
                     <button
-                      onClick={() => {
-                        setProvince(d.province);
-                        setKm(d.km);
-                        setTrip(d.trip_hours);
-                      }}
-                      className="text-xs text-blue-600 hover:underline mr-2"
+                      onClick={() => setEditing({ kind: "distance", province: d.province, km: d.km, trip: d.trip_hours })}
+                      className={edit}
                     >
                       {t(lang, "cfg_edit")}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        await deleteDistance(d.province).catch((e) => setError(String(e)));
+                        await refreshTables();
+                      }}
+                      className={danger}
+                    >
+                      {t(lang, "cfg_delete")}
                     </button>
                   </td>
                 </tr>
@@ -202,32 +219,12 @@ export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean
 
       {section === "kits" && (
         <SectionCard title={t(lang, "cfg_kits")}>
-          <div className="flex gap-2 items-center flex-wrap mb-2">
-            <input value={kitModel} onChange={(e) => setKitModel(e.target.value)} placeholder="Model" className={input} />
-            <input value={kitHours} onChange={(e) => setKitHours(e.target.value)} placeholder="hours" className={`${input} w-24`} />
-            <input value={kitSpares} onChange={(e) => setKitSpares(e.target.value)} placeholder="spare €" className={`${input} w-28`} />
-            <button
-              onClick={async () => {
-                setError(null);
-                try {
-                  if (kits.some((k) => k.model === kitModel)) {
-                    await updateKit(kitModel, num(kitHours, 0), num(kitSpares, 0));
-                  } else {
-                    await createKit(kitModel, num(kitHours, 0), num(kitSpares, 0));
-                  }
-                  setKitModel("");
-                  setKitHours("");
-                  setKitSpares("");
-                  await refreshTables();
-                } catch (e) {
-                  setError(String(e));
-                }
-              }}
-              className={btn}
-            >
-              {t(lang, "cfg_save")}
-            </button>
-          </div>
+          <button
+            onClick={() => setEditing({ kind: "kit", model: "", hours: "", spares: "", isNew: true })}
+            className={`${btn} mb-2`}
+          >
+            {t(lang, "cfg_add")}
+          </button>
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-weber-blue text-white text-left">
@@ -245,12 +242,8 @@ export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean
                   <td className="px-3 py-1.5 text-right font-mono">{k.spare_parts}</td>
                   <td className="px-3 py-1.5 text-right whitespace-nowrap">
                     <button
-                      onClick={() => {
-                        setKitModel(k.model);
-                        setKitHours(k.workload_basic_kit);
-                        setKitSpares(k.spare_parts);
-                      }}
-                      className="text-xs text-blue-600 hover:underline mr-2"
+                      onClick={() => setEditing({ kind: "kit", model: k.model, hours: k.workload_basic_kit, spares: k.spare_parts, isNew: false })}
+                      className={edit}
                     >
                       {t(lang, "cfg_edit")}
                     </button>
@@ -273,28 +266,12 @@ export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean
 
       {section === "machines" && (
         <SectionCard title={t(lang, "cfg_machines")}>
-          <div className="flex gap-2 items-center flex-wrap mb-2">
-            <input value={machine} onChange={(e) => setMachine(e.target.value)} placeholder="Model" className={input} />
-            <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="€/year" className={`${input} w-28`} />
-            <input value={inspections} onChange={(e) => setInspections(e.target.value)} placeholder="insp/year" className={`${input} w-24`} />
-            <button
-              onClick={async () => {
-                setError(null);
-                try {
-                  await upsertMachinePrice(machine, num(price, 0), Math.max(1, Math.floor(num(inspections, 1))));
-                  setMachine("");
-                  setPrice("");
-                  setInspections("4");
-                  await refreshTables();
-                } catch (e) {
-                  setError(String(e));
-                }
-              }}
-              className={btn}
-            >
-              {t(lang, "cfg_save")}
-            </button>
-          </div>
+          <button
+            onClick={() => setEditing({ kind: "machine", model: "", price: "", inspections: "4", isNew: true })}
+            className={`${btn} mb-2`}
+          >
+            {t(lang, "cfg_add")}
+          </button>
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-weber-blue text-white text-left">
@@ -312,12 +289,8 @@ export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean
                   <td className="px-3 py-1.5 text-right font-mono">{m.inspections_per_year}</td>
                   <td className="px-3 py-1.5 text-right whitespace-nowrap">
                     <button
-                      onClick={() => {
-                        setMachine(m.model);
-                        setPrice(m.annual_price);
-                        setInspections(String(m.inspections_per_year));
-                      }}
-                      className="text-xs text-blue-600 hover:underline mr-2"
+                      onClick={() => setEditing({ kind: "machine", model: m.model, price: m.annual_price, inspections: String(m.inspections_per_year), isNew: false })}
+                      className={edit}
                     >
                       {t(lang, "cfg_edit")}
                     </button>
@@ -336,6 +309,69 @@ export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean
             </tbody>
           </table>
         </SectionCard>
+      )}
+
+      {editing && (
+        <Modal title={modalTitle} onClose={() => setEditing(null)}>
+          <div className="space-y-2">
+            {editing.kind === "distance" && (
+              <>
+                <label className="block text-xs">
+                  Province
+                  <input value={editing.province} onChange={(e) => setEditing({ ...editing, province: e.target.value })} className={`${input} w-full`} />
+                </label>
+                <label className="block text-xs">
+                  km
+                  <input value={editing.km} onChange={(e) => setEditing({ ...editing, km: e.target.value })} className={`${input} w-full`} />
+                </label>
+                <label className="block text-xs">
+                  trip h
+                  <input value={editing.trip} onChange={(e) => setEditing({ ...editing, trip: e.target.value })} className={`${input} w-full`} />
+                </label>
+              </>
+            )}
+            {editing.kind === "kit" && (
+              <>
+                <label className="block text-xs">
+                  Model
+                  <input value={editing.model} disabled={!editing.isNew} onChange={(e) => setEditing({ ...editing, model: e.target.value })} className={`${input} w-full disabled:bg-gray-100`} />
+                </label>
+                <label className="block text-xs">
+                  hours
+                  <input value={editing.hours} onChange={(e) => setEditing({ ...editing, hours: e.target.value })} className={`${input} w-full`} />
+                </label>
+                <label className="block text-xs">
+                  spare €
+                  <input value={editing.spares} onChange={(e) => setEditing({ ...editing, spares: e.target.value })} className={`${input} w-full`} />
+                </label>
+              </>
+            )}
+            {editing.kind === "machine" && (
+              <>
+                <label className="block text-xs">
+                  Model
+                  <input value={editing.model} disabled={!editing.isNew} onChange={(e) => setEditing({ ...editing, model: e.target.value })} className={`${input} w-full disabled:bg-gray-100`} />
+                </label>
+                <label className="block text-xs">
+                  €/year
+                  <input value={editing.price} onChange={(e) => setEditing({ ...editing, price: e.target.value })} className={`${input} w-full`} />
+                </label>
+                <label className="block text-xs">
+                  insp/year
+                  <input value={editing.inspections} onChange={(e) => setEditing({ ...editing, inspections: e.target.value })} className={`${input} w-full`} />
+                </label>
+              </>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setEditing(null)} className="px-3 py-1 rounded text-sm bg-gray-200 hover:bg-gray-300">
+                ×
+              </button>
+              <button onClick={saveModal} className={btn}>
+                {t(lang, "cfg_save")}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

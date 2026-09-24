@@ -28,3 +28,13 @@ def upsert_distance(db: Session, province: str, data: DistanceUpdate) -> Distanc
     db.commit()
     db.refresh(row)
     return row
+
+
+def delete_distance(db: Session, province: str) -> bool:
+    """Remove a province row. False when missing."""
+    row = get_distance(db, province)
+    if row is None:
+        return False
+    db.delete(row)
+    db.commit()
+    return True

@@ -8,7 +8,7 @@ from app.modules.basic_kit.schemas import BasicKitCreate, BasicKitUpsert
 from app.modules.basic_kit.service import delete_kit, get_kit, KitAlreadyExists, create_kit, list_kits, upsert_kit
 from app.modules.distances.models import Distance
 from app.modules.distances.schemas import DistanceUpdate
-from app.modules.distances.service import get_distance, list_distances, upsert_distance
+from app.modules.distances.service import delete_distance, get_distance, list_distances, upsert_distance
 from app.modules.prices.models import PriceList
 from app.modules.prices.schemas import PriceUpdate
 from app.modules.prices.service import get_prices, update_prices
@@ -109,3 +109,6 @@ def test_distance_upsert_creates_and_replaces(db):
     assert replaced.id == created.id
     assert {d.province for d in list_distances(db)} == {"Valencia"}
     assert list_kits(db) == []
+    assert delete_distance(db, "Valencia") is True
+    assert get_distance(db, "Valencia") is None
+    assert delete_distance(db, "Valencia") is False
