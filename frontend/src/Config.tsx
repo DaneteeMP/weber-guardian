@@ -364,7 +364,7 @@ export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean
             )}
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setEditing(null)} className="px-3 py-1 rounded text-sm bg-gray-200 hover:bg-gray-300">
-                ×
+                {t(lang, "cfg_cancel")}
               </button>
               <button onClick={saveModal} className={btn}>
                 {t(lang, "cfg_save")}
