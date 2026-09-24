@@ -1,6 +1,6 @@
 import { LANGS, t, type Lang } from "../i18n";
 
-export type Tab = "offers" | "customers" | "import" | "dashboard" | "config";
+export type Tab = "home" | "offers" | "customers" | "import" | "dashboard" | "config";
 
 // Salesforce-style shell: brand row (logo, global search, identity) plus
 // the tab bar. No routing library: tabs are plain state in App.
@@ -28,7 +28,8 @@ export default function TopBar({
   showConfig: boolean;
 }) {
   const tabs: { id: Tab; label: string }[] = [
-    { id: "offers", label: t(lang, "nav_offers") },
+    { id: "home", label: t(lang, "nav_offers") },
+    { id: "offers", label: t(lang, "nav_new_offer") },
     { id: "customers", label: t(lang, "nav_customers") },
     { id: "import", label: t(lang, "nav_import") },
     { id: "dashboard", label: t(lang, "nav_dashboard") },

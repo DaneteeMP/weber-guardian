@@ -158,6 +158,7 @@ export async function downloadOfferPdf(id: string): Promise<{ blob: Blob; filena
 export type OfferListItem = {
   id: string;
   id_guardian_offer: string;
+  customer_id: string;
   date_guardian?: string | null;
   language?: string | null;
   status?: string | null;
@@ -170,6 +171,12 @@ export function listOffers(customer_id: string): Promise<OfferListItem[]> {
   return fetch(`${BASE}/offers?customer_id=${encodeURIComponent(customer_id)}`, {
     headers: headers(),
   }).then((r) => checked(r, "GET offers"));
+}
+
+export function listAllOffers(limit = 200): Promise<OfferListItem[]> {
+  return fetch(`${BASE}/offers?limit=${limit}`, { headers: headers() }).then((r) =>
+    checked(r, "GET offers")
+  );
 }
 
 export function deleteOffer(id: string): Promise<void> {
