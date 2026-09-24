@@ -49,15 +49,15 @@ export default function App() {
         showConfig={identity?.role === "admin"}
       />
       {tab === "offers" ? (
-        <OfferBuilder lang={lang} />
+        <OfferBuilder key={dev ?? "anon"} lang={lang} />
       ) : tab === "import" ? (
-        <ImportData lang={lang} />
+        <ImportData key={dev ?? "anon"} lang={lang} />
       ) : tab === "dashboard" ? (
-        <Dashboard lang={lang} />
+        <Dashboard key={dev ?? "anon"} lang={lang} />
       ) : tab === "config" ? (
-        <Config lang={lang} isAdmin={identity?.role === "admin"} />
+        <Config key={dev ?? "anon"} lang={lang} isAdmin={identity?.role === "admin"} />
       ) : (
-        <Customers lang={lang} externalSearch={search} />
+        <Customers key={dev ?? "anon"} lang={lang} externalSearch={search} />
       )}
     </div>
   );
