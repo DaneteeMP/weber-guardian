@@ -4,8 +4,8 @@ from decimal import Decimal
 import pytest
 
 from app.modules.basic_kit.models import BasicKit
-from app.modules.basic_kit.schemas import BasicKitCreate
-from app.modules.basic_kit.service import delete_kit, get_kit, KitAlreadyExists, create_kit, list_kits
+from app.modules.basic_kit.schemas import BasicKitCreate, BasicKitUpsert
+from app.modules.basic_kit.service import delete_kit, get_kit, KitAlreadyExists, create_kit, list_kits, upsert_kit
 from app.modules.distances.models import Distance
 from app.modules.distances.schemas import DistanceUpdate
 from app.modules.distances.service import get_distance, list_distances, upsert_distance
@@ -91,6 +91,14 @@ def test_kit_create_duplicate_and_delete(db):
     assert delete_kit(db, "CCS402") is True
     assert get_kit(db, "CCS402") is None
     assert delete_kit(db, "CCS402") is False
+
+
+def test_kit_upsert_creates_and_replaces(db):
+    created = upsert_kit(db, "CCS500", BasicKitUpsert(workload_basic_kit=Decimal("2"), spare_parts=Decimal("100")))
+    assert created.model == "CCS500"
+    replaced = upsert_kit(db, "CCS500", BasicKitUpsert(workload_basic_kit=Decimal("5"), spare_parts=Decimal("200")))
+    assert replaced.spare_parts == Decimal("200")
+    assert replaced.id == created.id
 
 
 def test_distance_upsert_creates_and_replaces(db):

@@ -7,6 +7,7 @@ import {
   listKits,
   listMachinePrices,
   getPrices,
+  updateKit,
   updatePrices,
   upsertDistance,
   upsertMachinePrice,
@@ -171,6 +172,7 @@ export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean
                 <th className="px-3 py-1.5">Province</th>
                 <th className="px-3 py-1.5 text-right">km</th>
                 <th className="px-3 py-1.5 text-right">trip h</th>
+                <th className="px-3 py-1.5" />
               </tr>
             </thead>
             <tbody>
@@ -179,6 +181,18 @@ export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean
                   <td className="px-3 py-1.5">{d.province}</td>
                   <td className="px-3 py-1.5 text-right font-mono">{d.km}</td>
                   <td className="px-3 py-1.5 text-right font-mono">{d.trip_hours}</td>
+                  <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                    <button
+                      onClick={() => {
+                        setProvince(d.province);
+                        setKm(d.km);
+                        setTrip(d.trip_hours);
+                      }}
+                      className="text-xs text-blue-600 hover:underline mr-2"
+                    >
+                      {t(lang, "cfg_edit")}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -196,7 +210,11 @@ export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean
               onClick={async () => {
                 setError(null);
                 try {
-                  await createKit(kitModel, num(kitHours, 0), num(kitSpares, 0));
+                  if (kits.some((k) => k.model === kitModel)) {
+                    await updateKit(kitModel, num(kitHours, 0), num(kitSpares, 0));
+                  } else {
+                    await createKit(kitModel, num(kitHours, 0), num(kitSpares, 0));
+                  }
                   setKitModel("");
                   setKitHours("");
                   setKitSpares("");
@@ -207,7 +225,7 @@ export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean
               }}
               className={btn}
             >
-              {t(lang, "cfg_add")}
+              {t(lang, "cfg_save")}
             </button>
           </div>
           <table className="w-full text-sm">
@@ -225,7 +243,17 @@ export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean
                   <td className="px-3 py-1.5 font-mono">{k.model}</td>
                   <td className="px-3 py-1.5 text-right font-mono">{k.workload_basic_kit}</td>
                   <td className="px-3 py-1.5 text-right font-mono">{k.spare_parts}</td>
-                  <td className="px-3 py-1.5 text-right">
+                  <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                    <button
+                      onClick={() => {
+                        setKitModel(k.model);
+                        setKitHours(k.workload_basic_kit);
+                        setKitSpares(k.spare_parts);
+                      }}
+                      className="text-xs text-blue-600 hover:underline mr-2"
+                    >
+                      {t(lang, "cfg_edit")}
+                    </button>
                     <button
                       onClick={async () => {
                         await deleteKit(k.model).catch((e) => setError(String(e)));
@@ -282,7 +310,17 @@ export default function Config({ lang, isAdmin }: { lang: Lang; isAdmin: boolean
                   <td className="px-3 py-1.5 font-mono">{m.model}</td>
                   <td className="px-3 py-1.5 text-right font-mono">{m.annual_price}</td>
                   <td className="px-3 py-1.5 text-right font-mono">{m.inspections_per_year}</td>
-                  <td className="px-3 py-1.5 text-right">
+                  <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                    <button
+                      onClick={() => {
+                        setMachine(m.model);
+                        setPrice(m.annual_price);
+                        setInspections(String(m.inspections_per_year));
+                      }}
+                      className="text-xs text-blue-600 hover:underline mr-2"
+                    >
+                      {t(lang, "cfg_edit")}
+                    </button>
                     <button
                       onClick={async () => {
                         await deleteMachinePrice(m.model).catch((e) => setError(String(e)));

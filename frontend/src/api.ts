@@ -244,6 +244,14 @@ export function deleteKit(model: string): Promise<void> {
   });
 }
 
+export function updateKit(model: string, workload_basic_kit: number, spare_parts: number): Promise<Kit> {
+  return fetch(`${BASE}/basic-kit/${encodeURIComponent(model)}`, {
+    method: "PUT",
+    headers: headers(),
+    body: JSON.stringify({ workload_basic_kit, spare_parts }),
+  }).then((r) => checked(r, "PUT kit"));
+}
+
 export type MachinePrice = { model: string; annual_price: string; inspections_per_year: number; currency: string };
 
 export function listMachinePrices(): Promise<MachinePrice[]> {

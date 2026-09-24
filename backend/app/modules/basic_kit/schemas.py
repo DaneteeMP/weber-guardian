@@ -16,3 +16,8 @@ class BasicKitCreate(BaseModel):
     model: str = Field(min_length=1, max_length=64)
     workload_basic_kit: Decimal = Field(ge=Decimal("0"))
     spare_parts: Decimal = Field(ge=Decimal("0"))
+
+
+class BasicKitUpsert(BaseModel):
+    workload_basic_kit: Decimal = Field(ge=Decimal("0"))
+    spare_parts: Decimal = Field(ge=Decimal("0"))

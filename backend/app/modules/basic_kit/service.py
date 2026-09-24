@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.modules.basic_kit.models import BasicKit
-from app.modules.basic_kit.schemas import BasicKitCreate
+from app.modules.basic_kit.schemas import BasicKitCreate, BasicKitUpsert
 
 
 class KitAlreadyExists(Exception):
@@ -34,6 +34,20 @@ def create_kit(db: Session, data: BasicKitCreate) -> BasicKit:
     except IntegrityError:
         db.rollback()
         raise KitAlreadyExists(data.model) from None
+    db.refresh(row)
+    return row
+
+
+def upsert_kit(db: Session, model: str, data: BasicKitUpsert) -> BasicKit:
+    """Create or replace the kit row (admin config UI edit button)."""
+    row = get_kit(db, model)
+    if row is None:
+        row = BasicKit(model=model, **data.model_dump())
+        db.add(row)
+    else:
+        row.workload_basic_kit = data.workload_basic_kit
+        row.spare_parts = data.spare_parts
+    db.commit()
     db.refresh(row)
     return row
 

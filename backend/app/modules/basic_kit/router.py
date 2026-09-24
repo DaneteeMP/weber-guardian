@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.core.security import CurrentUser, get_current_user, require_role
 from app.modules.basic_kit import service
-from app.modules.basic_kit.schemas import BasicKitCreate, BasicKitOut
+from app.modules.basic_kit.schemas import BasicKitCreate, BasicKitOut, BasicKitUpsert
 
 router = APIRouter(prefix="/basic-kit", tags=["basic_kit"])
 
@@ -42,6 +42,16 @@ def create_endpoint(
         return service.create_kit(db, payload)
     except service.KitAlreadyExists as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.put("/{model}", response_model=BasicKitOut)
+def update_endpoint(
+    model: str,
+    payload: BasicKitUpsert,
+    db: Session = Depends(get_db),
+    current: CurrentUser = Depends(require_role("admin")),
+):
+    return service.upsert_kit(db, model, payload)
 
 
 @router.delete("/{model}", status_code=status.HTTP_204_NO_CONTENT)
