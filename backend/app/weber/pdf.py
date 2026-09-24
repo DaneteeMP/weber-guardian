@@ -13,6 +13,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from app.core.subsidiaries import ALIASES as SUBSIDIARY_ALIASES
 from app.modules.offers.document import OfferDocument
 from app.weber import contract_es
 
@@ -34,31 +35,10 @@ def _language(doc: OfferDocument) -> str:
 # Revisit the day a second filial prints its own address.
 DEFAULT_SUBSIDIARY = "ES"
 
-# Free-text variants observed in real data ("España" vs "ES").
-# Unknown values still fail explicitly: printing another filial's legal
-# address by guessing would be worse than refusing.
-SUBSIDIARY_ALIASES = {
-    "es": "ES",
-    "españa": "ES",
-    "espana": "ES",
-    "spain": "ES",
-    "ibérica": "ES",
-    "iberica": "ES",
-    "bnl": "BNL",
-    "benelux": "BNL",
-    "nederland": "BNL",
-    "netherlands": "BNL",
-    "holland": "BNL",
-    "de": "DE",
-    "deutschland": "DE",
-    "alemania": "DE",
-    "germany": "DE",
-    "breidenbach": "DE",
-    "ar": "AR",
-    "argentina": "AR",
-}
-
-
+# Free-text variants resolve through the shared alias table
+# (app.core.subsidiaries, single source of truth). Unknown values still
+# fail explicitly: printing another filial's legal address by guessing
+# would be worse than refusing.
 def _executor(doc: OfferDocument) -> dict[str, str]:
     key = (doc.subsidiary_id or DEFAULT_SUBSIDIARY).strip().lower()
     block = contract_es.EXECUTORS.get(SUBSIDIARY_ALIASES.get(key, key.upper()))

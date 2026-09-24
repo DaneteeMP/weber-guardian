@@ -56,7 +56,8 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
   const [responsible, setResponsible] = useState("");
   const [guardianType, setGuardianType] = useState("Audit");
   const [comments, setComments] = useState("");
-  const [items, setItems] = useState([{ equipment: "304-565", description: "Slicer", import_amount: "100", workload: "6" }]);
+  type QuoteLine = { equipment: string; description: string; import_amount: string; workload: string };
+  const [items, setItems] = useState<QuoteLine[]>([]);
   const [offers, setOffers] = useState<OfferListItem[]>([]);
   const [savedOffer, setSavedOffer] = useState<{ id: string; status: string } | null>(null);
   const [equipList, setEquipList] = useState<Equipment[]>([]);
@@ -76,7 +77,9 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
 
   // Picker drives the quote directly: selecting a machine expands ALL its
   // component rows into lines; deselecting removes the lines it added.
-  // Hand-typed lines are never touched.
+  // Hand-typed lines are never touched. The updater below is pure (reads
+  // only closed-over snapshots) so React StrictMode double-invoking it
+  // cannot duplicate rows.
   const autoLines = useRef<Set<string>>(new Set());
   const prevSelected = useRef<string[]>([]);
   const lineKey = (equipment: string, description: string) => `${equipment}||${description}`;
@@ -87,27 +90,35 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
     prevSelected.current = selectedEquip;
     if (added.length === 0 && removed.length === 0) return;
     const rowsOf = (code: string) => equipList.filter((e) => e.equipment_name === code);
-    const doomed = new Set<string>();
+    const wasAuto = new Set(autoLines.current);
+    const removedKeys = new Set<string>();
     for (const code of removed) {
       for (const row of rowsOf(code)) {
         const key = lineKey(code, row.component_type ?? "");
-        if (autoLines.current.delete(key)) doomed.add(key);
+        if (wasAuto.has(key)) removedKeys.add(key);
       }
     }
-    const fresh: { equipment: string; description: string; import_amount: string; workload: string }[] = [];
-    setItems((lines) => {
-      const have = new Set(lines.map((l) => lineKey(l.equipment, l.description)));
-      for (const code of added) {
-        for (const row of rowsOf(code)) {
-          const key = lineKey(code, row.component_type ?? "");
-          if (!have.has(key)) {
-            autoLines.current.add(key);
-            fresh.push({ equipment: code, description: row.component_type ?? "", import_amount: "0", workload: "0" });
-            have.add(key);
-          }
+    const desired = new Map<string, { equipment: string; description: string }>();
+    for (const code of added) {
+      for (const row of rowsOf(code)) {
+        const description = row.component_type ?? "";
+        if (!desired.has(lineKey(code, description))) {
+          desired.set(lineKey(code, description), { equipment: code, description });
         }
       }
-      return [...lines.filter((l) => !doomed.has(lineKey(l.equipment, l.description))), ...fresh];
+    }
+    autoLines.current = new Set([...autoLines.current].filter((k) => !removedKeys.has(k)));
+    for (const key of desired.keys()) autoLines.current.add(key);
+    setItems((lines) => {
+      const have = new Set(lines.map((l) => lineKey(l.equipment, l.description)));
+      const fresh = [...desired.entries()]
+        .filter(([key]) => !have.has(key))
+        .map(([, v]) => ({ ...v, import_amount: "0", workload: "0" }));
+      // Drop lines the picker added for deselected machines; keep
+      // everything else, including hand-typed lines.
+      const dropped = (l: { equipment: string; description: string }) =>
+        removedKeys.has(lineKey(l.equipment, l.description)) && wasAuto.has(lineKey(l.equipment, l.description));
+      return [...lines.filter((l) => !dropped(l)), ...fresh];
     });
   }, [selectedEquip, equipList]);
 
@@ -423,8 +434,8 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
           </div>
 
           <div className="col-span-6">
-            <div className="bg-white rounded shadow h-full min-h-[420px] flex flex-col">
-              <div className="overflow-auto flex-1">
+            <div className="bg-white rounded shadow h-full min-h-[420px] max-h-[640px] flex flex-col">
+              <div className="overflow-auto flex-1 min-h-0">
                 <table className="w-full text-xs">
                   <thead className="bg-gray-700 text-white sticky top-0">
                     <tr>

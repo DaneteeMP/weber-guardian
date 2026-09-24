@@ -1,6 +1,7 @@
 """CSV import tests. Real SAP sample shapes, SQLite only."""
 from sqlalchemy import func, select
 
+from app.core.subsidiaries import normalize_subsidiary
 from app.modules.customers.models import Customer
 from app.modules.equipment.models import Equipment
 from app.modules.imports.service import run_import
@@ -91,3 +92,18 @@ def test_missing_columns_rejected(db):
     report = run_import(db, b"foo;bar\n1;2\n", subsidiary_id=None, dry_run=True)
     assert len(report.errors) == 1
     assert report.errors[0].line == 1
+
+
+def test_normalize_subsidiary():
+    assert normalize_subsidiary(None) is None
+    assert normalize_subsidiary("  ") is None
+    assert normalize_subsidiary("España") == "ES"
+    assert normalize_subsidiary("deutschland") == "DE"
+    assert normalize_subsidiary("ZM") == "ZM"
+
+
+def test_import_normalizes_subsidiary_param(db):
+    report = run_import(db, (HEADER + ROW_ES).encode(), subsidiary_id="España", dry_run=False)
+    assert report.errors == []
+    stored = db.scalar(select(Customer).where(Customer.customer_id == "0001012933"))
+    assert stored is not None and stored.subsidiary_id == "ES"

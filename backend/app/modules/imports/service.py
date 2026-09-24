@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.modules.customers.models import Customer
 from app.modules.equipment.models import Equipment, row_hash_of
 from app.modules.imports.schemas import ImportReport, RowError
+from app.core.subsidiaries import normalize_subsidiary
 
 # Real SAP exports reach ~7 MB (tens of thousands of rows). 20 MB caps
 # abuse while accepting them; the whole file still fits in memory and the
@@ -61,6 +62,7 @@ def _clean(value: str | None) -> str | None:
 
 def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: bool) -> ImportReport:
     """Validate the whole file, then insert atomically unless dry_run."""
+    subsidiary_id = normalize_subsidiary(subsidiary_id)
     if len(content) > MAX_FILE_BYTES:
         return ImportReport(
             dry_run=dry_run,
