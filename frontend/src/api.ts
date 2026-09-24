@@ -101,6 +101,20 @@ export function listCustomers(opts?: { search?: string; limit?: number; offset?:
   });
 }
 
+export async function listAllCustomers(): Promise<Customer[]> {
+  // One page at a time until the total: the picker must hold every
+  // customer in scope, not just the first page.
+  const all: Customer[] = [];
+  let offset = 0;
+  for (;;) {
+    const page = await listCustomers({ limit: 200, offset });
+    all.push(...page.rows);
+    offset += page.rows.length;
+    if (offset >= page.total || page.rows.length === 0) break;
+  }
+  return all;
+}
+
 export function calculate(pricing: Pricing): Promise<Breakdown> {
   return fetch(`${BASE}/offers/calculate`, {
     method: "POST",

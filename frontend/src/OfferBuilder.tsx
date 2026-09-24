@@ -6,7 +6,7 @@ import {
   deleteOffer,
   downloadOfferPdf,
   getPrices,
-  listCustomers,
+  listAllCustomers,
   listEquipment,
   listOffers,
   me,
@@ -123,8 +123,10 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
     });
   }, [selectedEquip, equipList]);
 
+  // Full in-scope customer list (paged behind the scenes) + instant local
+  // filter: picking a client must offer every customer of the filial.
   useEffect(() => {
-    listCustomers().then((res) => setCustomers(res.rows)).catch((e) => setError(String(e)));
+    listAllCustomers().then(setCustomers).catch((e) => setError(String(e)));
     me()
       .then((mine) => (mine.subsidiary_id ? getPrices(mine.subsidiary_id) : null))
       .then((p) => {
@@ -159,15 +161,16 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
     }
   }, [customerId, customers]);
 
-  // Server-side client search: the dropdown only holds one page.
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      listCustomers({ search: clientSearch.trim() || undefined })
-        .then((res) => setCustomers(res.rows))
-        .catch((e) => setError(String(e)));
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [clientSearch]);
+  const filteredCustomers = useMemo(() => {
+    const q = clientSearch.trim().toLowerCase();
+    if (!q) return customers;
+    return customers.filter(
+      (c) =>
+        c.account_name.toLowerCase().includes(q) ||
+        c.customer_id.toLowerCase().includes(q) ||
+        (c.country ?? "").toLowerCase().includes(q)
+    );
+  }, [customers, clientSearch]);
 
   // Live preview: authoritative breakdown comes from the backend on every input change.
   useEffect(() => {
@@ -330,7 +333,7 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
               />
               <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className={`${input} bg-blue-50 mb-2`}>
                 <option value="">{t(lang, "ob_select_client")}</option>
-                {customers.map((c) => (
+                {filteredCustomers.map((c) => (
                   <option key={c.customer_id} value={c.customer_id}>
                     {c.customer_id} {c.account_name}
                   </option>
