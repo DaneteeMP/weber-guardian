@@ -87,8 +87,18 @@ async function checked(res: Response, what: string) {
   return res.json();
 }
 
-export function listCustomers(): Promise<Customer[]> {
-  return fetch(`${BASE}/customers`, { headers: headers() }).then((r) => checked(r, "GET customers"));
+export function listCustomers(opts?: { search?: string; limit?: number; offset?: number }): Promise<{
+  rows: Customer[];
+  total: number;
+}> {
+  const params = new URLSearchParams();
+  if (opts?.search) params.set("search", opts.search);
+  params.set("limit", String(opts?.limit ?? 50));
+  params.set("offset", String(opts?.offset ?? 0));
+  return fetch(`${BASE}/customers?${params}`, { headers: headers() }).then(async (r) => {
+    const rows = (await checked(r, "GET customers")) as Customer[];
+    return { rows, total: Number(r.headers.get("X-Total-Count") ?? rows.length) };
+  });
 }
 
 export function calculate(pricing: Pricing): Promise<Breakdown> {

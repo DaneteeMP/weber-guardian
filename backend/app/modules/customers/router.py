@@ -1,5 +1,5 @@
 """Customer HTTP. Thin: validates, calls service, returns. No SQL here."""
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -12,12 +12,20 @@ router = APIRouter(prefix="/customers", tags=["customers"])
 
 @router.get("", response_model=list[CustomerOut])
 def list_endpoint(
+    response: Response,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    search: str | None = Query(default=None, min_length=1, max_length=128),
     db: Session = Depends(get_db),
     current: CurrentUser = Depends(get_current_user),
 ):
-    return service.list_customers(db, limit=limit, offset=offset, subsidiary_id=current.subsidiary_id)
+    rows = service.list_customers(
+        db, limit=limit, offset=offset, subsidiary_id=current.subsidiary_id, search=search
+    )
+    response.headers["X-Total-Count"] = str(
+        service.count_customers(db, subsidiary_id=current.subsidiary_id, search=search)
+    )
+    return rows
 
 
 @router.post("", response_model=CustomerOut, status_code=status.HTTP_201_CREATED)

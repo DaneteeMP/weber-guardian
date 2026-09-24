@@ -26,8 +26,9 @@ app.state.pdf_renderer = build_offer_pdf
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["*"],
+    expose_headers=["X-Total-Count"],
 )
 
 

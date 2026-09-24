@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { getDevUser, listCustomers, type Customer } from "./api";
 import SectionCard from "./components/SectionCard";
 import { t, type Lang } from "./i18n";
 
 const API_URL = "http://localhost:8000/api/v1/customers";
+const PAGE_SIZE = 50;
 
 export default function Customers({ lang, externalSearch = "" }: { lang: Lang; externalSearch?: string }) {
   const [rows, setRows] = useState<Customer[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState(externalSearch);
@@ -14,11 +17,13 @@ export default function Customers({ lang, externalSearch = "" }: { lang: Lang; e
   const [accountName, setAccountName] = useState("");
   const [country, setCountry] = useState("");
 
-  async function load() {
+  async function load(q: string, p: number) {
     setLoading(true);
     setError(null);
     try {
-      setRows(await listCustomers());
+      const res = await listCustomers({ search: q.trim() || undefined, limit: PAGE_SIZE, offset: p * PAGE_SIZE });
+      setRows(res.rows);
+      setTotal(res.total);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load failed");
     } finally {
@@ -26,24 +31,25 @@ export default function Customers({ lang, externalSearch = "" }: { lang: Lang; e
     }
   }
 
+  // Server-side search (debounced) and paging: the grid always reflects
+  // the database, never just the loaded page.
   useEffect(() => {
-    load();
-  }, []);
+    const timer = setTimeout(() => {
+      setPage(0);
+      load(search, 0);
+    }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  useEffect(() => {
+    load(search, page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
 
   useEffect(() => {
     setSearch(externalSearch);
   }, [externalSearch]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter(
-      (c) =>
-        c.account_name.toLowerCase().includes(q) ||
-        c.customer_id.toLowerCase().includes(q) ||
-        (c.country ?? "").toLowerCase().includes(q)
-    );
-  }, [rows, search]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -72,7 +78,8 @@ export default function Customers({ lang, externalSearch = "" }: { lang: Lang; e
       setCustomerId("");
       setAccountName("");
       setCountry("");
-      await load();
+      setPage(0);
+      await load("", 0);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Create failed");
     }
@@ -85,7 +92,7 @@ export default function Customers({ lang, externalSearch = "" }: { lang: Lang; e
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">{t(lang, "cust_title")}</h1>
         <span className="text-sm text-gray-500">
-          {filtered.length} / {rows.length}
+          {rows.length} / {total.toLocaleString()}
         </span>
       </div>
 
@@ -121,13 +128,32 @@ export default function Customers({ lang, externalSearch = "" }: { lang: Lang; e
         </div>
 
         <div className="col-span-8">
-          <SectionCard title={`${t(lang, "nav_customers")} (${filtered.length})`}>
+          <SectionCard title={`${t(lang, "nav_customers")} (${total.toLocaleString()})`}>
             <input
               placeholder={t(lang, "cust_search_ph")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className={`${input} mb-2`}
             />
+            <div className="flex items-center justify-between mb-2 text-sm">
+              <button
+                disabled={page === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                className="px-2 py-1 rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-40"
+              >
+                ←
+              </button>
+              <span className="text-gray-500">
+                {page * PAGE_SIZE + (rows.length ? 1 : 0)}–{page * PAGE_SIZE + rows.length} / {total.toLocaleString()}
+              </span>
+              <button
+                disabled={(page + 1) * PAGE_SIZE >= total}
+                onClick={() => setPage((p) => p + 1)}
+                className="px-2 py-1 rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-40"
+              >
+                →
+              </button>
+            </div>
             {loading ? (
               <p className="text-sm text-gray-500">{t(lang, "cust_loading")}</p>
             ) : (
@@ -141,14 +167,14 @@ export default function Customers({ lang, externalSearch = "" }: { lang: Lang; e
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((c, i) => (
+                    {rows.map((c, i) => (
                       <tr key={c.id} className={`border-b last:border-0 ${i % 2 ? "bg-gray-50" : "bg-white"} hover:bg-blue-50`}>
                         <td className="px-3 py-1.5 font-mono font-semibold text-weber-blue">{c.customer_id}</td>
                         <td className="px-3 py-1.5">{c.account_name}</td>
                         <td className="px-3 py-1.5 text-gray-600">{c.country ?? "—"}</td>
                       </tr>
                     ))}
-                    {filtered.length === 0 && (
+                    {rows.length === 0 && (
                       <tr>
                         <td colSpan={3} className="px-3 py-8 text-center text-gray-400">
                           —

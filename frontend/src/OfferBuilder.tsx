@@ -35,6 +35,7 @@ const COLORS = ["#e3f2fd", "#fce4ec", "#e8f5e9", "#fff3e0", "#f3e5f5", "#e0f7fa"
 export default function OfferBuilder({ lang }: { lang: Lang }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState("");
+  const [clientSearch, setClientSearch] = useState("");
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -123,7 +124,7 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
   }, [selectedEquip, equipList]);
 
   useEffect(() => {
-    listCustomers().then(setCustomers).catch((e) => setError(String(e)));
+    listCustomers().then((res) => setCustomers(res.rows)).catch((e) => setError(String(e)));
     me()
       .then((mine) => (mine.subsidiary_id ? getPrices(mine.subsidiary_id) : null))
       .then((p) => {
@@ -157,6 +158,16 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
       setSelectedEquip([]);
     }
   }, [customerId, customers]);
+
+  // Server-side client search: the dropdown only holds one page.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      listCustomers({ search: clientSearch.trim() || undefined })
+        .then((res) => setCustomers(res.rows))
+        .catch((e) => setError(String(e)));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [clientSearch]);
 
   // Live preview: authoritative breakdown comes from the backend on every input change.
   useEffect(() => {
@@ -311,6 +322,12 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
           <div className="grid grid-cols-12 gap-4">
             <div className="col-span-5 border-r pr-4">
               <div className="text-xs font-bold text-gray-500 uppercase mb-2">{t(lang, "ob_customer_data")}</div>
+              <input
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                placeholder={t(lang, "cust_search_ph")}
+                className={`${input} mb-1`}
+              />
               <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className={`${input} bg-blue-50 mb-2`}>
                 <option value="">{t(lang, "ob_select_client")}</option>
                 {customers.map((c) => (

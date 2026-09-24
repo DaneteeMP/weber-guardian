@@ -2,7 +2,7 @@
 import pytest
 
 from app.modules.customers.schemas import CustomerCreate
-from app.modules.customers.service import CustomerAlreadyExists, create_customer, list_customers
+from app.modules.customers.service import CustomerAlreadyExists, count_customers, create_customer, list_customers
 
 
 def test_create_and_list(db):
@@ -24,3 +24,30 @@ def test_duplicate_customer_id_raises_domain_error(db):
     rows = list_customers(db)
     assert len(rows) == 1
     assert rows[0].account_name == "First"
+
+
+def test_search_matches_sap_name_and_country(db):
+    create_customer(db, CustomerCreate(customer_id="EXT-001", account_name="Fricafort, S.L.", country="Spain"))
+    create_customer(db, CustomerCreate(customer_id="EXT-002", account_name="Riela", country="Lithuania"))
+    assert len(list_customers(db, search="fricafort")) == 1
+    assert len(list_customers(db, search="EXT-002")) == 1
+    assert len(list_customers(db, search="lithuania")) == 1
+    assert len(list_customers(db, search="nope")) == 0
+    assert count_customers(db, search="fricafort") == 1
+    assert count_customers(db) == 2
+
+
+def test_search_combines_with_scope_and_pagination(db):
+    create_customer(
+        db, CustomerCreate(customer_id="A-1", account_name="Alpha Foods", country="Spain", subsidiary_id="ES")
+    )
+    create_customer(
+        db, CustomerCreate(customer_id="A-2", account_name="Alpha Meats", country="Spain", subsidiary_id="ES")
+    )
+    create_customer(
+        db, CustomerCreate(customer_id="B-1", account_name="Alpha Berlin", country="Germany", subsidiary_id="DE")
+    )
+    assert count_customers(db, subsidiary_id="ES", search="alpha") == 2
+    page = list_customers(db, subsidiary_id="ES", search="alpha", limit=1, offset=1)
+    assert len(page) == 1
+    assert count_customers(db, subsidiary_id="DE", search="alpha") == 1
