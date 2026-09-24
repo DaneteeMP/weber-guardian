@@ -22,8 +22,8 @@ def test_global_sees_everything(db):
     assert {c.country: c.count for c in stats.countries} == {"Spain": 2, "Germany": 1}
 
 
-def test_scoped_sees_own_plus_legacy(db):
+def test_scoped_sees_only_own_filial(db):
     _seed(db)
     stats = get_stats(db, subsidiary_id="ES")
-    assert (stats.total_customers, stats.total_equipment) == (2, 1)
-    assert {c.country: c.count for c in stats.countries} == {"Spain": 2}
+    assert (stats.total_customers, stats.total_equipment) == (1, 1)
+    assert {c.country: c.count for c in stats.countries} == {"Spain": 1}

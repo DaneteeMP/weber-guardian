@@ -1,9 +1,9 @@
 """Dashboard logic. Aggregate counts, all through the subsidiary scope.
 
 Unlike the Rust route (which counts the whole database for everyone),
-scoped callers only see their subsidiary plus legacy NULL rows.
+scoped callers see ONLY their subsidiary. Only global users see all.
 """
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.modules.customers.models import Customer
@@ -15,7 +15,7 @@ from app.modules.offers.models import Offer, OfferItem
 def _in_scope(customer_col, subsidiary_id: str | None):
     if subsidiary_id is None:
         return None
-    return or_(customer_col == subsidiary_id, customer_col.is_(None))
+    return customer_col == subsidiary_id
 
 
 def get_stats(db: Session, subsidiary_id: str | None = None) -> DashboardStats:

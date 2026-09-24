@@ -15,14 +15,23 @@ class CustomerAlreadyExists(Exception):
         self.customer_id = customer_id
 
 
+class OutsideScope(Exception):
+    """Domain error: scoped caller creating outside its filial. Router maps it to 403."""
+
+    def __init__(self, subsidiary_id: str | None):
+        super().__init__(f"Cannot create outside subsidiary {subsidiary_id}")
+        self.subsidiary_id = subsidiary_id
+
+
 def list_customers(
     db: Session, limit: int = 50, offset: int = 0, subsidiary_id: str | None = None, search: str | None = None
 ) -> list[Customer]:
     """List with pagination, subsidiary scope and server-side search.
 
-    None subsidiary = global, sees everything. Scoped callers see their
-    subsidiary plus legacy rows without one (NULL). Search matches SAP id,
-    account name or country (case-insensitive); None/blank disables it.
+    None subsidiary = global (admin), sees everything. Scoped callers see
+    ONLY their subsidiary: untagged (NULL) rows stay visible to global
+    users alone, so filials never leak into each other. Search matches SAP
+    id, account name or country (case-insensitive); None/blank disables it.
     """
     stmt = select(Customer).order_by(Customer.created_at.desc())
     stmt = _apply_filters(stmt, subsidiary_id=subsidiary_id, search=search)
@@ -38,7 +47,7 @@ def count_customers(db: Session, subsidiary_id: str | None = None, search: str |
 
 def _apply_filters(stmt, subsidiary_id: str | None, search: str | None):
     if subsidiary_id is not None:
-        stmt = stmt.where(or_(Customer.subsidiary_id == subsidiary_id, Customer.subsidiary_id.is_(None)))
+        stmt = stmt.where(Customer.subsidiary_id == subsidiary_id)
     if search:
         like = f"%{search.strip()}%"
         stmt = stmt.where(
@@ -51,8 +60,16 @@ def _apply_filters(stmt, subsidiary_id: str | None, search: str | None):
     return stmt
 
 
-def create_customer(db: Session, data: CustomerCreate) -> Customer:
-    """Create one customer. Commits explicitly, rolls back on duplicate."""
+def create_customer(db: Session, data: CustomerCreate, scope_subsidiary: str | None = None) -> Customer:
+    """Create one customer. Commits explicitly, rolls back on duplicate.
+
+    Scoped callers land inside their own filial: an empty subsidiary
+    defaults to it, a foreign one is rejected (403 at the router).
+    """
+    if scope_subsidiary is not None:
+        if data.subsidiary_id and data.subsidiary_id != scope_subsidiary:
+            raise OutsideScope(scope_subsidiary)
+        data = data.model_copy(update={"subsidiary_id": scope_subsidiary})
     row = Customer(**data.model_dump())
     db.add(row)
     try:

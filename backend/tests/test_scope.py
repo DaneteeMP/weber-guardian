@@ -87,9 +87,16 @@ def test_me_returns_db_role_and_scope(client):
     assert res.json() == {"external_id": "oid-es", "role": "sales", "subsidiary_id": "ES"}
 
 
-def test_es_sees_own_plus_legacy_not_de(client):
+def test_es_sees_only_own_filial(client):
     rows = client.get("/api/v1/customers", headers={"X-Dev-User": "oid-es"}).json()
-    assert {r["customer_id"] for r in rows} == {"C-ES", "C-LEG"}
+    assert {r["customer_id"] for r in rows} == {"C-ES"}
+
+
+def test_untagged_rows_are_admin_only(client):
+    es_rows = client.get("/api/v1/customers", headers={"X-Dev-User": "oid-es"}).json()
+    assert "C-LEG" not in {r["customer_id"] for r in es_rows}
+    admin_rows = client.get("/api/v1/customers", headers={"X-Dev-User": "oid-admin"}).json()
+    assert "C-LEG" in {r["customer_id"] for r in admin_rows}
 
 
 def test_admin_sees_everything(client):
@@ -138,3 +145,28 @@ def test_offer_scope_and_created_by(client):
         client.get(f"/api/v1/offers/{de_offer.json()['id']}", headers={"X-Dev-User": "oid-es"}).status_code
         == 404
     )
+
+
+def test_scoped_writes_stay_inside_the_filial(client):
+    # ES creating for DE reads as missing customer.
+    res = client.post(
+        "/api/v1/offers",
+        json={"customer_id": "C-DE", "pricing": _pricing().model_dump(mode="json"), "items": []},
+        headers={"X-Dev-User": "oid-es"},
+    )
+    assert res.status_code == 404
+    # ES creating a customer for DE is forbidden.
+    res = client.post(
+        "/api/v1/customers",
+        json={"customer_id": "C-X", "account_name": "Nope", "subsidiary_id": "DE"},
+        headers={"X-Dev-User": "oid-es"},
+    )
+    assert res.status_code == 403
+    # ES creating without subsidiary lands in ES.
+    res = client.post(
+        "/api/v1/customers",
+        json={"customer_id": "C-Y", "account_name": "Mine"},
+        headers={"X-Dev-User": "oid-es"},
+    )
+    assert res.status_code == 201
+    assert res.json()["subsidiary_id"] == "ES"

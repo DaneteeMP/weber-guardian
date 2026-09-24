@@ -58,7 +58,9 @@ def create_endpoint(
     current: CurrentUser = Depends(require_role("admin", "sales")),
 ):
     try:
-        return service.create_offer(db, payload, created_by=current.id)
+        return service.create_offer(
+            db, payload, created_by=current.id, scope_subsidiary=current.subsidiary_id
+        )
     except service.UnknownCustomer as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except service.OfferAlreadyExists as exc:
