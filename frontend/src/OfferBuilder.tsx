@@ -182,8 +182,10 @@ export default function OfferBuilder({
   // filter: picking a client must offer every customer of the filial.
   useEffect(() => {
     listAllCustomers().then(setCustomers).catch((e) => setError(String(e)));
+    // Travel rates follow the effective scope, so an admin browsing a
+    // filial gets that filial's rates pre-filled.
     me()
-      .then((mine) => (mine.subsidiary_id ? getPrices(mine.subsidiary_id) : null))
+      .then((mine) => (mine.scope_subsidiary_id ? getPrices(mine.scope_subsidiary_id) : null))
       .then((p) => {
         if (!p) return;
         setKmRate(p.km_rate);

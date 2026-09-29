@@ -7,6 +7,8 @@ const BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api/v1";
 
 // Dev-only identity (X-Dev-User). In prod behind SharePoint/Entra this
 // header disappears and identity travels with the platform token instead.
+// The beta has no real login yet, so the shell defaults everyone to the
+// admin identity; this goes away with Entra.
 let devUser: string | null = localStorage.getItem("devUser");
 
 export function setDevUser(id: string | null) {
@@ -17,6 +19,30 @@ export function setDevUser(id: string | null) {
 
 export function getDevUser(): string | null {
   return devUser;
+}
+
+// The beta has no login UI: every visitor runs as the shared admin
+// identity. A stale identity from an older build would pin the app to
+// one filial with no visible way out, so boot always resets it. This
+// goes away with Entra.
+export function ensureDevUser(): string {
+  setDevUser("dev-admin");
+  return "dev-admin";
+}
+
+// View scope ("Filial:" selector). Admins choose which filial's data they
+// see; the backend pins everyone else to their own. Kept in localStorage
+// so a reload keeps the selected filial. Null = all filials (admin view).
+let scopeSubsidiary: string | null = localStorage.getItem("scopeSubsidiary");
+
+export function setScopeSubsidiary(id: string | null) {
+  scopeSubsidiary = id;
+  if (id) localStorage.setItem("scopeSubsidiary", id);
+  else localStorage.removeItem("scopeSubsidiary");
+}
+
+export function getScopeSubsidiary(): string | null {
+  return scopeSubsidiary;
 }
 
 // Shared demo gate (HTTP Basic) in front of the whole API. Kept in
@@ -52,6 +78,8 @@ function basicToken(): string {
 function authHeaders(): Record<string, string> {
   const h: Record<string, string> = {};
   if (devUser) h["X-Dev-User"] = devUser;
+  // URL-encoded: filial names are free text and HTTP headers are not.
+  if (scopeSubsidiary) h["X-Scope-Subsidiary"] = encodeURIComponent(scopeSubsidiary);
   if (hasGateCredentials() && gateUser && gatePassword) h["Authorization"] = `Basic ${basicToken()}`;
   return h;
 }
@@ -77,7 +105,14 @@ export async function probeGate(): Promise<boolean> {
   return res.ok;
 }
 
-export type Me = { external_id: string; role: string; subsidiary_id: string | null; subsidiary_short: string | null };
+export type Me = {
+  external_id: string;
+  role: string;
+  subsidiary_id: string | null;
+  subsidiary_short: string | null;
+  scope_subsidiary_id: string | null;
+  scope_subsidiary_short: string | null;
+};
 
 export function me(): Promise<Me> {
   return fetch(`${BASE}/users/me`, { headers: headers() }).then((r) => checked(r, "GET me"));
@@ -126,6 +161,18 @@ export type Customer = {
   account_name: string;
   country: string | null;
 };
+
+export function createCustomer(payload: {
+  customer_id: string;
+  account_name: string;
+  country?: string | null;
+}): Promise<Customer> {
+  return fetch(`${BASE}/customers`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(payload),
+  }).then((r) => checked(r, "POST customer"));
+}
 
 export type Pricing = {
   work_hours: number;
@@ -500,10 +547,9 @@ export type ImportReport = {
 export function uploadCsv(file: File, dryRun: boolean, subsidiaryId?: string): Promise<ImportReport> {
   const form = new FormData();
   form.append("file", file);
-  const h: Record<string, string> = {};
-  const dev = getDevUser();
-  if (dev) h["X-Dev-User"] = dev;
   let url = `${BASE}/imports/upload?dry_run=${dryRun}`;
   if (subsidiaryId) url += `&subsidiary_id=${encodeURIComponent(subsidiaryId)}`;
-  return fetch(url, { method: "POST", headers: h, body: form }).then((r) => checked(r, "POST upload"));
+  return fetch(url, { method: "POST", headers: authHeaders(), body: form }).then((r) =>
+    checked(r, "POST upload")
+  );
 }

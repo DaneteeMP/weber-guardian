@@ -19,5 +19,5 @@ def list_endpoint(
     current: CurrentUser = Depends(get_current_user),
 ):
     return service.list_equipment(
-        db, customer_id=customer_id, limit=limit, offset=offset, subsidiary_id=current.subsidiary_id
+        db, customer_id=customer_id, limit=limit, offset=offset, subsidiary_id=current.scope_subsidiary_id
     )

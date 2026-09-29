@@ -14,6 +14,8 @@ export const LANGS: { code: Lang; label: string }[] = [
 const es = {
   nav_offers: "Ofertas Guardian",
   nav_new_offer: "Nueva oferta",
+  scope_filial: "Filial",
+  scope_admin_all: "Admin · Todas las filiales",
   gate_title: "Acceso restringido",
   gate_hint: "Introduce el usuario y la contraseña de la demo.",
   gate_user: "Usuario",
@@ -158,6 +160,8 @@ export type Strings = typeof es;
 const en: Strings = {
   nav_offers: "Guardian offers",
   nav_new_offer: "New offer",
+  scope_filial: "Subsidiary",
+  scope_admin_all: "Admin · All subsidiaries",
   gate_title: "Restricted access",
   gate_hint: "Enter the demo username and password.",
   gate_user: "Username",
@@ -300,6 +304,8 @@ const en: Strings = {
 const de: Strings = {
   nav_offers: "Guardian-Angebote",
   nav_new_offer: "Neues Angebot",
+  scope_filial: "Filiale",
+  scope_admin_all: "Admin · Alle Filialen",
   gate_title: "Zugang beschränkt",
   gate_hint: "Demo-Benutzername und -Passwort eingeben.",
   gate_user: "Benutzer",
@@ -442,6 +448,8 @@ const de: Strings = {
 const pt: Strings = {
   nav_offers: "Ofertas Guardian",
   nav_new_offer: "Nova oferta",
+  scope_filial: "Filial",
+  scope_admin_all: "Admin · Todas as filiais",
   gate_title: "Acesso restrito",
   gate_hint: "Introduza o utilizador e a palavra-passe da demo.",
   gate_user: "Utilizador",
@@ -584,6 +592,8 @@ const pt: Strings = {
 const it: Strings = {
   nav_offers: "Offerte Guardian",
   nav_new_offer: "Nuova offerta",
+  scope_filial: "Filiale",
+  scope_admin_all: "Admin · Tutte le filiali",
   gate_title: "Accesso riservato",
   gate_hint: "Inserisci utente e password della demo.",
   gate_user: "Utente",

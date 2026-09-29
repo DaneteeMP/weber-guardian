@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.core import security
 from app.main import app as api_app
+from app.modules.subsidiaries.models import Subsidiary
 from app.modules.users.models import User
 
 
@@ -19,9 +20,13 @@ def _user(db, external_id="oid-admin", role="admin", subsidiary_id=None):
     return row
 
 
-def _current(external_id, role="admin", subsidiary_id=None):
+def _current(external_id, role="admin", subsidiary_id=None, scope_subsidiary_id=None):
     return security.CurrentUser(
-        id=uuid.uuid4(), external_id=external_id, role=role, subsidiary_id=subsidiary_id
+        id=uuid.uuid4(),
+        external_id=external_id,
+        role=role,
+        subsidiary_id=subsidiary_id,
+        scope_subsidiary_id=scope_subsidiary_id,
     )
 
 
@@ -45,6 +50,23 @@ def test_known_user_resolves_role_and_scope_from_db(db, monkeypatch):
     me = asyncio.run(security.get_current_user(x_dev_user="oid-sales-es", db=db))
     assert me.role == "sales"
     assert me.subsidiary_id == "Weber Iberica"
+    # No scope header: sales keep their own filial as the effective scope.
+    assert me.scope_subsidiary_id == "Weber Iberica"
+
+
+def test_scope_header_resolves_effective_scope(db, monkeypatch):
+    monkeypatch.setattr(security.settings, "dev_auth_enabled", True)
+    db.add(Subsidiary(name="Weber Iberica", short_label="Iberica"))
+    _user(db, external_id="oid-admin", role="admin")
+    db.commit()
+    me = asyncio.run(
+        security.get_current_user(
+            x_dev_user="oid-admin", x_scope_subsidiary="Weber%20Iberica", db=db
+        )
+    )
+    # Admin identity stays global; the view scope follows the header.
+    assert me.subsidiary_id is None
+    assert me.scope_subsidiary_id == "Weber Iberica"
 
 
 def test_require_role_allows_and_denies():

@@ -9,12 +9,13 @@ import Subsidiaries from "./Subsidiaries";
 import Gate from "./components/Gate";
 import TopBar, { type Tab } from "./components/TopBar";
 import {
-  getDevUser,
+  ensureDevUser,
+  getScopeSubsidiary,
   hasGateCredentials,
   me,
   onGateRequired,
   probeGate,
-  setDevUser,
+  setScopeSubsidiary,
   type Me,
 } from "./api";
 import type { Lang } from "./i18n";
@@ -24,7 +25,9 @@ import type { Lang } from "./i18n";
 export default function App() {
   const [tab, setTab] = useState<Tab>("home");
   const [lang, setLang] = useState<Lang>(() => (localStorage.getItem("lang") as Lang) || "es");
-  const [dev, setDevState] = useState<string | null>(() => getDevUser());
+  // Beta: one shared admin identity for everyone (see ensureDevUser).
+  const [dev] = useState<string>(() => ensureDevUser());
+  const [scope, setScopeState] = useState<string | null>(() => getScopeSubsidiary());
   const [identity, setIdentity] = useState<Me | null>(null);
   const [search, setSearch] = useState("");
   const [editingOffer, setEditingOffer] = useState<string | null>(null);
@@ -67,9 +70,12 @@ export default function App() {
     me().then(setIdentity).catch(() => setIdentity(null));
   }, [dev, tab, epoch]);
 
-  function setDev(v: string | null) {
-    setDevUser(v);
-    setDevState(v);
+  // Switching filial switches the data of every page, not just this one:
+  // bump the epoch so all mounted views refetch under the new scope.
+  function setScope(v: string | null) {
+    setScopeSubsidiary(v);
+    setScopeState(v);
+    setEpoch((n) => n + 1);
   }
 
   function passGate() {
@@ -85,7 +91,7 @@ export default function App() {
     return <Gate lang={lang} onPass={passGate} />;
   }
 
-  const contentKey = `${dev ?? "anon"}:${epoch}`;
+  const contentKey = `${dev}:${scope ?? "all"}:${epoch}`;
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -96,9 +102,9 @@ export default function App() {
         setLang={setLang}
         search={search}
         setSearch={setSearch}
-        dev={dev}
-        setDev={setDev}
         identity={identity}
+        scope={scope}
+        setScope={setScope}
         showConfig={identity?.role === "admin"}
         showSubsidiaries={identity?.role === "admin"}
       />

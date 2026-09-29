@@ -15,4 +15,6 @@ def me_endpoint(current: CurrentUser = Depends(get_current_user)) -> dict:
         "role": current.role,
         "subsidiary_id": current.subsidiary_id,
         "subsidiary_short": short_label(current.subsidiary_id),
+        "scope_subsidiary_id": current.scope_subsidiary_id,
+        "scope_subsidiary_short": short_label(current.scope_subsidiary_id),
     }

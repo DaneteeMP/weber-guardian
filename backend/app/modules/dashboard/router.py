@@ -15,4 +15,4 @@ def stats_endpoint(
     db: Session = Depends(get_db),
     current: CurrentUser = Depends(get_current_user),
 ):
-    return service.get_stats(db, subsidiary_id=current.subsidiary_id)
+    return service.get_stats(db, subsidiary_id=current.scope_subsidiary_id)

@@ -28,9 +28,9 @@ async def upload_endpoint(
         )
     # Scoped users import for their own filial only.
     if (
-        current.subsidiary_id is not None
+        current.scope_subsidiary_id is not None
         and subsidiary_id
-        and normalize_subsidiary(subsidiary_id) != current.subsidiary_id
+        and normalize_subsidiary(subsidiary_id) != current.scope_subsidiary_id
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     content = await file.read()

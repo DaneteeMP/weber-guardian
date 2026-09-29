@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { getDevUser, listCustomers, type Customer } from "./api";
+import { createCustomer, listCustomers, type Customer } from "./api";
 import SectionCard from "./components/SectionCard";
 import { t, type Lang } from "./i18n";
 
-const API_URL = "http://localhost:8000/api/v1/customers";
 const PAGE_SIZE = 50;
 
 export default function Customers({ lang, externalSearch = "" }: { lang: Lang; externalSearch?: string }) {
@@ -55,26 +54,14 @@ export default function Customers({ lang, externalSearch = "" }: { lang: Lang; e
     e.preventDefault();
     setError(null);
     try {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      const dev = getDevUser();
-      if (dev) headers["X-Dev-User"] = dev;
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          customer_id: customerId,
-          account_name: accountName,
-          country: country || null,
-        }),
+      // Goes through api.ts like every other call: same base URL, same
+      // identity and scope headers (it used to fetch a hardcoded
+      // localhost URL with hand-built headers, which broke in prod).
+      await createCustomer({
+        customer_id: customerId,
+        account_name: accountName,
+        country: country || null,
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        const detail =
-          typeof data?.detail === "string"
-            ? data.detail
-            : JSON.stringify(data?.detail ?? res.statusText);
-        throw new Error(`POST failed (${res.status}): ${detail}`);
-      }
       setCustomerId("");
       setAccountName("");
       setCountry("");

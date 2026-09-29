@@ -16,10 +16,12 @@ from app.core.db import Base, get_db
 from app.main import app as api_app
 import app.modules.customers.models  # noqa: F401
 import app.modules.offers.models  # noqa: F401
+import app.modules.subsidiaries.models  # noqa: F401
 import app.modules.users.models  # noqa: F401
 from app.modules.customers.schemas import CustomerCreate
 from app.modules.customers.service import create_customer
 from app.modules.offers.schemas import OfferCalculateIn
+from app.modules.subsidiaries.models import Subsidiary
 from app.modules.users.models import User
 
 
@@ -47,6 +49,8 @@ def client(monkeypatch):
             User(external_id="oid-es", role="sales", subsidiary_id="Weber Iberica"),
             User(external_id="oid-de", role="sales", subsidiary_id="Weber Germany"),
             User(external_id="oid-viewer", role="viewer", subsidiary_id="Weber Iberica"),
+            Subsidiary(name="Weber Iberica", short_label="Iberica"),
+            Subsidiary(name="Weber Germany", short_label="Germany"),
         ]
     )
     seed.commit()
@@ -89,6 +93,8 @@ def test_me_returns_db_role_and_scope(client):
         "role": "sales",
         "subsidiary_id": "Weber Iberica",
         "subsidiary_short": "Iberica",
+        "scope_subsidiary_id": "Weber Iberica",
+        "scope_subsidiary_short": "Iberica",
     }
 
 
@@ -175,3 +181,49 @@ def test_scoped_writes_stay_inside_the_filial(client):
     )
     assert res.status_code == 201
     assert res.json()["subsidiary_id"] == "Weber Iberica"
+
+
+def test_admin_scope_header_filters_data(client):
+    # The header arrives URL-encoded: filial names are free text.
+    res = client.get(
+        "/api/v1/customers",
+        headers={"X-Dev-User": "oid-admin", "X-Scope-Subsidiary": "Weber%20Iberica"},
+    )
+    assert res.status_code == 200
+    assert {r["customer_id"] for r in res.json()} == {"C-ES"}
+
+
+def test_admin_scope_header_must_name_a_catalog_filial(client):
+    res = client.get(
+        "/api/v1/customers",
+        headers={"X-Dev-User": "oid-admin", "X-Scope-Subsidiary": "Weber%20Nowhere"},
+    )
+    assert res.status_code == 403
+    assert "Unknown subsidiary" in res.json()["detail"]
+
+
+def test_admin_scope_header_reaches_me_and_summary(client):
+    res = client.get(
+        "/api/v1/users/me",
+        headers={"X-Dev-User": "oid-admin", "X-Scope-Subsidiary": "Weber%20Germany"},
+    )
+    assert res.json()["scope_subsidiary_id"] == "Weber Germany"
+    assert res.json()["scope_subsidiary_short"] == "Germany"
+
+
+def test_non_admin_cannot_scope_elsewhere(client):
+    res = client.get(
+        "/api/v1/customers",
+        headers={"X-Dev-User": "oid-es", "X-Scope-Subsidiary": "Weber%20Germany"},
+    )
+    assert res.status_code == 403
+    assert "limited" in res.json()["detail"]
+
+
+def test_non_admin_own_scope_header_is_accepted(client):
+    res = client.get(
+        "/api/v1/customers",
+        headers={"X-Dev-User": "oid-es", "X-Scope-Subsidiary": "Weber%20Iberica"},
+    )
+    assert res.status_code == 200
+    assert {r["customer_id"] for r in res.json()} == {"C-ES"}

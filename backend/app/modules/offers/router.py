@@ -42,7 +42,7 @@ def list_endpoint(
         customer_id=customer_id,
         limit=limit,
         offset=offset,
-        subsidiary_id=current.subsidiary_id,
+        subsidiary_id=current.scope_subsidiary_id,
         status=status,
     )
 
@@ -53,7 +53,7 @@ def summary_endpoint(
     current: CurrentUser = Depends(get_current_user),
 ):
     """Dense home-screen figures (totals, by status, monthly, ranking)."""
-    return service.offers_summary(db, subsidiary_id=current.subsidiary_id)
+    return service.offers_summary(db, subsidiary_id=current.scope_subsidiary_id)
 
 
 @router.get("/{offer_id}", response_model=OfferOut)
@@ -62,7 +62,7 @@ def get_endpoint(
     db: Session = Depends(get_db),
     current: CurrentUser = Depends(get_current_user),
 ):
-    offer = service.get_offer(db, offer_id, subsidiary_id=current.subsidiary_id)
+    offer = service.get_offer(db, offer_id, subsidiary_id=current.scope_subsidiary_id)
     if offer is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Offer not found")
     return offer
@@ -76,7 +76,7 @@ def create_endpoint(
 ):
     try:
         return service.create_offer(
-            db, payload, created_by=current.id, scope_subsidiary=current.subsidiary_id
+            db, payload, created_by=current.id, scope_subsidiary=current.scope_subsidiary_id
         )
     except service.UnknownCustomer as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
@@ -91,7 +91,7 @@ def update_endpoint(
     db: Session = Depends(get_db),
     current: CurrentUser = Depends(require_role("admin", "sales")),
 ):
-    offer = service.update_offer(db, offer_id, payload, subsidiary_id=current.subsidiary_id)
+    offer = service.update_offer(db, offer_id, payload, subsidiary_id=current.scope_subsidiary_id)
     if offer is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Offer not found")
     return offer
@@ -103,7 +103,7 @@ def delete_endpoint(
     db: Session = Depends(get_db),
     current: CurrentUser = Depends(require_role("admin", "sales")),
 ):
-    if not service.delete_offer(db, offer_id, subsidiary_id=current.subsidiary_id):
+    if not service.delete_offer(db, offer_id, subsidiary_id=current.scope_subsidiary_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Offer not found")
 
 
@@ -115,7 +115,7 @@ def status_endpoint(
     current: CurrentUser = Depends(require_role("admin", "sales")),
 ):
     try:
-        offer = service.set_offer_status(db, offer_id, payload.status, subsidiary_id=current.subsidiary_id)
+        offer = service.set_offer_status(db, offer_id, payload.status, subsidiary_id=current.scope_subsidiary_id)
     except service.BadStatus as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     if offer is None:
@@ -131,7 +131,7 @@ def pdf_endpoint(
     current: CurrentUser = Depends(get_current_user),
 ):
     """Official offer PDF, rendered server-side from backend data only."""
-    doc = service.get_offer_document(db, offer_id, subsidiary_id=current.subsidiary_id)
+    doc = service.get_offer_document(db, offer_id, subsidiary_id=current.scope_subsidiary_id)
     if doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Offer not found")
     try:

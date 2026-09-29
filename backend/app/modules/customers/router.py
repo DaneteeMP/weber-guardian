@@ -20,10 +20,10 @@ def list_endpoint(
     current: CurrentUser = Depends(get_current_user),
 ):
     rows = service.list_customers(
-        db, limit=limit, offset=offset, subsidiary_id=current.subsidiary_id, search=search
+        db, limit=limit, offset=offset, subsidiary_id=current.scope_subsidiary_id, search=search
     )
     response.headers["X-Total-Count"] = str(
-        service.count_customers(db, subsidiary_id=current.subsidiary_id, search=search)
+        service.count_customers(db, subsidiary_id=current.scope_subsidiary_id, search=search)
     )
     return rows
 
@@ -35,7 +35,7 @@ def create_endpoint(
     current: CurrentUser = Depends(require_role("admin", "sales")),
 ):
     try:
-        return service.create_customer(db, payload, scope_subsidiary=current.subsidiary_id)
+        return service.create_customer(db, payload, scope_subsidiary=current.scope_subsidiary_id)
     except service.CustomerAlreadyExists as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Customer already exists: {exc.customer_id}") from exc
     except service.OutsideScope as exc:

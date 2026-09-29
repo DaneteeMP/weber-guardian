@@ -41,6 +41,15 @@ Regla de arquitectura: `Entra oid → quién es` · `Guardian DB (role, subsidia
 
 - No existía endpoint `reset/TRUNCATE` abierto en nuestro código (el Rust sí lo tenía): nada que borrar.
 - Bug del Rust no reproducido: totales confiados del cliente, huérfanos sin transacción, errores DB crudos.
+- Bug heredado nuestro, corregido: el alta de cliente en `Customers.tsx` hacía `fetch` a `http://localhost:8000` quemado con cabeceras montadas a mano (roto en producción, sin scope). Ahora va por `createCustomer()` en `api.ts`: misma base, mismas cabeceras que el resto.
+
+## 7. Selector de filial (scope de vista, beta)
+
+- Cabecera `X-Scope-Subsidiary` (URL-encoded, nombres con espacios): el desplegable `Filial:` de `TopBar`. Es un **scope de vista**, no un filtro de la UI: `get_current_user()` lo resuelve junto a la identidad.
+- `CurrentUser.scope_subsidiary_id` = alcance efectivo de datos. Admin: filial elegida del catálogo o ausente = todas. `sales/viewer`: su filial fija; pedir otra → `403`; filial fuera de catálogo → `403` (nunca lista vacía silenciosa).
+- Routers pasan `scope_subsidiary_id` a los servicios (customers, offers, equipment, dashboard, imports). `subsidiary_id` sigue siendo la filial "de casa" de la identidad. `/users/me` expone ambos.
+- Frontend: `localStorage` + bump de `epoch` al cambiar (toda la app refresca), tarifas de viaje en `OfferBuilder` precargadas según el scope efectivo. El desplegable técnico `dev-*` desaparece: en beta todos arrancan como `dev-admin` (`ensureDevUser()` resetea identidades viejas para no dejar a nadie clavado sin selector). Con Entra, el selector solo sale para admin; ventas/viewer ven su filial como badge fijo.
+- Verificado: 79 passed, `ruff` limpio, E2E con `curl` (filial → subconjunto, sin cabecera → todo, filial desconocida → 403, preflight CORS acepta la cabecera nueva).
 
 ## Pendiente (fuera de F2)
 

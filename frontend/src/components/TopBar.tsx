@@ -1,9 +1,15 @@
+import { useEffect, useState } from "react";
+import { listSubsidiaries, type Subsidiary } from "../api";
 import { LANGS, t, type Lang } from "../i18n";
 
 export type Tab = "home" | "offers" | "customers" | "import" | "dashboard" | "config" | "subsidiaries";
 
 // Salesforce-style shell: brand row (logo, global search, identity) plus
 // the tab bar. No routing library: tabs are plain state in App.
+//
+// The "Filial:" control is the view scope, not a filter: it decides whose
+// data the whole app shows. Admins pick any filial (or all of them);
+// everyone else is pinned by the backend and only sees their badge here.
 export default function TopBar({
   tab,
   setTab,
@@ -11,9 +17,9 @@ export default function TopBar({
   setLang,
   search,
   setSearch,
-  dev,
-  setDev,
   identity,
+  scope,
+  setScope,
   showConfig,
   showSubsidiaries,
 }: {
@@ -23,12 +29,28 @@ export default function TopBar({
   setLang: (l: Lang) => void;
   search: string;
   setSearch: (s: string) => void;
-  dev: string | null;
-  setDev: (d: string | null) => void;
-  identity: { external_id: string; role: string; subsidiary_id: string | null; subsidiary_short?: string | null } | null;
+  identity: {
+    external_id: string;
+    role: string;
+    subsidiary_id: string | null;
+    subsidiary_short?: string | null;
+    scope_subsidiary_id?: string | null;
+    scope_subsidiary_short?: string | null;
+  } | null;
+  scope: string | null;
+  setScope: (s: string | null) => void;
   showConfig: boolean;
   showSubsidiaries: boolean;
 }) {
+  const [subsidiaries, setSubsidiaries] = useState<Subsidiary[]>([]);
+  const isAdmin = identity?.role === "admin";
+
+  // Only admins get the selector, so only admins need the catalog.
+  useEffect(() => {
+    if (!isAdmin) return;
+    listSubsidiaries().then(setSubsidiaries).catch(() => setSubsidiaries([]));
+  }, [isAdmin]);
+
   const tabs: { id: Tab; label: string }[] = [
     { id: "home", label: t(lang, "nav_offers") },
     { id: "offers", label: t(lang, "nav_new_offer") },
@@ -53,6 +75,28 @@ export default function TopBar({
           placeholder="Search..."
           className="border rounded-full px-4 py-1.5 text-sm w-full max-w-xl mx-auto"
         />
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
+          <span className="text-xs font-semibold text-gray-600">{t(lang, "scope_filial")}:</span>
+          {isAdmin ? (
+            <select
+              value={scope ?? ""}
+              onChange={(e) => setScope(e.target.value || null)}
+              className="border rounded px-2 py-1 text-sm font-medium bg-white"
+              title={t(lang, "scope_filial")}
+            >
+              <option value="">{t(lang, "scope_admin_all")}</option>
+              {subsidiaries.map((s) => (
+                <option key={s.name} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="text-sm font-medium text-gray-700">
+              {identity?.subsidiary_short ?? identity?.subsidiary_id ?? "—"}
+            </span>
+          )}
+        </div>
         <select value={lang} onChange={(e) => setLang(e.target.value as Lang)} className="border rounded px-2 py-1 text-sm" title="Language">
           {LANGS.map((l) => (
             <option key={l.code} value={l.code}>
@@ -60,32 +104,19 @@ export default function TopBar({
             </option>
           ))}
         </select>
-        <select
-          value={dev ?? ""}
-          onChange={(e) => setDev(e.target.value || null)}
-          className="border rounded px-2 py-1 text-sm bg-yellow-50"
-          title="Dev user (local only)"
-        >
-          <option value="">No identity</option>
-          {["dev-admin", "dev-es", "dev-de", "dev-viewer"].map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
-        </select>
         {identity && (
           <span className="text-xs text-gray-600 whitespace-nowrap">
             {identity.external_id} · {identity.role} ·{" "}
-            {identity.subsidiary_short ?? identity.subsidiary_id ?? "global"}
+            {identity.scope_subsidiary_short ?? identity.scope_subsidiary_id ?? "global"}
           </span>
         )}
       </div>
-      <nav className="flex gap-1 px-4 border-t">
+      <nav className="flex gap-1 px-4 border-t overflow-x-auto">
         {tabs.map((item) => (
           <button
             key={item.id}
             onClick={() => setTab(item.id)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
               tab === item.id
                 ? "border-weber-blue text-weber-blue"
                 : "border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300"
