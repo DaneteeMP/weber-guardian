@@ -24,8 +24,9 @@ export function statusColor(status: string): string {
   return STATUS_COLORS[status] ?? CHART_BLUE;
 }
 
-// Y axis labels have room for roughly this many characters at 9px.
-export function shortName(name: string, max = 14): string {
+// Y axis labels get a wide column now, so the default cut is generous. Anything
+// longer still shows in full on hover, which the axis tick renders as a title.
+export function shortName(name: string, max = 30): string {
   return name.length > max ? `${name.slice(0, max - 1)}…` : name;
 }
 

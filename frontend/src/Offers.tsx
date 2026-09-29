@@ -14,7 +14,6 @@ import {
 import CustomerRankingChart from "./components/charts/CustomerRankingChart";
 import MonthlyOffersChart from "./components/charts/MonthlyOffersChart";
 import StatusDonutChart from "./components/charts/StatusDonutChart";
-import { shortName } from "./components/charts/chartTheme";
 import { t, type Lang } from "./i18n";
 
 // Dense monitoring home: status/monthly/ranking panels on top, full offer table
@@ -132,7 +131,7 @@ export default function OffersHome({
       {error && <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-1.5">{error}</p>}
       {notice && <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-1.5">{notice}</p>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-start">
         <div className="lg:col-span-1 bg-white rounded-lg border border-gray-200 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
             {t(lang, "home_panel_donut")}
@@ -147,13 +146,13 @@ export default function OffersHome({
           <MonthlyOffersChart rows={(summary?.monthly ?? []).slice(-24)} />
         </div>
 
-        <div className="lg:col-span-1 bg-white rounded-lg border border-gray-200 p-3">
+        <div className="lg:col-span-2 bg-white rounded-lg border border-gray-200 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
             {t(lang, "home_panel_ranking")}
           </p>
           <CustomerRankingChart
             rows={(summary?.ranking ?? []).slice(0, 8).map((r) => ({
-              label: shortName(names[r.customer_id] ?? r.customer_id),
+              label: names[r.customer_id] ?? r.customer_id,
               count: r.count,
             }))}
           />
@@ -161,7 +160,7 @@ export default function OffersHome({
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200">
-        <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 340px)" }}>
+        <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 430px)" }}>
           <table className="w-full text-xs">
             <thead className="sticky top-0 z-10">
               <tr className="bg-weber-blue text-white text-left">
