@@ -40,6 +40,32 @@ contraseña compartida y **no** es una postura de produccion.
    `seed_demo.py` se niega a ejecutarse si la tabla `offers` ya tiene filas, de
    modo que la base de desarrollo con datos reales no se puede contaminar.
 
+### Si la red local no llega a Supabase
+
+En algunas redes (sobre todo detras de VPN o con DNS filtrado) el host de
+Supabase solo resuelve a IPv6 y el puerto 5432 no es alcanzable, asi que los
+tres comandos de arriba no se pueden ejecutar desde el equipo. La salida la tiene
+el propio servicio de Render, y para eso esta `bootstrap_demo.py`: migra y
+siembra en un solo comando.
+
+1. En Render, servicio `weberguardian-api` -> **Settings** -> **Docker Command**:
+   ```
+   python bootstrap_demo.py
+   ```
+   Ese campo acepta **un unico ejecutable, sin operadores de shell**: escribir
+   `sh -c "a && b && c"` falla con `not found`.
+2. Guardar y esperar el reinicio. En **Logs** deben aparecer `--- alembic
+   upgrade head ---`, `users: 4 created`, `offers: 24 across 8 customers` y
+   `bootstrap finished`. El contenedor acaba en `Exited`, y es lo esperado: el
+   script solo prepara datos, no arranca el servidor.
+3. **Volver a vaciar el Docker Command** y guardar, para que arranque el CMD
+   normal con uvicorn.
+
+Repetir el bootstrap no duplica nada: `alembic upgrade head` solo aplica lo que
+falta, `seed_dev.py` se salta las filas existentes y `bootstrap_demo.py`
+detecta que ya hay ofertas en vez de depender del codigo de salida de
+`seed_demo.py`.
+
 ## 2. Render (API)
 
 1. New > Blueprint, apuntando al repositorio. Render lee `render.yaml`.
