@@ -26,7 +26,8 @@ import app.modules.subsidiaries.models  # noqa: F401
 import app.modules.users.models  # noqa: F401
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# The URL is never read from alembic.ini: configparser would choke on the % of
+# a URL-encoded password, and both code paths below take it from settings.
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
