@@ -1,0 +1,85 @@
+# Despliegue de la demo publica (MVP)
+
+Objetivo: una URL que se pueda enseñar sin depender de la red de la oficina.
+Stack: **Supabase** (Postgres) + **Render** (API) + **Vercel** (frontend). Todo
+el codigo sigue siendo el mismo de `docker-compose`: lo unico que cambia son
+variables de entorno y quien hospeda cada pieza.
+
+## 0. Decision previa: la puerta de acceso
+
+No hay login real todavia (Entra/SharePoint es F2, ver `ADR-002-entra-auth.md`).
+Mientras tanto la demo se protege con **HTTP Basic en la API**:
+`BASIC_AUTH_USER` + `BASIC_AUTH_PASSWORD`. Con ambos vacios la puerta queda
+desactivada, que es el comportamiento por defecto en local.
+
+El frontend **pide la contraseña dentro de la app** (`components/Gate.tsx`), la
+guarda en `sessionStorage` y la envia en cada llamada. No hay proxy delante ni
+secreto en el bundle: Vercel solo sirve HTML/JS.
+
+Consecuencia asumida: con la puerta abierta, `DEV_AUTH_ENABLED=true` deja que
+cualquiera elija identidad (`X-Dev-User`). Es aceptable para una demo tras una
+contraseña compartida y **no** es una postura de produccion.
+
+## 1. Supabase (base de datos)
+
+1. Crear un proyecto y copiar la cadena de conexion **directa** (puerto 5432),
+   no la del pooler: `postgresql+psycopg://USER:PASSWORD@HOST:5432/postgres?sslmode=require`.
+   Con el pooler (pgbouncer) psycopg necesita `prepare_threshold=0`.
+2. Crear el schema ejecutando las migraciones **una sola vez**, contra esa
+   cadena de conexion:
+   ```
+   docker compose run --rm -e DATABASE_URL="postgresql+psycopg://.../postgres?sslmode=require" api alembic upgrade head
+   ```
+   El contenedor de Render no lanza migraciones al arrancar (no hay migraciones
+   automaticas en el plan gratuito), por eso se hace aqui y a mano.
+3. Datos de la demo (clientes y ofertas inventados):
+   ```
+   docker compose run --rm -e DATABASE_URL="postgresql+psycopg://.../postgres?sslmode=require" api python seed_dev.py
+   docker compose run --rm -e DATABASE_URL="postgresql+psycopg://.../postgres?sslmode=require" api python seed_demo.py
+   ```
+   `seed_demo.py` se niega a ejecutarse si la tabla `offers` ya tiene filas, de
+   modo que la base de desarrollo con datos reales no se puede contaminar.
+
+## 2. Render (API)
+
+1. New > Blueprint, apuntando al repositorio. Render lee `render.yaml`.
+2. Completar las variables `sync: false` en el panel:
+   - `DATABASE_URL`: la de Supabase del paso 1.
+   - `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD`: la contraseña de la demo. Solo
+     ASCII, el frontend la codifica con `btoa`.
+   - `ALLOWED_ORIGINS`: `https://<tu-app>.vercel.app` (coma si hay mas de uno).
+3. `DEV_AUTH_ENABLED` va a `true` en el blueprint; ver la nota del paso 0.
+4. Health check: `/health` responde 200 sin credenciales, asi que la plataforma
+   no la bloquea.
+5. Comprobar: `https://<api>.onrender.com/openapi.json` pide `WWW-Authenticate:
+   Basic` y con la contraseña devuelve 200.
+
+Aviso: el plan gratuito duerme tras unos minutos de inactividad, asi que la
+primera peticion tras un rato tarda 30-60 s. Con una instancia de pago no pasa.
+Se puede evitar el imprevisto de la demo dejando el plan gratuito y aceptando
+la espera, o pasando a `starter`.
+
+## 3. Vercel (frontend)
+
+1. New Project, importar el repositorio y poner **Root Directory = `frontend`**
+   (Vite se detecta solo: `npm run build` -> `dist`). No hace falta `vercel.json`.
+2. Variable de entorno del build:
+   - `VITE_API_BASE=https://<api>.onrender.com/api/v1` (sin barra final).
+3. Desplegar. Al abrir la URL aparece la pantalla de acceso pidiendo usuario y
+   contraseña de la demo.
+
+## 4. Comprobacion final
+
+- `pytest` y `ruff check` en verde en local (el gate tiene tests en
+  `tests/test_security.py`).
+- Abrir la URL de Vercel: pide contraseña, entra, y los tres graficos de la
+  home tienen datos (donut por estado, barras por mes, ranking de clientes).
+- Crear una oferta y comprobar que la fecha se puede editar y que el PDF sale.
+
+## 5. Lo que hay que tener presente
+
+- Sin login real: la puerta Basic es lo unico entre Internet y los datos.
+- `BASIC_AUTH_PASSWORD` vive en el panel de Render y en el navegador de quien
+  se autentique (`sessionStorage`, se borra al cerrar la pestaña).
+- La demo expone datos inventados de `seed_demo.py`, no los clientes reales.
+- Render gratuito duerme; Vercel y Supabase no.

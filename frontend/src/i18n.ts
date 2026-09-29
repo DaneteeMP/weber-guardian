@@ -1,4 +1,4 @@
-// F2 i18n: plain dictionaries, no library.
+﻿// F2 i18n: plain dictionaries, no library.
 // Five languages were explicitly requested (ES/EN/DE/PT/IT); a library
 // would add weight for what is a static lookup table.
 export type Lang = "es" | "en" | "de" | "pt" | "it";
@@ -14,6 +14,12 @@ export const LANGS: { code: Lang; label: string }[] = [
 const es = {
   nav_offers: "Ofertas Guardian",
   nav_new_offer: "Nueva oferta",
+  gate_title: "Acceso restringido",
+  gate_hint: "Introduce el usuario y la contraseña de la demo.",
+  gate_user: "Usuario",
+  gate_password: "Contraseña",
+  gate_enter: "Entrar",
+  gate_error: "Usuario o contraseña incorrectos.",
   nav_customers: "Clientes",
   nav_import: "Importar",
   nav_dashboard: "Panel",
@@ -152,6 +158,12 @@ export type Strings = typeof es;
 const en: Strings = {
   nav_offers: "Guardian offers",
   nav_new_offer: "New offer",
+  gate_title: "Restricted access",
+  gate_hint: "Enter the demo username and password.",
+  gate_user: "Username",
+  gate_password: "Password",
+  gate_enter: "Sign in",
+  gate_error: "Wrong username or password.",
   nav_customers: "Customers",
   nav_import: "Import",
   nav_dashboard: "Dashboard",
@@ -288,6 +300,12 @@ const en: Strings = {
 const de: Strings = {
   nav_offers: "Guardian-Angebote",
   nav_new_offer: "Neues Angebot",
+  gate_title: "Zugang beschränkt",
+  gate_hint: "Demo-Benutzername und -Passwort eingeben.",
+  gate_user: "Benutzer",
+  gate_password: "Passwort",
+  gate_enter: "Anmelden",
+  gate_error: "Benutzername oder Passwort falsch.",
   nav_customers: "Kunden",
   nav_import: "Import",
   nav_dashboard: "Übersicht",
@@ -424,6 +442,12 @@ const de: Strings = {
 const pt: Strings = {
   nav_offers: "Ofertas Guardian",
   nav_new_offer: "Nova oferta",
+  gate_title: "Acesso restrito",
+  gate_hint: "Introduza o utilizador e a palavra-passe da demo.",
+  gate_user: "Utilizador",
+  gate_password: "Palavra-passe",
+  gate_enter: "Entrar",
+  gate_error: "Utilizador ou palavra-passe incorretos.",
   nav_customers: "Clientes",
   nav_import: "Importar",
   nav_dashboard: "Painel",
@@ -560,6 +584,12 @@ const pt: Strings = {
 const it: Strings = {
   nav_offers: "Offerte Guardian",
   nav_new_offer: "Nuova offerta",
+  gate_title: "Accesso riservato",
+  gate_hint: "Inserisci utente e password della demo.",
+  gate_user: "Utente",
+  gate_password: "Password",
+  gate_enter: "Accedi",
+  gate_error: "Utente o password errati.",
   nav_customers: "Clienti",
   nav_import: "Importa",
   nav_dashboard: "Cruscotto",

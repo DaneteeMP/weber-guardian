@@ -1,7 +1,9 @@
 // Typed API wrappers. The only place that knows URLs and response shapes.
 // No pricing math here: POST /calculate returns the authoritative breakdown.
 
-const BASE = "http://localhost:8000/api/v1";
+// Built by Vite: set VITE_API_BASE to the deployed API URL (no trailing
+// slash). Unset locally, where the API runs on localhost:8000.
+const BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api/v1";
 
 // Dev-only identity (X-Dev-User). In prod behind SharePoint/Entra this
 // header disappears and identity travels with the platform token instead.
@@ -17,10 +19,62 @@ export function getDevUser(): string | null {
   return devUser;
 }
 
-function headers(): HeadersInit {
-  const h: Record<string, string> = { "Content-Type": "application/json" };
+// Shared demo gate (HTTP Basic) in front of the whole API. Kept in
+// sessionStorage, not localStorage: it survives a reload but not closing the
+// tab, and it is never baked into the bundle. Empty in local dev, where the
+// backend gate is disabled and the header is simply ignored.
+let gateUser: string | null = sessionStorage.getItem("gateUser");
+let gatePassword: string | null = sessionStorage.getItem("gatePassword");
+
+export function hasGateCredentials(): boolean {
+  return Boolean(gateUser && gatePassword);
+}
+
+export function setGateCredentials(user: string, password: string) {
+  gateUser = user;
+  gatePassword = password;
+  sessionStorage.setItem("gateUser", user);
+  sessionStorage.setItem("gatePassword", password);
+}
+
+export function clearGateCredentials() {
+  gateUser = null;
+  gatePassword = null;
+  sessionStorage.removeItem("gateUser");
+  sessionStorage.removeItem("gatePassword");
+}
+
+// The password must be ASCII: btoa rejects anything outside Latin-1.
+function basicToken(): string {
+  return btoa(`${gateUser}:${gatePassword}`);
+}
+
+function authHeaders(): Record<string, string> {
+  const h: Record<string, string> = {};
   if (devUser) h["X-Dev-User"] = devUser;
+  if (hasGateCredentials() && gateUser && gatePassword) h["Authorization"] = `Basic ${basicToken()}`;
   return h;
+}
+
+function headers(): HeadersInit {
+  return { "Content-Type": "application/json", ...authHeaders() };
+}
+
+// The app shell subscribes to know when the gate turned us away, so it can
+// show the password prompt instead of a generic error.
+let gateRequiredListener: (() => void) | null = null;
+
+export function onGateRequired(cb: () => void) {
+  gateRequiredListener = cb;
+}
+
+// Validates the shared password without needing an app identity: /openapi.json
+// sits outside /api/v1 and asks for no user, only the gate. Returns true when
+// the credentials are accepted (also true in local dev, where there is no gate).
+export async function probeGate(): Promise<boolean> {
+  const origin = BASE.replace(/\/api\/v1\/?$/, "");
+  const res = await fetch(`${origin}/openapi.json`, { headers: authHeaders() });
+  return res.ok;
 }
 
 export type Me = { external_id: string; role: string; subsidiary_id: string | null; subsidiary_short: string | null };
@@ -117,6 +171,11 @@ export type OfferItemIn = {
 
 async function checked(res: Response, what: string) {
   if (!res.ok) {
+    // A Basic challenge is the demo gate, not the identity seam; tell the
+    // shell so it can ask for the shared password.
+    if (res.status === 401 && res.headers.get("www-authenticate")?.toLowerCase().startsWith("basic")) {
+      gateRequiredListener?.();
+    }
     const data = await res.json().catch(() => null);
     const detail = typeof data?.detail === "string" ? data.detail : JSON.stringify(data?.detail ?? res.statusText);
     throw new Error(`${what} failed (${res.status}): ${detail}`);
@@ -180,10 +239,7 @@ export function createOffer(payload: {
 }
 
 export async function downloadOfferPdf(id: string): Promise<void> {
-  const h: Record<string, string> = {};
-  const dev = getDevUser();
-  if (dev) h["X-Dev-User"] = dev;
-  const res = await fetch(`${BASE}/offers/${encodeURIComponent(id)}/pdf`, { headers: h });
+  const res = await fetch(`${BASE}/offers/${encodeURIComponent(id)}/pdf`, { headers: authHeaders() });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`GET pdf failed (${res.status}): ${text}`);

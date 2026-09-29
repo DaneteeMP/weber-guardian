@@ -2,6 +2,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.basic_auth import BasicAuthMiddleware
+from app.core.config import settings
 from app.modules.basic_kit.router import router as basic_kit_router
 from app.modules.customers.router import router as customers_router
 from app.modules.dashboard.router import router as dashboard_router
@@ -22,14 +24,15 @@ app = FastAPI(title="WeberGuardian API", version="0.1.0")
 # import app.weber.
 app.state.pdf_renderer = build_offer_pdf
 
-# F0 dev only: allow the Vite dev server to call the API from the browser.
-# Tightened with auth + explicit origins in F2.
+# Demo gate first, CORS last: middleware runs in reverse order of addition, so
+# CORS ends up outermost and stamps headers on the 401 this returns too.
+app.add_middleware(BasicAuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=settings.cors_origins,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["*"],
-    expose_headers=["X-Total-Count"],
+    expose_headers=["X-Total-Count", "Content-Disposition", "WWW-Authenticate"],
 )
 
 

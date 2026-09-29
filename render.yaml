@@ -1,0 +1,35 @@
+# Render blueprint for the public MVP demo.
+#
+# Render builds backend/Dockerfile (context backend/) and injects $PORT, which
+# the Dockerfile already honours. /health is reachable without credentials, so
+# it is a valid health check.
+#
+# Every secret below is sync: false: set it once in the Render dashboard, never
+# in this file. The database is Supabase, not a Render managed Postgres.
+services:
+  - type: web
+    name: weberguardian-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      # Supabase: use the direct connection (port 5432, sslmode=require), not the
+      # pooler, so prepared statements keep working without extra parameters.
+      - key: DATABASE_URL
+        sync: false
+      # Shared demo password. Both fields empty disables the gate, which is why
+      # they must be filled in here. ASCII only: the frontend uses btoa.
+      - key: BASIC_AUTH_USER
+        sync: false
+      - key: BASIC_AUTH_PASSWORD
+        sync: false
+      # Public frontend origin, comma separated.
+      - key: ALLOWED_ORIGINS
+        sync: false
+      # There is no real login yet (Entra/SharePoint is F2), so the X-Dev-User
+      # identity switch stays on and the Basic gate is the only barrier. It must
+      # be turned off the day real authentication exists.
+      - key: DEV_AUTH_ENABLED
+        value: "true"

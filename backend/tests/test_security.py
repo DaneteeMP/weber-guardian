@@ -4,8 +4,10 @@ import uuid
 
 import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
 from app.core import security
+from app.main import app as api_app
 from app.modules.users.models import User
 
 
@@ -51,3 +53,52 @@ def test_require_role_allows_and_denies():
     with pytest.raises(HTTPException) as exc:
         asyncio.run(checker(current=_current("b", role="viewer")))
     assert exc.value.status_code == 403
+
+
+def test_basic_gate_disabled_by_default(monkeypatch):
+    """With no credentials configured the gate must not interfere at all."""
+    monkeypatch.setattr(security.settings, "basic_auth_user", "")
+    monkeypatch.setattr(security.settings, "basic_auth_password", "")
+    with TestClient(api_app) as client:
+        assert client.get("/openapi.json").status_code == 200
+
+
+def test_basic_gate_blocks_unauthorised_calls(monkeypatch):
+    monkeypatch.setattr(security.settings, "basic_auth_user", "demo")
+    monkeypatch.setattr(security.settings, "basic_auth_password", "s3cret")
+    with TestClient(api_app) as client:
+        # /openapi.json needs no app auth, so a 401 here can only come from the gate.
+        anonymous = client.get("/openapi.json")
+        assert anonymous.status_code == 401
+        assert anonymous.headers["www-authenticate"].startswith("Basic")
+        assert client.get("/openapi.json", auth=("demo", "wrong")).status_code == 401
+        assert client.get("/openapi.json", auth=("demo", "s3cret")).status_code == 200
+
+
+def test_basic_gate_leaves_health_and_preflight_open(monkeypatch):
+    """Platform health checks and CORS preflights must never need credentials."""
+    monkeypatch.setattr(security.settings, "basic_auth_user", "demo")
+    monkeypatch.setattr(security.settings, "basic_auth_password", "s3cret")
+    with TestClient(api_app) as client:
+        assert client.get("/health").status_code == 200
+        # localhost:5173 is the default allowed origin baked into the CORS
+        # middleware at import time, so this is a valid preflight.
+        preflight = client.options(
+            "/api/v1/offers",
+            headers={"Origin": "http://localhost:5173", "Access-Control-Request-Method": "GET"},
+        )
+        assert preflight.status_code == 200
+
+
+def test_cors_origins_parsing(monkeypatch):
+    monkeypatch.setattr(security.settings, "allowed_origins", "https://a.vercel.app, https://b.vercel.app ,")
+    assert security.settings.cors_origins == ["https://a.vercel.app", "https://b.vercel.app"]
+
+
+def test_basic_gate_accepts_non_ascii_password(monkeypatch):
+    """A non-ASCII password must be rejected cleanly, not raise a 500."""
+    monkeypatch.setattr(security.settings, "basic_auth_user", "demo")
+    monkeypatch.setattr(security.settings, "basic_auth_password", "contraseña")
+    with TestClient(api_app, raise_server_exceptions=False) as client:
+        assert client.get("/openapi.json", auth=("demo", "contraseña")).status_code == 200
+        assert client.get("/openapi.json", auth=("demo", "contrasena")).status_code == 401
