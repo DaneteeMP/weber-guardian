@@ -38,3 +38,8 @@ export const TOOLTIP_STYLE = {
   border: "1px solid #e5e7eb",
   borderRadius: 4,
 } as const;
+
+// The tooltip only displays read-only information, so it should not intercept
+// pointer events. Chart wrappers also clip its positioned box to prevent it
+// from briefly extending the page and introducing scrollbars during hover.
+export const TOOLTIP_WRAPPER_STYLE = { pointerEvents: "none" } as const;

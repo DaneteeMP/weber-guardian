@@ -7,7 +7,7 @@
 // turns into an unreadable stub; here the name owns a fixed, wide column and the
 // bar takes whatever is left.
 import { Bar, BarChart, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CHART_BLUE, shortName, TOOLTIP_STYLE } from "./chartTheme";
+import { CHART_BLUE, shortName, TOOLTIP_STYLE, TOOLTIP_WRAPPER_STYLE } from "./chartTheme";
 
 export type RankingBar = { label: string; count: number };
 
@@ -35,7 +35,7 @@ export default function CustomerRankingChart({ rows }: { rows: RankingBar[] }) {
   const max = rows.reduce((m, r) => Math.max(m, r.count), 0);
 
   return (
-    <div className="h-44 mt-1">
+    <div className="h-44 mt-1 overflow-hidden">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 28, bottom: 0, left: 0 }}>
           <XAxis type="number" domain={[0, max + 1]} hide />
@@ -46,7 +46,7 @@ export default function CustomerRankingChart({ rows }: { rows: RankingBar[] }) {
             interval={0}
             tick={<NameTick />}
           />
-          <Tooltip contentStyle={TOOLTIP_STYLE} />
+          <Tooltip contentStyle={TOOLTIP_STYLE} wrapperStyle={TOOLTIP_WRAPPER_STYLE} />
           <Bar dataKey="count" fill={CHART_BLUE} radius={[0, 2, 2, 0]} barSize={14}>
             <LabelList
               dataKey="count"

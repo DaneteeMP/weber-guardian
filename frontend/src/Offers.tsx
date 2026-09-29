@@ -131,22 +131,22 @@ export default function OffersHome({
       {error && <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-1.5">{error}</p>}
       {notice && <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-1.5">{notice}</p>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-start">
-        <div className="lg:col-span-1 bg-white rounded-lg border border-gray-200 p-3">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 items-stretch">
+        <div className="bg-white rounded-lg border border-gray-200 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
             {t(lang, "home_panel_donut")}
           </p>
           <StatusDonutChart rows={statuses} selected={statusFilter} onSelect={setStatusFilter} />
         </div>
 
-        <div className="lg:col-span-2 bg-white rounded-lg border border-gray-200 p-3">
+        <div className="bg-white rounded-lg border border-gray-200 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
             {t(lang, "home_panel_monthly")}
           </p>
           <MonthlyOffersChart rows={(summary?.monthly ?? []).slice(-24)} />
         </div>
 
-        <div className="lg:col-span-2 bg-white rounded-lg border border-gray-200 p-3">
+        <div className="bg-white rounded-lg border border-gray-200 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
             {t(lang, "home_panel_ranking")}
           </p>
