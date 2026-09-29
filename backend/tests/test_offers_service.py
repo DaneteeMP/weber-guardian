@@ -1,4 +1,5 @@
 """Offer service tests (F1). SQLite in-memory, no API."""
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -13,6 +14,7 @@ from app.modules.offers.service import (
     UnknownCustomer,
     calculate_price,
     create_offer,
+    get_offer_document,
     list_offers,
 )
 
@@ -110,3 +112,103 @@ def test_set_offer_status_and_bad_value(db):
     assert closed is not None and closed.status == "Finished"
     with pytest.raises(BadStatus):
         set_offer_status(db, offer.id, "Burnt")
+
+
+def test_summary_counts_and_ranking(db):
+    from app.modules.offers.service import offers_summary
+
+    _customer(db, "0001012933")
+    _customer(db, "0001052941")
+    create_offer(db, _offer_data(cid="0001012933", number="W-02-2026-0001"))
+    create_offer(db, _offer_data(cid="0001012933", number="W-02-2026-0002"))
+    create_offer(db, _offer_data(cid="0001052941", number="W-02-2026-0003"))
+    summary = offers_summary(db)
+    assert summary["total"] == 3
+    assert {"status": "Draft", "count": 3} in summary["by_status"]
+    assert sum(m["count"] for m in summary["monthly"]) == 3
+    top = summary["ranking"][0]
+    assert top["customer_id"] == "0001012933" and top["count"] == 2
+
+
+def test_summary_groups_monthly_by_business_date(db):
+    """The monthly chart must follow offer_date, not the creation stamp."""
+    from app.modules.offers.service import create_offer, offers_summary
+
+    _customer(db)
+    base = _offer_data()
+    create_offer(db, base.model_copy(update={"id_guardian_offer": "W-01", "offer_date": date(2026, 1, 5)}))
+    create_offer(db, base.model_copy(update={"id_guardian_offer": "W-02", "offer_date": date(2026, 1, 20)}))
+    create_offer(db, base.model_copy(update={"id_guardian_offer": "W-03", "offer_date": date(2026, 2, 2)}))
+
+    months = {m["month"]: m["count"] for m in offers_summary(db)["monthly"]}
+    assert months == {"2026-01": 2, "2026-02": 1}
+
+
+def test_update_offer_recomputes_and_replaces_lines(db):
+    from decimal import Decimal as _Decimal
+
+    from app.modules.offers.schemas import OfferUpdate
+    from app.modules.offers.service import update_offer
+
+    _customer(db)
+    offer = create_offer(db, _offer_data())
+    assert len(offer.items) == 2
+    updated = update_offer(
+        db,
+        offer.id,
+        OfferUpdate(
+            status="Pending response",
+            pricing=_pricing(),
+            items=[OfferItemCreate(equipment="X", workload=_Decimal("1"))],
+        ),
+    )
+    assert updated is not None
+    assert updated.status == "Pending response"
+    assert updated.total == Decimal("1050.00")
+    assert [i.row_no for i in updated.items] == [1]
+    assert update_offer(
+        db,
+        offer.id,
+        OfferUpdate(status="Draft", pricing=_pricing(), items=[]),
+        subsidiary_id="NOPE",
+    ) is None
+
+
+def test_offer_date_defaults_to_creation_day(db):
+    """A new offer without offer_date lands on today, never on a silent default."""
+    from app.modules.offers.service import create_offer
+
+    _customer(db)
+    offer = create_offer(db, _offer_data())
+    assert offer.offer_date == date.today()
+
+
+def test_offer_date_is_editable_and_survives_edits(db):
+    """The business date is user data: it can be set, changed, and never wiped."""
+    from app.modules.offers.schemas import OfferUpdate
+    from app.modules.offers.service import create_offer, update_offer
+
+    _customer(db)
+    offer = create_offer(db, _offer_data())
+    edited_date = date(2026, 2, 17)
+
+    updated = update_offer(
+        db,
+        offer.id,
+        OfferUpdate(status="Draft", offer_date=edited_date, pricing=_pricing(), items=[]),
+    )
+    assert updated is not None
+    assert updated.offer_date == edited_date
+
+    # An edit that leaves offer_date out must keep the stored date.
+    again = update_offer(
+        db,
+        offer.id,
+        OfferUpdate(status="Pending response", pricing=_pricing(), items=[]),
+    )
+    assert again is not None
+    assert again.offer_date == edited_date
+
+    # The offer date is what the PDF prints, not the audit stamp.
+    document = get_offer_document(db, offer.id)
+    assert document.offer_date == edited_date

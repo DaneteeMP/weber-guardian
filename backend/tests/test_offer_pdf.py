@@ -34,7 +34,7 @@ def _doc(**overrides):
         "language": "Spanish",
         "inspection_frequency": "Annual",
         "responsible_person": None,
-        "subsidiary_id": "ES",
+        "subsidiary_id": "Weber Iberica",
         "account_name": "UAB Riela servisas",
         "account_city": None,
         "account_province": None,
@@ -70,14 +70,29 @@ def test_renderer_returns_real_pdf():
 def test_renderer_rejects_unknown_language_and_subsidiary():
     with pytest.raises(ValueError, match="language"):
         build_offer_pdf(_doc(language="Klingon"))
-    with pytest.raises(ValueError, match="subsidiary"):
-        build_offer_pdf(_doc(subsidiary_id="NOWHERE"))
 
 
 def test_renderer_supports_all_executor_subsidiaries():
-    for subsidiary_id in ("ES", "BNL", "DE", "AR", "España", "Deutschland"):
+    for subsidiary_id in ("Weber Iberica", "Weber Benelux", "Weber Germany", "Weber Argentina", "España", "Deutschland"):
         pdf = build_offer_pdf(_doc(subsidiary_id=subsidiary_id))
         assert pdf[:5] == b"%PDF-"
+
+
+def test_renderer_falls_back_to_provisional_block_without_invented_data():
+    from app.weber.pdf import _executor
+
+    block, provisional = _executor(_doc(subsidiary_id="Weber Partners"))
+    assert provisional is True
+    # Placeholder carries only the canonical name: no street, city, country
+    # or signature place that would look like real legal data.
+    assert block["name"] == "Weber Partners"
+    assert not block["street"] and not block["city"] and not block["country"] and not block["place_date"]
+    # Rendering still works (falls back, never raises).
+    assert build_offer_pdf(_doc(subsidiary_id="Weber Partners"))[:5] == b"%PDF-"
+    # Subsidiaries with a real legal block are never provisional.
+    for subsidiary_id in ("Weber Iberica", "Weber Benelux", "Weber Germany", "Weber Argentina"):
+        _, provisional = _executor(_doc(subsidiary_id=subsidiary_id))
+        assert provisional is False
 
 
 @pytest.fixture
@@ -98,11 +113,11 @@ def client(monkeypatch):
 
     api_app.dependency_overrides[get_db] = override_db
     seed = Session()
-    seed.add(User(external_id="oid-es", role="sales", subsidiary_id="ES"))
-    seed.add(User(external_id="oid-de", role="sales", subsidiary_id="DE"))
+    seed.add(User(external_id="oid-es", role="sales", subsidiary_id="Weber Iberica"))
+    seed.add(User(external_id="oid-de", role="sales", subsidiary_id="Weber Germany"))
     seed.commit()
-    create_customer(seed, CustomerCreate(customer_id="C-ES", account_name="ES Client", subsidiary_id="ES"))
-    create_customer(seed, CustomerCreate(customer_id="C-DE", account_name="DE Client", subsidiary_id="DE"))
+    create_customer(seed, CustomerCreate(customer_id="C-ES", account_name="ES Client", subsidiary_id="Weber Iberica"))
+    create_customer(seed, CustomerCreate(customer_id="C-DE", account_name="DE Client", subsidiary_id="Weber Germany"))
     pricing = OfferCalculateIn(work_hours=Decimal("8"), tech_rate=Decimal("60"))
     es_id = create_offer(
         seed,

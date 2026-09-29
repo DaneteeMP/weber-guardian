@@ -10,10 +10,11 @@ import io
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.subsidiaries import normalize_subsidiary
 from app.modules.customers.models import Customer
 from app.modules.equipment.models import Equipment, row_hash_of
 from app.modules.imports.schemas import ImportReport, RowError
-from app.core.subsidiaries import normalize_subsidiary
+from app.modules.subsidiaries.service import subsidiary_for_country, supervision_map
 
 # Real SAP exports reach ~7 MB (tens of thousands of rows). 20 MB caps
 # abuse while accepting them; the whole file still fits in memory and the
@@ -101,12 +102,27 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
         )
 
     errors: list[RowError] = []
+    warnings: list[str] = []
+    warned_countries: dict[str, int] = {}
     customers: dict[str, dict] = {}
     seen_hashes: set[str] = set()
     file_dup_skipped = 0
     bare_skipped = 0
     pending_equipment: list[dict] = []
     total_rows = 0
+
+    mapping = supervision_map(db)
+    if subsidiary_id is not None:
+        subsidiary_id = normalize_subsidiary(subsidiary_id)
+
+    def resolve_subsidiary(country: str | None) -> str | None:
+        """Explicit upload value wins; otherwise the supervision catalog by country."""
+        if subsidiary_id is not None:
+            return subsidiary_id
+        resolved = subsidiary_for_country(country, mapping)
+        if resolved is None and country:
+            warned_countries[country] = warned_countries.get(country, 0) + 1
+        return resolved
 
     for lineno, raw in enumerate(reader, start=2):
         if all((v or "").strip() == "" for v in raw.values()):
@@ -123,11 +139,12 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
             errors.append(RowError(line=lineno, reason=f"{sap_id}: empty Account Name"))
             continue
         known = customers.get(sap_id)
+        country = _clean(raw.get(HEADER_COUNTRY))
         if known is None:
             customers[sap_id] = {
                 "account_name": account,
-                "country": _clean(raw.get(HEADER_COUNTRY)),
-                "subsidiary_id": subsidiary_id,
+                "country": country,
+                "subsidiary_id": resolve_subsidiary(country),
             }
         elif known["account_name"] != account:
             errors.append(
@@ -163,6 +180,9 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
         item["row_hash"] = item_hash
         pending_equipment.append(item)
 
+    for country, count in sorted(warned_countries.items()):
+        warnings.append(f"country '{country}' has no supervising subsidiary ({count} rows): subsidiary left empty")
+
     if errors:
         return ImportReport(
             dry_run=dry_run,
@@ -172,6 +192,7 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
             equipment_created=0,
             equipment_skipped=0,
             errors=errors,
+            warnings=warnings,
         )
 
     existing_customers = _known_values(db, Customer.customer_id, set(customers.keys()))
@@ -185,6 +206,7 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
         equipment_created=0,
         equipment_skipped=0,
         errors=[],
+        warnings=warnings,
     )
     new_customers = {cid: data for cid, data in customers.items() if cid not in existing_customers}
     report.customers_skipped = len(customers) - len(new_customers)

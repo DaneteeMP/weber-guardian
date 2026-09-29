@@ -11,6 +11,7 @@ from app.modules.imports.router import router as imports_router
 from app.modules.machine_prices.router import router as machine_prices_router
 from app.modules.offers.router import router as offers_router
 from app.modules.prices.router import router as prices_router
+from app.modules.subsidiaries.router import router as subsidiaries_router
 from app.modules.users.router import router as users_router
 from app.weber.pdf import build_offer_pdf
 
@@ -45,5 +46,6 @@ app.include_router(machine_prices_router, prefix="/api/v1")
 app.include_router(offers_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(prices_router, prefix="/api/v1")
+app.include_router(subsidiaries_router, prefix="/api/v1")
 app.include_router(distances_router, prefix="/api/v1")
 app.include_router(basic_kit_router, prefix="/api/v1")

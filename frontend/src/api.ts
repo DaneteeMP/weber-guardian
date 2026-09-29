@@ -23,10 +23,47 @@ function headers(): HeadersInit {
   return h;
 }
 
-export type Me = { external_id: string; role: string; subsidiary_id: string | null };
+export type Me = { external_id: string; role: string; subsidiary_id: string | null; subsidiary_short: string | null };
 
 export function me(): Promise<Me> {
   return fetch(`${BASE}/users/me`, { headers: headers() }).then((r) => checked(r, "GET me"));
+}
+
+export type Subsidiary = { name: string; short_label: string };
+
+export function listSubsidiaries(): Promise<Subsidiary[]> {
+  return fetch(`${BASE}/subsidiaries`, { headers: headers() }).then((r) => checked(r, "GET subsidiaries"));
+}
+
+export type SubsidiaryStats = { name: string; short_label: string; countries: number; customers: number };
+
+export function getSubsidiaryStats(): Promise<SubsidiaryStats[]> {
+  return fetch(`${BASE}/subsidiaries/stats`, { headers: headers() }).then((r) =>
+    checked(r, "GET subsidiary stats")
+  );
+}
+
+export type UnassignedCountry = { country: string; count: number };
+
+export function getUnassignedCountries(): Promise<UnassignedCountry[]> {
+  return fetch(`${BASE}/subsidiaries/unassigned-countries`, { headers: headers() }).then((r) =>
+    checked(r, "GET unassigned countries")
+  );
+}
+
+export function assignCountries(assignments: { country: string; subsidiary: string }[]): Promise<{ updated: number }> {
+  return fetch(`${BASE}/subsidiaries/assign-countries`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ assignments }),
+  }).then((r) => checked(r, "POST assign countries"));
+}
+
+export function autoAssignAll(): Promise<{ updated: number; warnings: string[] }> {
+  return fetch(`${BASE}/subsidiaries/auto-assign`, {
+    method: "POST",
+    headers: headers(),
+  }).then((r) => checked(r, "POST auto assign"));
 }
 
 export type Customer = {
@@ -133,6 +170,7 @@ export function createOffer(payload: {
   pricing: Pricing;
   items: OfferItemIn[];
   general_comments?: string;
+  offer_date?: string;
 }): Promise<{ id: string; id_guardian_offer: string }> {
   return fetch(`${BASE}/offers`, {
     method: "POST",
@@ -141,7 +179,7 @@ export function createOffer(payload: {
   }).then((r) => checked(r, "POST offer"));
 }
 
-export async function downloadOfferPdf(id: string): Promise<{ blob: Blob; filename: string }> {
+export async function downloadOfferPdf(id: string): Promise<void> {
   const h: Record<string, string> = {};
   const dev = getDevUser();
   if (dev) h["X-Dev-User"] = dev;
@@ -152,17 +190,26 @@ export async function downloadOfferPdf(id: string): Promise<{ blob: Blob; filena
   }
   const cd = res.headers.get("Content-Disposition") ?? "";
   const filename = cd.match(/filename="([^"]+)"/)?.[1] ?? `Offer_${id}.pdf`;
-  return { blob: await res.blob(), filename };
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export type OfferListItem = {
   id: string;
   id_guardian_offer: string;
   customer_id: string;
-  date_guardian?: string | null;
+  created_at?: string | null;
+  offer_date?: string | null;
+  currency?: string | null;
   language?: string | null;
   status?: string | null;
   inspection_frequency?: string | null;
+  responsible_person?: string | null;
+  work_hours?: string | number | null;
   total?: string | number | null;
   total_end?: string | number | null;
 };
@@ -173,9 +220,61 @@ export function listOffers(customer_id: string): Promise<OfferListItem[]> {
   }).then((r) => checked(r, "GET offers"));
 }
 
-export function listAllOffers(limit = 200): Promise<OfferListItem[]> {
-  return fetch(`${BASE}/offers?limit=${limit}`, { headers: headers() }).then((r) =>
+export function listAllOffers(limit = 200, status?: string): Promise<OfferListItem[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (status) params.set("status", status);
+  return fetch(`${BASE}/offers?${params}`, { headers: headers() }).then((r) =>
     checked(r, "GET offers")
+  );
+}
+
+export function getOffer(id: string): Promise<OfferOut> {
+  return fetch(`${BASE}/offers/${encodeURIComponent(id)}`, { headers: headers() }).then((r) =>
+    checked(r, "GET offer")
+  );
+}
+
+export type OfferOut = OfferListItem & {
+  responsible_person: string | null;
+  language: string | null;
+  inspection_frequency: string | null;
+  general_comments: string | null;
+  work_hours: string | number;
+  report_hours: string | number;
+  trip_hours: string | number;
+  items: { equipment: string | null; description: string | null; import_amount: string | number; workload: string | number }[];
+};
+
+export function updateOffer(
+  id: string,
+  payload: {
+    status: string;
+    responsible_person?: string;
+    language?: string;
+    inspection_frequency?: string;
+    general_comments?: string;
+    offer_date?: string;
+    pricing: Pricing;
+    items: OfferItemIn[];
+  }
+): Promise<OfferListItem> {
+  return fetch(`${BASE}/offers/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: headers(),
+    body: JSON.stringify(payload),
+  }).then((r) => checked(r, "PUT offer"));
+}
+
+export type OffersSummary = {
+  total: number;
+  by_status: { status: string; count: number }[];
+  monthly: { month: string; count: number }[];
+  ranking: { customer_id: string; count: number; total_end: string }[];
+};
+
+export function getOffersSummary(): Promise<OffersSummary> {
+  return fetch(`${BASE}/offers/summary`, { headers: headers() }).then((r) =>
+    checked(r, "GET offers summary")
   );
 }
 
@@ -188,12 +287,16 @@ export function deleteOffer(id: string): Promise<void> {
   });
 }
 
-export function closeOffer(id: string): Promise<OfferListItem> {
+export function setOfferStatus(id: string, status: string): Promise<OfferListItem> {
   return fetch(`${BASE}/offers/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: headers(),
-    body: JSON.stringify({ status: "Finished" }),
+    body: JSON.stringify({ status }),
   }).then((r) => checked(r, "PATCH offer"));
+}
+
+export function closeOffer(id: string): Promise<OfferListItem> {
+  return setOfferStatus(id, "Finished");
 }
 
 export type Equipment = {
@@ -335,6 +438,7 @@ export type ImportReport = {
   equipment_created: number;
   equipment_skipped: number;
   errors: { line: number; reason: string }[];
+  warnings: string[];
 };
 
 export function uploadCsv(file: File, dryRun: boolean, subsidiaryId?: string): Promise<ImportReport> {

@@ -23,20 +23,20 @@ from app.modules.users.models import User
 
 USERS = [
     {"external_id": "dev-admin", "email": "admin@local", "display_name": "Dev Admin", "role": "admin", "subsidiary_id": None},
-    {"external_id": "dev-es", "email": "es@local", "display_name": "Dev Sales ES", "role": "sales", "subsidiary_id": "ES"},
-    {"external_id": "dev-de", "email": "de@local", "display_name": "Dev Sales DE", "role": "sales", "subsidiary_id": "DE"},
-    {"external_id": "dev-viewer", "email": "viewer@local", "display_name": "Dev Viewer", "role": "viewer", "subsidiary_id": "ES"},
+    {"external_id": "dev-es", "email": "es@local", "display_name": "Dev Sales ES", "role": "sales", "subsidiary_id": "Weber Iberica"},
+    {"external_id": "dev-de", "email": "de@local", "display_name": "Dev Sales DE", "role": "sales", "subsidiary_id": "Weber Germany"},
+    {"external_id": "dev-viewer", "email": "viewer@local", "display_name": "Dev Viewer", "role": "viewer", "subsidiary_id": "Weber Iberica"},
 ]
 
 CUSTOMERS = [
-    {"customer_id": "0001012933", "account_name": "UAB Riela servisas", "country": "Lithuania", "subsidiary_id": "ES"},
-    {"customer_id": "0010027007", "account_name": "E. W. Grobbel St. Clair Shores", "country": "USA", "subsidiary_id": "DE"},
+    {"customer_id": "0001012933", "account_name": "UAB Riela servisas", "country": "Lithuania", "subsidiary_id": "Weber Iberica"},
+    {"customer_id": "0010027007", "account_name": "E. W. Grobbel St. Clair Shores", "country": "USA", "subsidiary_id": "Weber Germany"},
 ]
 
 PRICES = [
-    {"subsidiary_id": "ES", "km_rate": Decimal("0.5"), "tech_rate": Decimal("60"),
+    {"subsidiary_id": "Weber Iberica", "km_rate": Decimal("0.5"), "tech_rate": Decimal("60"),
      "diet_full_rate": Decimal("40"), "diet_half_rate": Decimal("20"), "hotel_rate": Decimal("80")},
-    {"subsidiary_id": "DE", "km_rate": Decimal("0.5"), "tech_rate": Decimal("60"),
+    {"subsidiary_id": "Weber Germany", "km_rate": Decimal("0.5"), "tech_rate": Decimal("60"),
      "diet_full_rate": Decimal("40"), "diet_half_rate": Decimal("20"), "hotel_rate": Decimal("80")},
 ]
 

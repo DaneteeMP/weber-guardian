@@ -13,7 +13,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from app.core.subsidiaries import ALIASES as SUBSIDIARY_ALIASES
+from app.core.subsidiaries import EXECUTOR_CODES, normalize_subsidiary
 from app.modules.offers.document import OfferDocument
 from app.weber import contract_es
 
@@ -36,15 +36,29 @@ def _language(doc: OfferDocument) -> str:
 DEFAULT_SUBSIDIARY = "ES"
 
 # Free-text variants resolve through the shared alias table
-# (app.core.subsidiaries, single source of truth). Unknown values still
-# fail explicitly: printing another filial's legal address by guessing
-# would be worse than refusing.
-def _executor(doc: OfferDocument) -> dict[str, str]:
-    key = (doc.subsidiary_id or DEFAULT_SUBSIDIARY).strip().lower()
-    block = contract_es.EXECUTORS.get(SUBSIDIARY_ALIASES.get(key, key.upper()))
+# (app.core.subsidiaries, single source of truth). Subsidiaries without a
+# legal block print a clearly-marked provisional block instead of another
+# filial's address: the user adds real legal data in contract_es later.
+def _executor(doc: OfferDocument) -> tuple[dict[str, str], bool]:
+    canonical = normalize_subsidiary(doc.subsidiary_id) or DEFAULT_SUBSIDIARY
+    code = EXECUTOR_CODES.get(canonical, canonical)
+    block = contract_es.EXECUTORS.get(code)
     if block is None:
-        raise ValueError(f"no executor block configured for subsidiary {doc.subsidiary_id!r}")
-    return block
+        return _PROVISIONAL_BLOCK(canonical), True
+    return block, False
+
+
+def _PROVISIONAL_BLOCK(canonical: str) -> dict[str, str]:
+    """Placeholder block. Deliberately no address, tax id or place of
+    signature: none of that exists for this subsidiary yet, so the document
+    must not pretend to. It prints a visible DRAFT marker instead."""
+    return {
+        "name": canonical,
+        "street": "",
+        "city": "",
+        "country": "",
+        "place_date": "",
+    }
 
 
 def _money(value, currency: str) -> str:
@@ -70,12 +84,13 @@ def _header(canvas, _doc):
 def build_offer_pdf(doc: OfferDocument) -> bytes:
     """Render the official maintenance-contract PDF. Raises ValueError on gaps."""
     _language(doc)
-    executor = _executor(doc)
+    executor, provisional = _executor(doc)
 
     buf = io.BytesIO()
     pdf = SimpleDocTemplate(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm)
     styles = getSampleStyleSheet()
     title = ParagraphStyle("Title2", parent=styles["Title"], textColor="#1E3C78", fontSize=22)
+    draft = ParagraphStyle("Draft", parent=styles["Title"], textColor="#B00020", fontSize=16)
     h1 = ParagraphStyle("H1", parent=styles["Heading1"], fontSize=12, spaceBefore=8)
     h2 = ParagraphStyle("H2", parent=styles["Heading2"], fontSize=10, spaceBefore=6)
     body = ParagraphStyle("Body2", parent=styles["Normal"], fontSize=9, leading=13)
@@ -86,15 +101,20 @@ def build_offer_pdf(doc: OfferDocument) -> bytes:
     today = date.today()
 
     # Cover: title, executor, client, preamble.
-    story.append(Spacer(1, 60 * mm))
+    story.append(Spacer(1, 50 * mm))
     story.append(Paragraph(contract_es.TITLE, title))
+    if provisional:
+        story.append(Spacer(1, 8 * mm))
+        story.append(Paragraph(contract_es.DRAFT_BANNER, draft))
     story.append(Spacer(1, 15 * mm))
     story.append(Paragraph(contract_es.EXECUTOR_LABEL, body))
     story.append(Paragraph(f"<b>{executor['name']}</b>", body))
     if executor["street"]:
         story.append(Paragraph(executor["street"], body))
-    story.append(Paragraph(executor["city"], body))
-    story.append(Paragraph(executor["country"], body))
+    if executor["city"]:
+        story.append(Paragraph(executor["city"], body))
+    if executor["country"]:
+        story.append(Paragraph(executor["country"], body))
     story.append(Paragraph(contract_es.EXECUTOR_ALIAS, body))
     story.append(Spacer(1, 8 * mm))
     story.append(Paragraph(contract_es.CLIENT_LABEL, body))
@@ -118,10 +138,13 @@ def build_offer_pdf(doc: OfferDocument) -> bytes:
 
     # Signature + date.
     story.append(Spacer(1, 6 * mm))
-    story.append(Paragraph(f"{executor['place_date']}, a {_long_date(today)}", body))
+    if executor["place_date"]:
+        story.append(Paragraph(f"{executor['place_date']}, a {_long_date(today)}", body))
     story.append(Spacer(1, 12 * mm))
     story.append(Paragraph(f"<b>{doc.account_name.upper()}</b>", body))
     story.append(Paragraph(f"<b>{executor['name']}</b>", body))
+    if provisional:
+        story.append(Paragraph(contract_es.DRAFT_FOOTER, body))
 
     # Annex 1: machines and totals from the official document.
     story.append(PageBreak())

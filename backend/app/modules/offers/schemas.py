@@ -4,7 +4,7 @@ Clients never send totals: CalculateOut/OfferOut carry them, Create
 schemas do not. All money is Decimal (EUR explicit).
 """
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -76,6 +76,29 @@ class OfferStatusUpdate(BaseModel):
     status: str = Field(min_length=1, max_length=32)
 
 
+class StatusCount(BaseModel):
+    status: str
+    count: int
+
+
+class MonthCount(BaseModel):
+    month: str
+    count: int
+
+
+class RankingRow(BaseModel):
+    customer_id: str
+    count: int
+    total_end: Decimal
+
+
+class OffersSummaryOut(BaseModel):
+    total: int
+    by_status: list[StatusCount]
+    monthly: list[MonthCount]
+    ranking: list[RankingRow]
+
+
 class OfferCreate(BaseModel):
     """Create input. Totals are computed server-side, never accepted."""
 
@@ -86,6 +109,20 @@ class OfferCreate(BaseModel):
     language: str | None = Field(default=None, max_length=32)
     inspection_frequency: str | None = Field(default=None, max_length=32)
     general_comments: str | None = Field(default=None, max_length=2000)
+    offer_date: date | None = None
+    pricing: OfferCalculateIn
+    items: list[OfferItemCreate] = Field(default_factory=list)
+
+
+class OfferUpdate(BaseModel):
+    """Full edit input. The guardian number never changes through edits."""
+
+    status: str = Field(min_length=1, max_length=32)
+    responsible_person: str | None = Field(default=None, max_length=128)
+    language: str | None = Field(default=None, max_length=32)
+    inspection_frequency: str | None = Field(default=None, max_length=32)
+    general_comments: str | None = Field(default=None, max_length=2000)
+    offer_date: date | None = None
     pricing: OfferCalculateIn
     items: list[OfferItemCreate] = Field(default_factory=list)
 
@@ -118,4 +155,5 @@ class OfferOut(BaseModel):
     general_comments: str | None
     created_by: uuid.UUID | None
     created_at: datetime
+    offer_date: date | None
     items: list[OfferItemOut] = Field(default_factory=list)

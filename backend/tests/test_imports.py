@@ -18,7 +18,7 @@ ROW_DE = '"0001035313";"";"Walowsky Int. Maschinenhandel GmbH";"305-220";"Slicer
 
 
 def test_dry_run_writes_nothing(db):
-    report = run_import(db, (HEADER + ROW_ES + ROW_ES_2).encode(), subsidiary_id="ES", dry_run=True)
+    report = run_import(db, (HEADER + ROW_ES + ROW_ES_2).encode(), subsidiary_id="Weber Iberica", dry_run=True)
     assert report.dry_run is True
     assert report.errors == []
     assert report.customers_created == 1
@@ -97,8 +97,10 @@ def test_missing_columns_rejected(db):
 def test_normalize_subsidiary():
     assert normalize_subsidiary(None) is None
     assert normalize_subsidiary("  ") is None
-    assert normalize_subsidiary("España") == "ES"
-    assert normalize_subsidiary("deutschland") == "DE"
+    assert normalize_subsidiary("España") == "Weber Iberica"
+    assert normalize_subsidiary("deutschland") == "Weber Germany"
+    assert normalize_subsidiary("Weber Iberica") == "Weber Iberica"
+    assert normalize_subsidiary("Weber Argentina") == "Weber Argentina"
     assert normalize_subsidiary("ZM") == "ZM"
 
 
@@ -106,4 +108,4 @@ def test_import_normalizes_subsidiary_param(db):
     report = run_import(db, (HEADER + ROW_ES).encode(), subsidiary_id="España", dry_run=False)
     assert report.errors == []
     stored = db.scalar(select(Customer).where(Customer.customer_id == "0001012933"))
-    assert stored is not None and stored.subsidiary_id == "ES"
+    assert stored is not None and stored.subsidiary_id == "Weber Iberica"

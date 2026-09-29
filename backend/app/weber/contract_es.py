@@ -39,6 +39,8 @@ EXECUTORS: dict[str, dict[str, str]] = {
 }
 
 TITLE = "CONTRATO DE MANTENIMIENTO"
+DRAFT_BANNER = "DOCUMENTO PROVISIONAL · BORRADOR"
+DRAFT_FOOTER = "Documento provisional: pendiente del bloque legal de esta filial."
 EXECUTOR_LABEL = "Entre la empresa:"
 EXECUTOR_ALIAS = "(en adelante, el Ejecutor)"
 CLIENT_LABEL = "Y la empresa:"

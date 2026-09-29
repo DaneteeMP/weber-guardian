@@ -39,15 +39,15 @@ def test_search_matches_sap_name_and_country(db):
 
 def test_search_combines_with_scope_and_pagination(db):
     create_customer(
-        db, CustomerCreate(customer_id="A-1", account_name="Alpha Foods", country="Spain", subsidiary_id="ES")
+        db, CustomerCreate(customer_id="A-1", account_name="Alpha Foods", country="Spain", subsidiary_id="Weber Iberica")
     )
     create_customer(
-        db, CustomerCreate(customer_id="A-2", account_name="Alpha Meats", country="Spain", subsidiary_id="ES")
+        db, CustomerCreate(customer_id="A-2", account_name="Alpha Meats", country="Spain", subsidiary_id="Weber Iberica")
     )
     create_customer(
-        db, CustomerCreate(customer_id="B-1", account_name="Alpha Berlin", country="Germany", subsidiary_id="DE")
+        db, CustomerCreate(customer_id="B-1", account_name="Alpha Berlin", country="Germany", subsidiary_id="Weber Germany")
     )
-    assert count_customers(db, subsidiary_id="ES", search="alpha") == 2
-    page = list_customers(db, subsidiary_id="ES", search="alpha", limit=1, offset=1)
+    assert count_customers(db, subsidiary_id="Weber Iberica", search="alpha") == 2
+    page = list_customers(db, subsidiary_id="Weber Iberica", search="alpha", limit=1, offset=1)
     assert len(page) == 1
-    assert count_customers(db, subsidiary_id="DE", search="alpha") == 1
+    assert count_customers(db, subsidiary_id="Weber Germany", search="alpha") == 1

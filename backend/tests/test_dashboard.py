@@ -6,8 +6,8 @@ from app.modules.equipment.models import Equipment
 
 
 def _seed(db):
-    create_customer(db, CustomerCreate(customer_id="C-ES", account_name="ES", country="Spain", subsidiary_id="ES"))
-    create_customer(db, CustomerCreate(customer_id="C-DE", account_name="DE", country="Germany", subsidiary_id="DE"))
+    create_customer(db, CustomerCreate(customer_id="C-ES", account_name="ES", country="Spain", subsidiary_id="Weber Iberica"))
+    create_customer(db, CustomerCreate(customer_id="C-DE", account_name="DE", country="Germany", subsidiary_id="Weber Germany"))
     create_customer(db, CustomerCreate(customer_id="C-LEG", account_name="Legacy", country="Spain"))
     db.add(Equipment(customer_id="C-ES", material_no="M-ES", row_hash="h-es"))
     db.add(Equipment(customer_id="C-DE", material_no="M-DE", row_hash="h-de"))
@@ -24,6 +24,6 @@ def test_global_sees_everything(db):
 
 def test_scoped_sees_only_own_filial(db):
     _seed(db)
-    stats = get_stats(db, subsidiary_id="ES")
+    stats = get_stats(db, subsidiary_id="Weber Iberica")
     assert (stats.total_customers, stats.total_equipment) == (1, 1)
     assert {c.country: c.count for c in stats.countries} == {"Spain": 1}

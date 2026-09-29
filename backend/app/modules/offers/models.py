@@ -7,10 +7,10 @@
   offer removes its items.
 """
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, func
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, func
 from sqlalchemy import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -51,6 +51,9 @@ class Offer(Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    # Business date of the offer (day precision), editable by the user.
+    # created_at stays the audit stamp and keeps driving listing order.
+    offer_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     items: Mapped[list["OfferItem"]] = relationship(

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { uploadCsv, type ImportReport } from "./api";
+import { useEffect, useState } from "react";
+import { listSubsidiaries, uploadCsv, type ImportReport, type Subsidiary } from "./api";
 import SectionCard from "./components/SectionCard";
 import { t, type Lang } from "./i18n";
 
@@ -17,10 +17,15 @@ export default function ImportData({ lang }: { lang: Lang }) {
   const s = STR[lang];
   const [file, setFile] = useState<File | null>(null);
   const [subsidiary, setSubsidiary] = useState("");
+  const [subsidiaries, setSubsidiaries] = useState<Subsidiary[]>([]);
   const [report, setReport] = useState<ImportReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const input = "border rounded px-2 py-1 text-sm";
+
+  useEffect(() => {
+    listSubsidiaries().then(setSubsidiaries).catch(() => {});
+  }, []);
 
   async function run(dryRun: boolean) {
     setError(null);
@@ -58,7 +63,14 @@ export default function ImportData({ lang }: { lang: Lang }) {
             <input type="file" accept=".csv" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </label>
           <span className="text-sm text-gray-600">{file?.name ?? ""}</span>
-          <input value={subsidiary} onChange={(e) => setSubsidiary(e.target.value)} placeholder={s.subsidiary} className={input} />
+          <select value={subsidiary} onChange={(e) => setSubsidiary(e.target.value)} className={input} title={s.subsidiary}>
+            <option value="">{s.subsidiary}</option>
+            {subsidiaries.map((f) => (
+              <option key={f.name} value={f.name}>
+                {f.short_label}
+              </option>
+            ))}
+          </select>
           <button disabled={busy} onClick={() => run(true)} className="px-3 py-1 rounded text-sm bg-gray-200 hover:bg-gray-300 disabled:opacity-50">
             {s.simulate}
           </button>
@@ -86,6 +98,13 @@ export default function ImportData({ lang }: { lang: Lang }) {
                 <li key={i}>
                   L{e.line}: {e.reason}
                 </li>
+              ))}
+            </ul>
+          )}
+          {(report.warnings ?? []).length > 0 && (
+            <ul className="mt-2 text-xs text-amber-700 space-y-1">
+              {(report.warnings ?? []).slice(0, 50).map((w, i) => (
+                <li key={i}>⚠ {w}</li>
               ))}
             </ul>
           )}

@@ -1,8 +1,8 @@
 """Offer logic. Receives a Session, returns models. No HTTP here."""
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -10,7 +10,7 @@ from app.modules.customers.models import Customer
 from app.modules.offers.document import OfferDocument, OfferLine
 from app.modules.offers.models import Offer, OfferItem
 from app.modules.offers.pricing_engine import PricingInput, calculate
-from app.modules.offers.schemas import OfferCalculateIn, OfferCalculateOut, OfferCreate
+from app.modules.offers.schemas import OfferCalculateIn, OfferCalculateOut, OfferCreate, OfferUpdate
 
 
 class UnknownCustomer(Exception):
@@ -87,6 +87,9 @@ def create_offer(
 
     priced = calculate_price(data.pricing)
     number = data.id_guardian_offer or _fallback_number()
+    # A missing offer_date means "same day as the row was created": the PDF and
+    # the home fall back to created_at, so the business date is never invented.
+    offer_date = data.offer_date or date.today()
 
     offer = Offer(
         id_guardian_offer=number,
@@ -112,6 +115,7 @@ def create_offer(
         total_end=priced.total_end,
         general_comments=data.general_comments,
         created_by=created_by,
+        offer_date=offer_date,
     )
     for pos, item in enumerate(data.items, start=1):
         offer.items.append(
@@ -143,19 +147,67 @@ def list_offers(
     limit: int = 50,
     offset: int = 0,
     subsidiary_id: str | None = None,
+    status: str | None = None,
 ) -> list[Offer]:
-    """List offers with optional customer filter and subsidiary scope (None = global).
+    """List offers with optional customer/status filters and subsidiary scope (None = global).
 
     Strict: scoped callers see ONLY their subsidiary's customers.
     """
     stmt = select(Offer).options(selectinload(Offer.items)).order_by(Offer.created_at.desc())
     if customer_id:
         stmt = stmt.where(Offer.customer_id == customer_id)
+    if status:
+        stmt = stmt.where(Offer.status == status)
     if subsidiary_id is not None:
         stmt = stmt.join(Customer, Offer.customer_id == Customer.customer_id).where(
             Customer.subsidiary_id == subsidiary_id
         )
     return list(db.scalars(stmt.limit(limit).offset(offset)))
+
+
+def offers_summary(db: Session, subsidiary_id: str | None = None) -> dict:
+    """Dense home-screen figures, all through the subsidiary scope.
+
+    Returns totals, per-status counts, monthly counts (YYYY-MM) and the
+    top customers by offer count with summed net totals.
+    """
+    base = select(Offer)
+    if subsidiary_id is not None:
+        base = base.join(Customer, Offer.customer_id == Customer.customer_id).where(
+            Customer.subsidiary_id == subsidiary_id
+        )
+    sub = base.subquery()
+    total = db.scalar(select(func.count()).select_from(sub)) or 0
+    by_status = [
+        {"status": status, "count": count}
+        for status, count in db.execute(
+            select(sub.c.status, func.count()).group_by(sub.c.status)
+        ).all()
+    ]
+    monthly_counts: dict[str, int] = {}
+    # Group by the business date so the chart agrees with the date column and
+    # the date printed on the PDF. Rows without offer_date fall back to the day
+    # the row was created.
+    date_column = select(Offer.offer_date, Offer.created_at)
+    if subsidiary_id is not None:
+        date_column = date_column.join(Customer, Offer.customer_id == Customer.customer_id).where(
+            Customer.subsidiary_id == subsidiary_id
+        )
+    for offer_date, created_at in db.execute(date_column).all():
+        day = offer_date or (created_at.date() if created_at else None)
+        month = day.strftime("%Y-%m") if day else "unknown"
+        monthly_counts[month] = monthly_counts.get(month, 0) + 1
+    monthly = [{"month": month, "count": monthly_counts[month]} for month in sorted(monthly_counts)]
+    ranking = [
+        {"customer_id": cid, "count": count, "total_end": str(total_end)}
+        for cid, count, total_end in db.execute(
+            select(sub.c.customer_id, func.count(), func.sum(sub.c.total_end))
+            .group_by(sub.c.customer_id)
+            .order_by(func.count().desc())
+            .limit(15)
+        ).all()
+    ]
+    return {"total": total, "by_status": by_status, "monthly": monthly, "ranking": ranking}
 
 
 def get_offer(db: Session, offer_id: uuid.UUID, subsidiary_id: str | None = None) -> Offer | None:
@@ -166,6 +218,56 @@ def get_offer(db: Session, offer_id: uuid.UUID, subsidiary_id: str | None = None
             Customer.subsidiary_id == subsidiary_id
         )
     return db.scalar(stmt)
+
+
+def update_offer(
+    db: Session, offer_id: uuid.UUID, data: OfferUpdate, subsidiary_id: str | None = None
+) -> Offer | None:
+    """Full edit: header fields plus wholesale line replacement with server
+    recomputation, in one transaction. None when missing/out of scope."""
+    offer = get_offer(db, offer_id, subsidiary_id=subsidiary_id)
+    if offer is None:
+        return None
+    priced = calculate_price(data.pricing)
+    offer.status = data.status
+    offer.responsible_person = data.responsible_person
+    offer.language = data.language
+    offer.inspection_frequency = data.inspection_frequency
+    offer.currency = priced.currency
+    offer.work_hours = priced.work_hours
+    offer.bk_hours = priced.bk_hours
+    offer.report_hours = priced.report_hours
+    offer.total_hours = priced.total_hours
+    offer.trip_hours = priced.trip_hours
+    offer.trip_cost = priced.trip_cost
+    offer.diets = priced.diets
+    offer.hotel_cost = priced.hotel_nights_cost
+    offer.expenses = priced.expenses
+    offer.hours_import = priced.hours_import
+    offer.discount = priced.discount
+    offer.bk_price = priced.bk_price
+    offer.total = priced.total
+    offer.total_end = priced.total_end
+    offer.general_comments = data.general_comments
+    # offer_date=None means "keep the day the row was created", so an edit that
+    # does not touch the date can never wipe it.
+    offer.offer_date = data.offer_date or offer.offer_date or (
+        offer.created_at.date() if offer.created_at else None
+    )
+    offer.items.clear()
+    for pos, item in enumerate(data.items, start=1):
+        offer.items.append(
+            OfferItem(
+                row_no=pos,
+                equipment=item.equipment,
+                description=item.description,
+                import_amount=item.import_amount,
+                workload=item.workload,
+            )
+        )
+    db.commit()
+    db.refresh(offer)
+    return offer
 
 
 def delete_offer(db: Session, offer_id: uuid.UUID, subsidiary_id: str | None = None) -> bool:
@@ -215,7 +317,7 @@ def get_offer_document(db: Session, offer_id: uuid.UUID, subsidiary_id: str | No
     return OfferDocument(
         offer_id=offer.id,
         number=offer.id_guardian_offer,
-        offer_date=offer.created_at.date() if offer.created_at else None,
+        offer_date=offer.offer_date or (offer.created_at.date() if offer.created_at else None),
         status=offer.status,
         language=offer.language or "Spanish",
         inspection_frequency=offer.inspection_frequency,

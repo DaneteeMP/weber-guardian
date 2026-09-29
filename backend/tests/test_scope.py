@@ -44,14 +44,14 @@ def client(monkeypatch):
     seed.add_all(
         [
             User(external_id="oid-admin", role="admin"),
-            User(external_id="oid-es", role="sales", subsidiary_id="ES"),
-            User(external_id="oid-de", role="sales", subsidiary_id="DE"),
-            User(external_id="oid-viewer", role="viewer", subsidiary_id="ES"),
+            User(external_id="oid-es", role="sales", subsidiary_id="Weber Iberica"),
+            User(external_id="oid-de", role="sales", subsidiary_id="Weber Germany"),
+            User(external_id="oid-viewer", role="viewer", subsidiary_id="Weber Iberica"),
         ]
     )
     seed.commit()
-    create_customer(seed, CustomerCreate(customer_id="C-ES", account_name="ES Client", subsidiary_id="ES"))
-    create_customer(seed, CustomerCreate(customer_id="C-DE", account_name="DE Client", subsidiary_id="DE"))
+    create_customer(seed, CustomerCreate(customer_id="C-ES", account_name="ES Client", subsidiary_id="Weber Iberica"))
+    create_customer(seed, CustomerCreate(customer_id="C-DE", account_name="DE Client", subsidiary_id="Weber Germany"))
     create_customer(seed, CustomerCreate(customer_id="C-LEG", account_name="Legacy Client"))
     seed.close()
     with TestClient(api_app) as test_client:
@@ -84,7 +84,12 @@ def test_unknown_oid_is_401(client):
 def test_me_returns_db_role_and_scope(client):
     res = client.get("/api/v1/users/me", headers={"X-Dev-User": "oid-es"})
     assert res.status_code == 200
-    assert res.json() == {"external_id": "oid-es", "role": "sales", "subsidiary_id": "ES"}
+    assert res.json() == {
+        "external_id": "oid-es",
+        "role": "sales",
+        "subsidiary_id": "Weber Iberica",
+        "subsidiary_short": "Iberica",
+    }
 
 
 def test_es_sees_only_own_filial(client):
@@ -158,7 +163,7 @@ def test_scoped_writes_stay_inside_the_filial(client):
     # ES creating a customer for DE is forbidden.
     res = client.post(
         "/api/v1/customers",
-        json={"customer_id": "C-X", "account_name": "Nope", "subsidiary_id": "DE"},
+        json={"customer_id": "C-X", "account_name": "Nope", "subsidiary_id": "Weber Germany"},
         headers={"X-Dev-User": "oid-es"},
     )
     assert res.status_code == 403
@@ -169,4 +174,4 @@ def test_scoped_writes_stay_inside_the_filial(client):
         headers={"X-Dev-User": "oid-es"},
     )
     assert res.status_code == 201
-    assert res.json()["subsidiary_id"] == "ES"
+    assert res.json()["subsidiary_id"] == "Weber Iberica"

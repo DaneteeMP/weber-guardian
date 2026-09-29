@@ -10,4 +10,16 @@ export default defineConfig({
   server: {
     port: 5173,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // recharts is a large third-party dependency used only by the charts
+        // panel. Keeping it in its own chunk caches it separately and keeps the
+        // app chunk readable.
+        manualChunks: {
+          charts: ["recharts"],
+        },
+      },
+    },
+  },
 });

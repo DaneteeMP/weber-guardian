@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends
 
 from app.core.security import CurrentUser, get_current_user
+from app.core.subsidiaries import short_label
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -13,4 +14,5 @@ def me_endpoint(current: CurrentUser = Depends(get_current_user)) -> dict:
         "external_id": current.external_id,
         "role": current.role,
         "subsidiary_id": current.subsidiary_id,
+        "subsidiary_short": short_label(current.subsidiary_id),
     }

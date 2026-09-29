@@ -39,10 +39,10 @@ def test_unknown_external_id_is_401(db, monkeypatch):
 
 def test_known_user_resolves_role_and_scope_from_db(db, monkeypatch):
     monkeypatch.setattr(security.settings, "dev_auth_enabled", True)
-    _user(db, external_id="oid-sales-es", role="sales", subsidiary_id="ES")
+    _user(db, external_id="oid-sales-es", role="sales", subsidiary_id="Weber Iberica")
     me = asyncio.run(security.get_current_user(x_dev_user="oid-sales-es", db=db))
     assert me.role == "sales"
-    assert me.subsidiary_id == "ES"
+    assert me.subsidiary_id == "Weber Iberica"
 
 
 def test_require_role_allows_and_denies():

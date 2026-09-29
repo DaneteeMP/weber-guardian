@@ -13,6 +13,8 @@ from app.modules.offers.schemas import (
     OfferCreate,
     OfferOut,
     OfferStatusUpdate,
+    OffersSummaryOut,
+    OfferUpdate,
 )
 
 router = APIRouter(prefix="/offers", tags=["offers"])
@@ -29,14 +31,29 @@ def calculate_endpoint(
 @router.get("", response_model=list[OfferOut])
 def list_endpoint(
     customer_id: str | None = Query(default=None, min_length=1, max_length=64),
+    status: str | None = Query(default=None, min_length=1, max_length=32),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current: CurrentUser = Depends(get_current_user),
 ):
     return service.list_offers(
-        db, customer_id=customer_id, limit=limit, offset=offset, subsidiary_id=current.subsidiary_id
+        db,
+        customer_id=customer_id,
+        limit=limit,
+        offset=offset,
+        subsidiary_id=current.subsidiary_id,
+        status=status,
     )
+
+
+@router.get("/summary", response_model=OffersSummaryOut)
+def summary_endpoint(
+    db: Session = Depends(get_db),
+    current: CurrentUser = Depends(get_current_user),
+):
+    """Dense home-screen figures (totals, by status, monthly, ranking)."""
+    return service.offers_summary(db, subsidiary_id=current.subsidiary_id)
 
 
 @router.get("/{offer_id}", response_model=OfferOut)
@@ -65,6 +82,19 @@ def create_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except service.OfferAlreadyExists as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.put("/{offer_id}", response_model=OfferOut)
+def update_endpoint(
+    offer_id: uuid.UUID,
+    payload: OfferUpdate,
+    db: Session = Depends(get_db),
+    current: CurrentUser = Depends(require_role("admin", "sales")),
+):
+    offer = service.update_offer(db, offer_id, payload, subsidiary_id=current.subsidiary_id)
+    if offer is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Offer not found")
+    return offer
 
 
 @router.delete("/{offer_id}", status_code=status.HTTP_204_NO_CONTENT)

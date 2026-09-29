@@ -1,6 +1,6 @@
 import { LANGS, t, type Lang } from "../i18n";
 
-export type Tab = "home" | "offers" | "customers" | "import" | "dashboard" | "config";
+export type Tab = "home" | "offers" | "customers" | "import" | "dashboard" | "config" | "subsidiaries";
 
 // Salesforce-style shell: brand row (logo, global search, identity) plus
 // the tab bar. No routing library: tabs are plain state in App.
@@ -15,6 +15,7 @@ export default function TopBar({
   setDev,
   identity,
   showConfig,
+  showSubsidiaries,
 }: {
   tab: Tab;
   setTab: (t: Tab) => void;
@@ -24,8 +25,9 @@ export default function TopBar({
   setSearch: (s: string) => void;
   dev: string | null;
   setDev: (d: string | null) => void;
-  identity: { external_id: string; role: string; subsidiary_id: string | null } | null;
+  identity: { external_id: string; role: string; subsidiary_id: string | null; subsidiary_short?: string | null } | null;
   showConfig: boolean;
+  showSubsidiaries: boolean;
 }) {
   const tabs: { id: Tab; label: string }[] = [
     { id: "home", label: t(lang, "nav_offers") },
@@ -35,6 +37,7 @@ export default function TopBar({
     { id: "dashboard", label: t(lang, "nav_dashboard") },
   ];
   if (showConfig) tabs.push({ id: "config", label: t(lang, "nav_config") });
+  if (showSubsidiaries) tabs.push({ id: "subsidiaries", label: t(lang, "nav_subsidiaries") });
 
   return (
     <header className="bg-white shadow">
@@ -72,8 +75,8 @@ export default function TopBar({
         </select>
         {identity && (
           <span className="text-xs text-gray-600 whitespace-nowrap">
-            {identity.external_id} · {identity.role}
-            {identity.subsidiary_id ? ` · ${identity.subsidiary_id}` : " · global"}
+            {identity.external_id} · {identity.role} ·{" "}
+            {identity.subsidiary_short ?? identity.subsidiary_id ?? "global"}
           </span>
         )}
       </div>

@@ -157,7 +157,7 @@ export default function Customers({ lang, externalSearch = "" }: { lang: Lang; e
             {loading ? (
               <p className="text-sm text-gray-500">{t(lang, "cust_loading")}</p>
             ) : (
-              <div className="overflow-auto max-h-[calc(100vh-220px)] min-h-[400px]">
+              <div className="overflow-auto max-h-[calc(90vh-220px)] min-h-[400px]">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0">
                     <tr className="bg-weber-blue text-white text-left">

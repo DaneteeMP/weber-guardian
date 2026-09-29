@@ -17,7 +17,7 @@ from app.modules.prices.service import get_prices, update_prices
 def _seed(db):
     db.add(
         PriceList(
-            subsidiary_id="ES",
+            subsidiary_id="Weber Iberica",
             km_rate=Decimal("0.5"),
             tech_rate=Decimal("60"),
             diet_full_rate=Decimal("40"),
@@ -32,7 +32,7 @@ def _seed(db):
 
 def test_price_lookup_by_subsidiary(db):
     _seed(db)
-    row = get_prices(db, "ES")
+    row = get_prices(db, "Weber Iberica")
     assert row is not None and row.tech_rate == Decimal("60")
     assert get_prices(db, "NOWHERE") is None
 
@@ -41,7 +41,7 @@ def test_price_update_replaces_whole_row(db):
     _seed(db)
     updated = update_prices(
         db,
-        "ES",
+        "Weber Iberica",
         PriceUpdate(
             km_rate=Decimal("0.7"),
             tech_rate=Decimal("65"),

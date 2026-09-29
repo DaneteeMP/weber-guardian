@@ -20,3 +20,5 @@ class ImportReport(BaseModel):
     equipment_created: int = Field(ge=0)
     equipment_skipped: int = Field(ge=0)
     errors: list[RowError] = Field(default_factory=list)
+    # Non-blocking notes (e.g. countries without a supervising filial).
+    warnings: list[str] = Field(default_factory=list)

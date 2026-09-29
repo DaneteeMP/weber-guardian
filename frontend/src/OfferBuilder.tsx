@@ -5,11 +5,13 @@ import {
   createOffer,
   deleteOffer,
   downloadOfferPdf,
+  getOffer,
   getPrices,
   listAllCustomers,
   listEquipment,
   listOffers,
   me,
+  updateOffer,
   type Breakdown,
   type Customer,
   type Equipment,
@@ -24,6 +26,14 @@ const num = (v: string, fallback: number) => {
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 };
 
+// ISO day (yyyy-mm-dd) for <input type="date">. Built from local parts, not
+// toISOString, which would shift the day for any timezone behind UTC.
+const todayIso = () => {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+};
+
 const GUARDIAN_TYPES = ["Basic Kit", "Audit", "Off-Guardian", "Campaign"];
 const LANGUAGES = ["Spanish", "Portuguese"];
 const FREQUENCIES = ["Annual", "Semi-annual", "Biennial"];
@@ -32,7 +42,17 @@ const RESPONSIBLES = ["", "Xevi Mira", "David"];
 
 const COLORS = ["#e3f2fd", "#fce4ec", "#e8f5e9", "#fff3e0", "#f3e5f5", "#e0f7fa", "#fff9c4", "#efebe9"];
 
-export default function OfferBuilder({ lang }: { lang: Lang }) {
+// Create or edit one offer. With editingOfferId the form is filled from the
+// stored offer (header, lines and the hour snapshot the offer keeps).
+export default function OfferBuilder({
+  lang,
+  editingOfferId,
+  onDone,
+}: {
+  lang: Lang;
+  editingOfferId: string | null;
+  onDone: () => void;
+}) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [clientSearch, setClientSearch] = useState("");
@@ -51,6 +71,7 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
   const [dietHalf, setDietHalf] = useState("20");
   const [hotelRate, setHotelRate] = useState("80");
   const [offerNumber, setOfferNumber] = useState("");
+  const [offerDate, setOfferDate] = useState(todayIso());
   const [language, setLanguage] = useState("Spanish");
   const [frequency, setFrequency] = useState("Annual");
   const [status, setStatus] = useState("Pending response");
@@ -63,6 +84,40 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
   const [savedOffer, setSavedOffer] = useState<{ id: string; status: string } | null>(null);
   const [equipList, setEquipList] = useState<Equipment[]>([]);
   const [selectedEquip, setSelectedEquip] = useState<string[]>([]);
+  const [editStatus, setEditStatus] = useState<string | null>(null);
+
+  // Edit mode: fill the form from the stored offer. Trip inputs (km, rates)
+  // are not part of the offer snapshot on purpose: they come from the current
+  // subsidiary rates, same as when the offer is created.
+  useEffect(() => {
+    if (!editingOfferId) return;
+    getOffer(editingOfferId)
+      .then((o) => {
+        setCustomerId(o.customer_id);
+        setOfferNumber(o.id_guardian_offer);
+        // The API always returns a date; fall back to today only if an old row
+        // somehow has no business date at all.
+        setOfferDate(o.offer_date || todayIso());
+        setStatus(o.status || "Draft");
+        setLanguage(o.language || "Spanish");
+        setFrequency(o.inspection_frequency || "Annual");
+        setResponsible(o.responsible_person || "");
+        setComments(o.general_comments || "");
+        setWorkHours(String(Number(o.work_hours ?? 0)));
+        setReportHours(String(Number(o.report_hours ?? 0)));
+        setTripBase(String(Number(o.trip_hours ?? 0)));
+        setItems(
+          o.items.map((i) => ({
+            equipment: i.equipment ?? "",
+            description: i.description ?? "",
+            import_amount: String(Number(i.import_amount ?? 0)),
+            workload: String(Number(i.workload ?? 0)),
+          }))
+        );
+        setEditStatus(o.status || "Draft");
+      })
+      .catch((e) => setError(String(e)));
+  }, [editingOfferId]);
 
   const availableCodes = useMemo(
     () =>
@@ -161,6 +216,14 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
     }
   }, [customerId, customers]);
 
+  // Picking the customer clears the saved offer, so in edit mode we re-attach
+  // it once the customer is in place.
+  useEffect(() => {
+    if (editingOfferId && editStatus && customerId) {
+      setSavedOffer({ id: editingOfferId, status: editStatus });
+    }
+  }, [editStatus, customerId, editingOfferId]);
+
   const filteredCustomers = useMemo(() => {
     const q = clientSearch.trim().toLowerCase();
     if (!q) return customers;
@@ -205,41 +268,59 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
   async function handleSave() {
     setError(null);
     setSaved(null);
-    setSavedOffer(null);
     try {
       if (!customerId) throw new Error(t(lang, "ob_select_first"));
-      const created = await createOffer({
-        customer_id: customerId,
-        id_guardian_offer: offerNumber || undefined,
-        status,
-        responsible_person: responsible || undefined,
-        language,
-        inspection_frequency: frequency,
-        general_comments: comments || undefined,
-        pricing: {
-          work_hours: num(workHours, 0),
-          bk_hours: 0,
-          report_hours: num(reportHours, 0),
-          trip_hours_base: num(tripBase, 0),
-          km: num(km, 0),
-          km_rate: num(kmRate, 0),
-          tech_rate: num(techRate, 0),
-          diet_full_rate: num(dietFull, 0),
-          diet_half_rate: num(dietHalf, 0),
-          hotel_rate: num(hotelRate, 0),
-          discount_rate: 0.15,
-          bk_price: 0,
-          currency: "EUR",
-        },
-        items: items.map((i) => ({
-          equipment: i.equipment || undefined,
-          description: i.description || undefined,
-          import_amount: num(i.import_amount, 0),
-          workload: num(i.workload, 0),
-        })),
-      });
+      const pricing = {
+        work_hours: num(workHours, 0),
+        bk_hours: 0,
+        report_hours: num(reportHours, 0),
+        trip_hours_base: num(tripBase, 0),
+        km: num(km, 0),
+        km_rate: num(kmRate, 0),
+        tech_rate: num(techRate, 0),
+        diet_full_rate: num(dietFull, 0),
+        diet_half_rate: num(dietHalf, 0),
+        hotel_rate: num(hotelRate, 0),
+        discount_rate: 0.15,
+        bk_price: 0,
+        currency: "EUR",
+      };
+      const lines = items.map((i) => ({
+        equipment: i.equipment || undefined,
+        description: i.description || undefined,
+        import_amount: num(i.import_amount, 0),
+        workload: num(i.workload, 0),
+      }));
+      if (editingOfferId) {
+        await updateOffer(editingOfferId, {
+          status,
+          responsible_person: responsible || undefined,
+          language,
+          inspection_frequency: frequency,
+          general_comments: comments || undefined,
+          offer_date: offerDate || undefined,
+          pricing,
+          items: lines,
+        });
+        setEditStatus(status);
+        setSavedOffer({ id: editingOfferId, status });
+      } else {
+        const created = await createOffer({
+          customer_id: customerId,
+          id_guardian_offer: offerNumber || undefined,
+          status,
+          responsible_person: responsible || undefined,
+          language,
+          inspection_frequency: frequency,
+          general_comments: comments || undefined,
+          offer_date: offerDate || undefined,
+          pricing,
+          items: lines,
+        });
+        setOfferNumber(created.id_guardian_offer);
+        setSavedOffer({ id: created.id, status });
+      }
       setSaved(t(lang, "ob_saved"));
-      setSavedOffer({ id: created.id, status });
       await refreshOffers();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
@@ -254,6 +335,7 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
       setSavedOffer(null);
       setSaved(null);
       await refreshOffers();
+      onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Delete failed");
     }
@@ -273,23 +355,16 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
   }
 
   async function handlePrint() {
+    if (!savedOffer) return;
     setError(null);
     try {
-      if (!savedOffer) return;
-      const { blob, filename } = await downloadOfferPdf(savedOffer.id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
+      await downloadOfferPdf(savedOffer.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Print failed");
     }
   }
 
   const input = "border rounded px-2 py-1.5 text-sm w-full";
-  const today = new Date().toLocaleDateString("en-GB");
 
   const moduleRows = items.map((m, i) => ({ pos: i + 1, equipment: m.equipment, module: m.description, amount: num(m.import_amount, 0) }));
   const colorMap: Record<string, string> = {};
@@ -303,16 +378,43 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
   return (
     <div className="min-h-screen flex flex-col bg-gray-100">
       <div className="bg-weber-blue text-white px-6 py-3 flex items-center justify-between shadow">
-        <h1 className="text-xl font-bold tracking-wide">{t(lang, "ob_title")}</h1>
+        <div className="flex items-baseline gap-3">
+          <h1 className="text-xl font-bold tracking-wide">{t(lang, "ob_title")}</h1>
+          {editingOfferId && (
+            <span className="text-sm opacity-90">
+              {t(lang, "ob_editing")} {offerNumber}
+            </span>
+          )}
+        </div>
         <div className="flex gap-2">
-          <button onClick={handlePrint} disabled={!savedOffer} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium disabled:opacity-40">
-            {t(lang, "ob_print")}
+          <button
+            onClick={handlePrint}
+            disabled={!savedOffer}
+            title={t(lang, "common_download")}
+            aria-label={t(lang, "common_download")}
+            className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium disabled:opacity-40 inline-flex items-center justify-center"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4" aria-hidden="true">
+              <path d="M12 3v12" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M7 10l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M4 19h16" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!customerId}
+            className="px-3 py-1 bg-white text-weber-blue hover:bg-white/90 rounded text-sm font-bold disabled:opacity-40"
+          >
+            {editingOfferId ? t(lang, "ob_update") : t(lang, "ob_save")}
           </button>
           <button onClick={handleDelete} disabled={!savedOffer} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium disabled:opacity-40">
             {t(lang, "ob_delete_offer")}
           </button>
           <button onClick={handleClose} disabled={!savedOffer} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium disabled:opacity-40">
             {t(lang, "ob_close_offer")}
+          </button>
+          <button onClick={onDone} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium">
+            {t(lang, "ob_back")}
           </button>
         </div>
       </div>
@@ -355,7 +457,12 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-gray-500 w-28">{t(lang, "ob_offer_date")}</span>
-                  <span>{today}</span>
+                  <input
+                    type="date"
+                    value={offerDate}
+                    onChange={(e) => setOfferDate(e.target.value)}
+                    className="border rounded px-1 py-0.5 text-sm font-mono"
+                  />
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-gray-500 w-28">{t(lang, "ob_guardian_type")}</span>
@@ -367,8 +474,17 @@ export default function OfferBuilder({ lang }: { lang: Lang }) {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-gray-500 w-28">{t(lang, "ob_offer_no_save")}</span>
-                  <input value={offerNumber} onChange={(e) => setOfferNumber(e.target.value)} placeholder="W-02-2026-0001" className="border rounded px-1 py-0.5 text-sm font-mono" />
+                  <input
+                    value={offerNumber}
+                    onChange={(e) => setOfferNumber(e.target.value)}
+                    placeholder="W-02-2026-0001"
+                    readOnly={!!editingOfferId}
+                    className={`border rounded px-1 py-0.5 text-sm font-mono ${editingOfferId ? "bg-gray-100 text-gray-500" : ""}`}
+                  />
                 </div>
+                {editingOfferId && (
+                  <p className="text-[11px] text-gray-500 leading-snug">{t(lang, "ob_pricing_note")}</p>
+                )}
               </div>
             </div>
 
