@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import Config from "./Config";
 import Customers from "./Customers";
-import Dashboard from "./Dashboard";
 import ImportData from "./ImportData";
 import OfferBuilder from "./OfferBuilder";
 import Offers from "./Offers";
-import Subsidiaries from "./Subsidiaries";
+import WorkloadCatalog from "./WorkloadCatalog";
 import Gate from "./components/Gate";
 import TopBar, { type Tab } from "./components/TopBar";
 import {
@@ -94,40 +93,61 @@ export default function App() {
   const contentKey = `${dev}:${scope ?? "all"}:${epoch}`;
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <TopBar
-        tab={tab}
-        setTab={setTab}
-        lang={lang}
-        setLang={setLang}
-        search={search}
-        setSearch={setSearch}
-        identity={identity}
-        scope={scope}
-        setScope={setScope}
-        showConfig={identity?.role === "admin"}
-        showSubsidiaries={identity?.role === "admin"}
-      />
-      {tab === "home" ? (
-        <Offers key={contentKey} lang={lang} onNew={openNewOffer} onEdit={openOffer} />
-      ) : tab === "offers" ? (
-        <OfferBuilder
-          key={`${contentKey}:${editingOffer ?? "new"}`}
+    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-gray-100">
+      <div className="shrink-0">
+        <TopBar
+          tab={tab}
+          setTab={setTab}
           lang={lang}
-          editingOfferId={editingOffer}
-          onDone={() => setTab("home")}
+          setLang={setLang}
+          search={search}
+          setSearch={setSearch}
+          identity={identity}
+          scope={scope}
+          setScope={setScope}
+          showConfig={identity?.role === "admin"}
+          showWorkloadCatalog={identity !== null}
         />
-      ) : tab === "import" ? (
-        <ImportData key={contentKey} lang={lang} />
-      ) : tab === "dashboard" ? (
-        <Dashboard key={contentKey} lang={lang} />
-      ) : tab === "config" ? (
-        <Config key={contentKey} lang={lang} isAdmin={identity?.role === "admin"} />
-      ) : tab === "subsidiaries" ? (
-        <Subsidiaries key={contentKey} lang={lang} isAdmin={identity?.role === "admin"} />
-      ) : (
-        <Customers key={contentKey} lang={lang} externalSearch={search} />
-      )}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {tab === "home" ? (
+          <Offers
+            key={contentKey}
+            lang={lang}
+            onNew={openNewOffer}
+            onEdit={openOffer}
+          />
+        ) : tab === "offers" ? (
+          <OfferBuilder
+            key={`${contentKey}:${editingOffer ?? "new"}`}
+            lang={lang}
+            editingOfferId={editingOffer}
+            onDone={() => setTab("home")}
+          />
+        ) : tab === "import" ? (
+          <ImportData key={contentKey} lang={lang} />
+        ) : tab === "workloads" ? (
+          <WorkloadCatalog
+            key={contentKey}
+            lang={lang}
+            canEdit={identity?.role === "admin" || identity?.role === "sales"}
+          />
+        ) : tab === "config" ? (
+          <Config
+            key={contentKey}
+            lang={lang}
+            isAdmin={identity?.role === "admin"}
+            scope={scope}
+          />
+        ) : (
+          <Customers
+            key={contentKey}
+            lang={lang}
+            externalSearch={search}
+          />
+        )}
+      </div>
     </div>
   );
 }

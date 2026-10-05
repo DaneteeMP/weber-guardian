@@ -36,7 +36,7 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
             return Response(
                 "Authentication required",
                 status_code=401,
-                headers={"WWW-Authenticate": 'Basic realm="WeberGuardian demo"'},
+                headers={"WWW-Authenticate": 'Basic realm="Guardian Contract Management demo"'},
             )
         return await call_next(request)
 

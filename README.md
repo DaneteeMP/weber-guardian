@@ -1,4 +1,4 @@
-# WeberGuardian
+# Guardian Contract Management
 
 Python rebuild of WeberAssistant. After-sales management for machinery (offers, technicians, contracts).
 
@@ -9,7 +9,6 @@ Python rebuild of WeberAssistant. After-sales management for machinery (offers, 
 - F2: security + multi-country
 - F3: CSV / external data
 - F4: contracts + technicians
-- F5: sellable product
 
 See `docs/` for ADRs and the walkthrough.
 

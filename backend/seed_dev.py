@@ -5,6 +5,10 @@ customers and catalog rows (prices, distances, basic kits) with the demo
 values the UI used to type by hand. Idempotent: existing rows are skipped.
 Refuses to run unless DEV_AUTH_ENABLED=true.
 
+Catalog line workloads are NOT seeded here: migration 0019 wrote the verified
+legacy values into equipment_catalog, and the maintenance amount is workload
+times the branch technician rate, so there is no demo figure left to invent.
+
 Usage:
     DEV_AUTH_ENABLED=true python seed_dev.py
     docker compose run --rm -e DEV_AUTH_ENABLED=true api python seed_dev.py
@@ -34,15 +38,23 @@ CUSTOMERS = [
 ]
 
 PRICES = [
-    {"subsidiary_id": "Weber Iberica", "km_rate": Decimal("0.5"), "tech_rate": Decimal("60"),
+    {"subsidiary_id": "Weber Iberica", "currency": "EUR", "km_rate": Decimal("0.5"), "tech_rate": Decimal("60"),
      "diet_full_rate": Decimal("40"), "diet_half_rate": Decimal("20"), "hotel_rate": Decimal("80")},
-    {"subsidiary_id": "Weber Germany", "km_rate": Decimal("0.5"), "tech_rate": Decimal("60"),
+    {"subsidiary_id": "Weber Germany", "currency": "EUR", "km_rate": Decimal("0.5"), "tech_rate": Decimal("60"),
      "diet_full_rate": Decimal("40"), "diet_half_rate": Decimal("20"), "hotel_rate": Decimal("80")},
+    {"subsidiary_id": "Weber Benelux", "currency": "EUR", "km_rate": Decimal("0.55"), "tech_rate": Decimal("65"),
+     "diet_full_rate": Decimal("42"), "diet_half_rate": Decimal("21"), "hotel_rate": Decimal("90")},
+    {"subsidiary_id": "Weber France", "currency": "EUR", "km_rate": Decimal("0.6"), "tech_rate": Decimal("62"),
+     "diet_full_rate": Decimal("38"), "diet_half_rate": Decimal("19"), "hotel_rate": Decimal("85")},
+    {"subsidiary_id": "Weber Italy", "currency": "EUR", "km_rate": Decimal("0.5"), "tech_rate": Decimal("58"),
+     "diet_full_rate": Decimal("35"), "diet_half_rate": Decimal("18"), "hotel_rate": Decimal("78")},
+    {"subsidiary_id": "Weber Latina", "currency": "EUR", "km_rate": Decimal("0.45"), "tech_rate": Decimal("45"),
+     "diet_full_rate": Decimal("30"), "diet_half_rate": Decimal("15"), "hotel_rate": Decimal("65")},
 ]
 
 DISTANCES = [
-    {"province": "Madrid", "km": Decimal("350"), "trip_hours": Decimal("4")},
-    {"province": "Barcelona", "km": Decimal("120"), "trip_hours": Decimal("1.5")},
+    {"subsidiary_id": "Weber Iberica", "province": "Madrid", "service_center": None, "km": Decimal("350"), "trip_hours": Decimal("4")},
+    {"subsidiary_id": "Weber Iberica", "province": "Barcelona", "service_center": None, "km": Decimal("120"), "trip_hours": Decimal("1.5")},
 ]
 
 BASIC_KITS = [
@@ -81,7 +93,12 @@ def main() -> int:
             else:
                 skipped_catalogs += 1
         for data in DISTANCES:
-            exists = db.scalar(select(Distance).where(Distance.province == data["province"]))
+            exists = db.scalar(
+                select(Distance).where(
+                    Distance.subsidiary_id == data["subsidiary_id"],
+                    Distance.province == data["province"],
+                )
+            )
             if exists is None:
                 db.add(Distance(**data))
                 created_catalogs += 1

@@ -17,7 +17,10 @@ class ImportReport(BaseModel):
     total_rows: int = Field(ge=0)
     customers_created: int = Field(ge=0)
     customers_skipped: int = Field(ge=0)
+    sites_created: int = Field(default=0, ge=0)
+    sites_skipped: int = Field(default=0, ge=0)
     equipment_created: int = Field(ge=0)
+    equipment_updated: int = Field(default=0, ge=0)
     equipment_skipped: int = Field(ge=0)
     errors: list[RowError] = Field(default_factory=list)
     # Non-blocking notes (e.g. countries without a supervising filial).

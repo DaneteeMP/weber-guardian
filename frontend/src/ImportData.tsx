@@ -6,11 +6,11 @@ import { t, type Lang } from "./i18n";
 // CSV upload with dry-run report. The backend validates everything;
 // this page only sends the file and renders the returned report.
 const STR = {
-  es: { title: "Importar CSV", pick: "Elegir fichero", subsidiary: "Filial (opcional)", simulate: "Simular", import: "Importar", rows: "filas", created: "creados", skipped: "omitidos", errors: "errores", need: "Elige un fichero primero" },
-  en: { title: "Import CSV", pick: "Choose file", subsidiary: "Subsidiary (optional)", simulate: "Simulate", import: "Import", rows: "rows", created: "created", skipped: "skipped", errors: "errors", need: "Pick a file first" },
-  de: { title: "CSV importieren", pick: "Datei wählen", subsidiary: "Filiale (optional)", simulate: "Simulieren", import: "Importieren", rows: "Zeilen", created: "angelegt", skipped: "übersprungen", errors: "Fehler", need: "Bitte zuerst eine Datei wählen" },
-  pt: { title: "Importar CSV", pick: "Escolher ficheiro", subsidiary: "Filial (opcional)", simulate: "Simular", import: "Importar", rows: "linhas", created: "criados", skipped: "omitidos", errors: "erros", need: "Escolhe um ficheiro primeiro" },
-  it: { title: "Importa CSV", pick: "Scegli file", subsidiary: "Filiale (facoltativa)", simulate: "Simula", import: "Importa", rows: "righe", created: "creati", skipped: "saltati", errors: "errori", need: "Scegli prima un file" },
+  es: { title: "Importar CSV", pick: "Elegir fichero", subsidiary: "Filial (opcional)", simulate: "Simular", import: "Importar", rows: "filas", created: "creados", skipped: "omitidos", errors: "errores", customers: "Clientes", sites: "Ubicaciones", equipment: "Equipos", updated: "actualizados", need: "Elige un fichero primero" },
+  en: { title: "Import CSV", pick: "Choose file", subsidiary: "Subsidiary (optional)", simulate: "Simulate", import: "Import", rows: "rows", created: "created", skipped: "skipped", errors: "errors", customers: "Customers", sites: "Sites", equipment: "Equipment", updated: "updated", need: "Pick a file first" },
+  de: { title: "CSV importieren", pick: "Datei wählen", subsidiary: "Filiale (optional)", simulate: "Simulieren", import: "Importieren", rows: "Zeilen", created: "angelegt", skipped: "übersprungen", errors: "Fehler", customers: "Kunden", sites: "Standorte", equipment: "Anlagen", updated: "aktualisiert", need: "Bitte zuerst eine Datei wählen" },
+  pt: { title: "Importar CSV", pick: "Escolher ficheiro", subsidiary: "Filial (opcional)", simulate: "Simular", import: "Importar", rows: "linhas", created: "criados", skipped: "omitidos", errors: "erros", customers: "Clientes", sites: "Locais", equipment: "Equipamentos", updated: "atualizados", need: "Escolhe um ficheiro primeiro" },
+  it: { title: "Importa CSV", pick: "Scegli file", subsidiary: "Filiale (facoltativa)", simulate: "Simula", import: "Importa", rows: "righe", created: "creati", skipped: "saltati", errors: "errori", customers: "Clienti", sites: "Sedi", equipment: "Impianti", updated: "aggiornati", need: "Scegli prima un file" },
 } as const;
 
 export default function ImportData({ lang }: { lang: Lang }) {
@@ -85,12 +85,11 @@ export default function ImportData({ lang }: { lang: Lang }) {
       {report && (
         <SectionCard title={report.dry_run ? s.simulate : s.import}>
           <p className="text-sm">
-            {report.total_rows} {s.rows} · {report.customers_created + report.equipment_created} {s.created} ·{" "}
-            {report.customers_skipped + report.equipment_skipped} {s.skipped} · {report.errors.length} {s.errors}
+            {report.total_rows} {s.rows} · {report.customers_created + report.sites_created + report.equipment_created} {s.created} ·{" "}
+            {report.customers_skipped + report.sites_skipped + report.equipment_skipped} {s.skipped} · {report.errors.length} {s.errors}
           </p>
           <p className="text-xs text-gray-500">
-            Clientes {report.customers_created}/{report.customers_skipped} · Equipos {report.equipment_created}/
-            {report.equipment_skipped}
+            {s.customers} {report.customers_created}/{report.customers_skipped} · {s.sites} {report.sites_created}/{report.sites_skipped} · {s.equipment} {report.equipment_created}/{report.equipment_updated}/{report.equipment_skipped} ({s.created}/{s.updated}/{s.skipped})
           </p>
           {report.errors.length > 0 && (
             <ul className="mt-2 text-xs text-red-700 space-y-1">

@@ -19,6 +19,7 @@ import app.modules.basic_kit.models  # noqa: F401
 import app.modules.customers.models  # noqa: F401
 import app.modules.distances.models  # noqa: F401
 import app.modules.equipment.models  # noqa: F401
+import app.modules.equipment_catalog.models  # noqa: F401
 import app.modules.machine_prices.models  # noqa: F401
 import app.modules.offers.models  # noqa: F401
 import app.modules.prices.models  # noqa: F401

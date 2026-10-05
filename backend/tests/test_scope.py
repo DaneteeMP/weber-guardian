@@ -20,6 +20,8 @@ import app.modules.subsidiaries.models  # noqa: F401
 import app.modules.users.models  # noqa: F401
 from app.modules.customers.schemas import CustomerCreate
 from app.modules.customers.service import create_customer
+from app.modules.distances.models import Distance
+from app.modules.equipment.models import CustomerSite, Equipment
 from app.modules.offers.schemas import OfferCalculateIn
 from app.modules.subsidiaries.models import Subsidiary
 from app.modules.users.models import User
@@ -57,6 +59,46 @@ def client(monkeypatch):
     create_customer(seed, CustomerCreate(customer_id="C-ES", account_name="ES Client", subsidiary_id="Weber Iberica"))
     create_customer(seed, CustomerCreate(customer_id="C-DE", account_name="DE Client", subsidiary_id="Weber Germany"))
     create_customer(seed, CustomerCreate(customer_id="C-LEG", account_name="Legacy Client"))
+    site = CustomerSite(
+        customer_id="C-ES",
+        site_hash="a" * 64,
+        physical_street="Calle 1",
+        physical_city="Madrid",
+        physical_postal_code="28001",
+        physical_province="Madrid",
+        physical_country="Spain",
+    )
+    seed.add(site)
+    seed.flush()
+    seed.add(
+        Equipment(
+            customer_id="C-ES",
+            equipment_name="Machine-1",
+            machine_type="CCS304",
+            component_type="Slicer",
+            material_no="M-1",
+            row_hash="b" * 64,
+            site_id=site.id,
+        )
+    )
+    seed.add_all(
+        [
+            Distance(
+                subsidiary_id="Weber Iberica",
+                province="Madrid",
+                km=Decimal("350"),
+                trip_hours=Decimal("4"),
+            ),
+            Distance(
+                subsidiary_id="Weber Germany",
+                province="Niedersachsen",
+                service_center="Oldenburg",
+                km=Decimal("120"),
+                trip_hours=Decimal("1.5"),
+            ),
+        ]
+    )
+    seed.commit()
     seed.close()
     with TestClient(api_app) as test_client:
         yield test_client
@@ -227,3 +269,63 @@ def test_non_admin_own_scope_header_is_accepted(client):
     )
     assert res.status_code == 200
     assert {r["customer_id"] for r in res.json()} == {"C-ES"}
+
+
+def test_distance_list_is_scoped_to_selected_subsidiary(client):
+    res = client.get(
+        "/api/v1/distances",
+        headers={"X-Dev-User": "oid-admin", "X-Scope-Subsidiary": "Weber%20Germany"},
+    )
+    assert res.status_code == 200
+    assert [(row["subsidiary_id"], row["province"], row["service_center"]) for row in res.json()] == [
+        ("Weber Germany", "Niedersachsen", "Oldenburg")
+    ]
+
+
+def test_admin_distance_list_can_show_all_subsidiaries(client):
+    res = client.get("/api/v1/distances", headers={"X-Dev-User": "oid-admin"})
+    assert res.status_code == 200
+    assert {(row["subsidiary_id"], row["province"]) for row in res.json()} == {
+        ("Weber Iberica", "Madrid"),
+        ("Weber Germany", "Niedersachsen"),
+    }
+
+
+def test_distance_lookup_requires_scope_when_admin_views_all(client):
+    res = client.get("/api/v1/distances/Niedersachsen", headers={"X-Dev-User": "oid-admin"})
+    assert res.status_code == 422
+    row = client.get(
+        "/api/v1/distances/Niedersachsen?subsidiary_id=Weber%20Germany",
+        headers={"X-Dev-User": "oid-admin"},
+    )
+    assert row.status_code == 200
+    assert row.json()["service_center"] == "Oldenburg"
+
+
+def test_admin_can_add_a_route_for_a_selected_subsidiary(client):
+    res = client.put(
+        "/api/v1/distances/Hesse?subsidiary_id=Weber%20Germany",
+        headers={"X-Dev-User": "oid-admin"},
+        json={"service_center": "Frankfurt", "km": "35.0", "trip_hours": "0.5"},
+    )
+    assert res.status_code == 200
+    assert res.json()["subsidiary_id"] == "Weber Germany"
+    assert res.json()["service_center"] == "Frankfurt"
+
+
+def test_non_admin_cannot_read_distances_for_another_subsidiary(client):
+    res = client.get(
+        "/api/v1/distances?subsidiary_id=Weber%20Germany",
+        headers={"X-Dev-User": "oid-es"},
+    )
+    assert res.status_code == 403
+
+
+def test_equipment_response_includes_physical_site(client):
+    res = client.get(
+        "/api/v1/equipment?customer_id=C-ES",
+        headers={"X-Dev-User": "oid-es"},
+    )
+    assert res.status_code == 200
+    assert res.json()[0]["site"]["physical_postal_code"] == "28001"
+    assert res.json()[0]["site"]["physical_province"] == "Madrid"

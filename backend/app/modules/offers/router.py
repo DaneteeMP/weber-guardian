@@ -6,8 +6,11 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.security import CurrentUser, get_current_user, require_role
-from app.modules.offers import service
+from app.modules.customers.service import CustomerNotFound
+from app.modules.offers import maintenance, service
 from app.modules.offers.schemas import (
+    MaintenanceDraftIn,
+    MaintenanceDraftOut,
     OfferCalculateIn,
     OfferCalculateOut,
     OfferCreate,
@@ -26,6 +29,35 @@ def calculate_endpoint(
     current: CurrentUser = Depends(get_current_user),
 ):
     return service.calculate_price(payload)
+
+
+@router.post("/maintenance-draft", response_model=MaintenanceDraftOut)
+def maintenance_draft_endpoint(
+    payload: MaintenanceDraftIn,
+    db: Session = Depends(get_db),
+    current: CurrentUser = Depends(require_role("admin", "sales")),
+):
+    """Priced draft rows for the selected machines, amounts computed here.
+
+    Rows flagged needs_review carry hours nobody verified yet: the operator
+    fills them by hand or fixes the dictionary, but the server never invents a
+    number to make the row look complete.
+    """
+    try:
+        return maintenance.maintenance_draft(
+            db,
+            payload.customer_id,
+            payload.machine_names,
+            scope_subsidiary_id=current.scope_subsidiary_id,
+        )
+    except CustomerNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    except maintenance.RateNotConfigured as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
 
 
 @router.get("", response_model=list[OfferOut])

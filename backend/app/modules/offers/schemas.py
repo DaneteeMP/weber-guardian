@@ -6,6 +6,7 @@ schemas do not. All money is Decimal (EUR explicit).
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -68,6 +69,51 @@ class OfferCalculateOut(BaseModel):
     total: Decimal
     total_end: Decimal
     currency: str
+
+
+class MaintenanceDraftIn(BaseModel):
+    """Input of the maintenance draft: the customer and the selected machines."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(min_length=1, max_length=64)
+    machine_names: list[str] = Field(min_length=1, max_length=200)
+
+
+class MaintenanceDraftRowOut(BaseModel):
+    """One draft row, priced server-side as workload × branch tech rate.
+
+    workload is None exactly when needs_review is True: the amount stays 0.00
+    and the operator must type the hours (the amount then recomputes on save)
+    or fix the data the row is missing.
+    """
+
+    machine: str
+    kind: Literal["line", "module"]
+    description: str | None
+    material_no: str | None = None
+    type_code: str | None = None
+    workload: Decimal | None
+    amount: Decimal
+    match_state: Literal["confirmed", "unconfirmed", "unknown"]
+    needs_review: bool
+
+
+class MaintenanceDraftOut(BaseModel):
+    """Draft rows for the selected machines of one customer.
+
+    The rate and currency come from the customer's subsidiary price row, so
+    every country prices its own hours. Rows arrive in machine order with the
+    line row first and its modules after it.
+    """
+
+    customer_id: str
+    subsidiary_id: str | None
+    currency: str
+    tech_rate: Decimal
+    rows: list[MaintenanceDraftRowOut]
+    total_workload: Decimal
+    total_amount: Decimal
 
 
 class OfferStatusUpdate(BaseModel):

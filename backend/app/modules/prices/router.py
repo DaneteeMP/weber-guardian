@@ -34,7 +34,10 @@ def update_endpoint(
     """Replace rates. Admins edit any filial; scoped admins only their own."""
     if current.subsidiary_id is not None and current.subsidiary_id != subsidiary_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No prices for subsidiary")
-    row = service.update_prices(db, subsidiary_id, payload)
+    try:
+        row = service.update_prices(db, subsidiary_id, payload)
+    except service.PriceUpdateConflict as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No prices for subsidiary")
     return row

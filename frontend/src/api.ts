@@ -124,42 +124,14 @@ export function listSubsidiaries(): Promise<Subsidiary[]> {
   return fetch(`${BASE}/subsidiaries`, { headers: headers() }).then((r) => checked(r, "GET subsidiaries"));
 }
 
-export type SubsidiaryStats = { name: string; short_label: string; countries: number; customers: number };
-
-export function getSubsidiaryStats(): Promise<SubsidiaryStats[]> {
-  return fetch(`${BASE}/subsidiaries/stats`, { headers: headers() }).then((r) =>
-    checked(r, "GET subsidiary stats")
-  );
-}
-
-export type UnassignedCountry = { country: string; count: number };
-
-export function getUnassignedCountries(): Promise<UnassignedCountry[]> {
-  return fetch(`${BASE}/subsidiaries/unassigned-countries`, { headers: headers() }).then((r) =>
-    checked(r, "GET unassigned countries")
-  );
-}
-
-export function assignCountries(assignments: { country: string; subsidiary: string }[]): Promise<{ updated: number }> {
-  return fetch(`${BASE}/subsidiaries/assign-countries`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ assignments }),
-  }).then((r) => checked(r, "POST assign countries"));
-}
-
-export function autoAssignAll(): Promise<{ updated: number; warnings: string[] }> {
-  return fetch(`${BASE}/subsidiaries/auto-assign`, {
-    method: "POST",
-    headers: headers(),
-  }).then((r) => checked(r, "POST auto assign"));
-}
-
 export type Customer = {
   id: string;
   customer_id: string;
   account_name: string;
+  city: string | null;
+  province: string | null;
   country: string | null;
+  subsidiary_id: string | null;
 };
 
 export function createCustomer(payload: {
@@ -256,6 +228,133 @@ export async function listAllCustomers(): Promise<Customer[]> {
     if (offset >= page.total || page.rows.length === 0) break;
   }
   return all;
+}
+
+export type CustomerSite = {
+  id: string;
+  physical_street: string | null;
+  physical_city: string | null;
+  physical_postal_code: string | null;
+  physical_province: string | null;
+  physical_country: string | null;
+};
+
+export type CustomerComponent = {
+  component_type: string | null;
+  material_no: string | null;
+  purchase_date: string | null;
+};
+
+export type CustomerMachine = {
+  equipment_name: string;
+  machine_type: string | null;
+  site_id: string | null;
+  components: CustomerComponent[];
+};
+
+export type CustomerDetail = {
+  customer: Customer;
+  sites: CustomerSite[];
+  machines: CustomerMachine[];
+};
+
+/** Addresses and the whole machine list for one customer.
+ *
+ * Deliberately not listEquipment(): that endpoint pages at 50 rows, which
+ * silently hid 104 of the 154 machines of a real Italian customer.
+ */
+export function getCustomerDetail(customerId: string): Promise<CustomerDetail> {
+  return fetch(`${BASE}/customers/${encodeURIComponent(customerId)}/detail`, { headers: headers() }).then((r) =>
+    checked(r, "GET customer detail"),
+  );
+}
+
+export type ComponentWorkload = {
+  id: string;
+  name: string;
+  component_type: string;
+  workload: string | null;
+  needs_review: boolean;
+  legacy_type_code: string | null;
+  created_at: string;
+};
+
+export type WorkloadImportReport = {
+  encoding: string;
+  rows_read: number;
+  rows_blank: number;
+  rows_without_material_no: number;
+  source_entries: number;
+  source_conflicts: number;
+  products_discovered: number;
+  workloads_created: number;
+  workloads_preserved: number;
+  workloads_needing_review_created: number;
+  rows_without_component_type: number;
+};
+
+export function listComponentWorkloads(opts?: {
+  search?: string;
+  component_type?: string;
+  needs_review?: boolean;
+  limit?: number;
+  offset?: number;
+}): Promise<{ rows: ComponentWorkload[]; total: number }> {
+  const params = new URLSearchParams();
+  if (opts?.search) params.set("search", opts.search);
+  if (opts?.component_type) params.set("component_type", opts.component_type);
+  if (opts?.needs_review !== undefined) params.set("needs_review", String(opts.needs_review));
+  params.set("limit", String(opts?.limit ?? 200));
+  params.set("offset", String(opts?.offset ?? 0));
+  return fetch(`${BASE}/component-workloads?${params}`, { headers: headers() }).then(async (r) => {
+    const rows = (await checked(r, "GET component workloads")) as ComponentWorkload[];
+    return { rows, total: Number(r.headers.get("X-Total-Count") ?? rows.length) };
+  });
+}
+
+/** Import SAP CSV, refresh internal product mappings and add newly discovered
+ * workload products without changing existing manual workload values. */
+export function importWorkloadCsv(file: File): Promise<WorkloadImportReport> {
+  const form = new FormData();
+  form.append("file", file);
+
+  return fetch(`${BASE}/component-workloads/import`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: form,
+  }).then((r) => checked(r, "POST workload catalog import"));
+}
+
+export function createComponentWorkload(payload: {
+  name: string;
+  component_type: string;
+  workload: string | null;
+  needs_review?: boolean;
+}): Promise<ComponentWorkload> {
+  return fetch(`${BASE}/component-workloads`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(payload),
+  }).then((r) => checked(r, "POST component workload"));
+}
+
+export function updateComponentWorkload(
+  id: string,
+  changes: { name?: string; workload?: string | null; needs_review?: boolean },
+): Promise<ComponentWorkload> {
+  return fetch(`${BASE}/component-workloads/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: headers(),
+    body: JSON.stringify(changes),
+  }).then((r) => checked(r, "PATCH component workload"));
+}
+
+export async function deleteComponentWorkload(id: string): Promise<void> {
+  const response = await fetch(`${BASE}/component-workloads/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!response.ok) await checked(response, "DELETE component workload");
 }
 
 export function calculate(pricing: Pricing): Promise<Breakdown> {
@@ -409,12 +508,118 @@ export type Equipment = {
   machine_type: string | null;
   component_type: string | null;
   material_no: string | null;
+  purchase_date: string | null;
+  site: {
+    id: string;
+    physical_street: string | null;
+    physical_city: string | null;
+    physical_postal_code: string | null;
+    physical_province: string | null;
+    physical_country: string | null;
+  } | null;
 };
 
 export function listEquipment(customer_id: string): Promise<Equipment[]> {
   return fetch(`${BASE}/equipment?customer_id=${encodeURIComponent(customer_id)}`, {
     headers: headers(),
   }).then((r) => checked(r, "GET equipment"));
+}
+
+// Migration 0019: the catalog prices nothing. An entry carries hours only;
+// the amount is workload × the branch technician rate, computed server-side.
+export type EquipmentCatalogKind = "line";
+export type EquipmentCatalogMatch = {
+  id: string;
+  match_field: "machine_type";
+  match_value: string;
+  is_confirmed: boolean;
+};
+export type EquipmentCatalogEntry = {
+  id: string;
+  kind: EquipmentCatalogKind;
+  label: string;
+  workload: string | number | null;
+  matches: EquipmentCatalogMatch[];
+  created_at: string;
+};
+export type EquipmentCatalogEntryInput = {
+  kind: EquipmentCatalogKind;
+  label: string;
+  workload: string | null;
+  matches: {
+    match_field: "machine_type";
+    match_value: string;
+    is_confirmed: boolean;
+  }[];
+};
+
+export function listEquipmentCatalog(): Promise<EquipmentCatalogEntry[]> {
+  return fetch(`${BASE}/equipment-catalog`, { headers: headers() }).then((r) =>
+    checked(r, "GET equipment catalog")
+  );
+}
+
+export type MaintenanceDraftRow = {
+  machine: string;
+  kind: "line" | "module";
+  description: string | null;
+  material_no: string | null;
+  type_code: string | null;
+  workload: string | null;
+  amount: string;
+  match_state: "confirmed" | "unconfirmed" | "unknown";
+  needs_review: boolean;
+};
+
+export type MaintenanceDraft = {
+  customer_id: string;
+  subsidiary_id: string | null;
+  currency: string;
+  tech_rate: string;
+  rows: MaintenanceDraftRow[];
+  total_workload: string;
+  total_amount: string;
+};
+
+/** Priced draft rows for the selected machines.
+ *
+ * The backend multiplies each row's workload by the customer's branch rate
+ * with Decimal; React never does money math (AGENTS rule 6). Rows flagged
+ * needs_review carry hours nobody verified and must be typed by hand.
+ */
+export function maintenanceDraft(customerId: string, machineNames: string[]): Promise<MaintenanceDraft> {
+  return fetch(`${BASE}/offers/maintenance-draft`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ customer_id: customerId, machine_names: machineNames }),
+  }).then((r) => checked(r, "POST maintenance draft"));
+}
+
+export function createEquipmentCatalogEntry(payload: EquipmentCatalogEntryInput): Promise<EquipmentCatalogEntry> {
+  return fetch(`${BASE}/equipment-catalog`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(payload),
+  }).then((r) => checked(r, "POST equipment catalog entry"));
+}
+
+export function updateEquipmentCatalogEntry(
+  id: string,
+  payload: EquipmentCatalogEntryInput
+): Promise<EquipmentCatalogEntry> {
+  return fetch(`${BASE}/equipment-catalog/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: headers(),
+    body: JSON.stringify(payload),
+  }).then((r) => checked(r, "PUT equipment catalog entry"));
+}
+
+export async function deleteEquipmentCatalogEntry(id: string): Promise<void> {
+  const response = await fetch(`${BASE}/equipment-catalog/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: headers(),
+  });
+  if (!response.ok) await checked(response, "DELETE equipment catalog entry");
 }
 
 export type Prices = {
@@ -435,7 +640,14 @@ export function getPrices(subsidiary_id: string): Promise<Prices> {
 
 export function updatePrices(
   subsidiary_id: string,
-  rates: { currency: string; km_rate: number; tech_rate: number; diet_full_rate: number; diet_half_rate: number; hotel_rate: number }
+  rates: {
+    currency: string;
+    km_rate: string;
+    tech_rate: string;
+    diet_full_rate: string;
+    diet_half_rate: string;
+    hotel_rate: string;
+  }
 ): Promise<Prices> {
   return fetch(`${BASE}/prices/${encodeURIComponent(subsidiary_id)}`, {
     method: "PUT",
@@ -444,27 +656,100 @@ export function updatePrices(
   }).then((r) => checked(r, "PUT prices"));
 }
 
-export type Distance = { province: string; km: string; trip_hours: string };
+export type Distance = {
+  subsidiary_id: string;
+  province: string;
+  province_code: string | null;
+  region: string | null;
+  capital: string | null;
+  reference_city: string | null;
+  service_center: string | null;
+  origin_city: string | null;
+  km: string | number;
+  driving_hours: string | number | null;
+  trip_hours: string | number;
+  itinerary: string | null;
+  route_data_date: string | null;
+};
+
+export type DistanceInput = {
+  province_code: string | null;
+  region: string | null;
+  capital: string | null;
+  reference_city: string | null;
+  service_center: string | null;
+  origin_city: string | null;
+  km: string;
+  driving_hours: string | null;
+  trip_hours: string;
+  itinerary: string | null;
+  route_data_date: string | null;
+};
 
 export function listDistances(): Promise<Distance[]> {
-  return fetch(`${BASE}/distances`, { headers: headers() }).then((r) => checked(r, "GET distances"));
+  const params = new URLSearchParams({ limit: "200" });
+  return fetch(`${BASE}/distances?${params}`, { headers: headers() }).then((r) =>
+    checked(r, "GET distances")
+  );
 }
 
-export function upsertDistance(province: string, km: number, trip_hours: number): Promise<Distance> {
-  return fetch(`${BASE}/distances/${encodeURIComponent(province)}`, {
+export function upsertDistance(
+  subsidiaryId: string,
+  province: string,
+  distance: DistanceInput
+): Promise<Distance> {
+  const params = new URLSearchParams({ subsidiary_id: subsidiaryId });
+  return fetch(`${BASE}/distances/${encodeURIComponent(province)}?${params}`, {
     method: "PUT",
     headers: headers(),
-    body: JSON.stringify({ km, trip_hours }),
+    body: JSON.stringify(distance),
   }).then((r) => checked(r, "PUT distance"));
 }
 
-export function deleteDistance(province: string): Promise<void> {
-  return fetch(`${BASE}/distances/${encodeURIComponent(province)}`, {
+export function deleteDistance(subsidiaryId: string, province: string): Promise<void> {
+  const params = new URLSearchParams({ subsidiary_id: subsidiaryId });
+  return fetch(`${BASE}/distances/${encodeURIComponent(province)}?${params}`, {
     method: "DELETE",
     headers: headers(),
   }).then(async (r) => {
     if (!r.ok) throw new Error(`DELETE distance failed (${r.status})`);
   });
+}
+
+export type DistanceImportReport = {
+  dry_run: boolean;
+  total_rows: number;
+  created: number;
+  updated: number;
+  errors: { line: number; reason: string }[];
+};
+
+export async function importDistanceRoutes(
+  file: File,
+  subsidiaryId: string,
+  originCity: string,
+  routeDataDate: string,
+  dryRun: boolean
+): Promise<DistanceImportReport> {
+  const params = new URLSearchParams({
+    subsidiary_id: subsidiaryId,
+    origin_city: originCity,
+    route_data_date: routeDataDate,
+    dry_run: String(dryRun),
+  });
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(`${BASE}/distances/import?${params}`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: form,
+  });
+  if (response.status === 422) {
+    const payload = await response.json().catch(() => null);
+    if (payload?.detail && Array.isArray(payload.detail.errors)) return payload.detail as DistanceImportReport;
+    return checked(new Response(JSON.stringify(payload), { status: 422 }), "POST distance import");
+  }
+  return checked(response, "POST distance import");
 }
 
 export type Kit = { model: string; workload_basic_kit: string; spare_parts: string };
@@ -521,24 +806,15 @@ export function deleteMachinePrice(model: string): Promise<void> {
   });
 }
 
-export type Dashboard = {
-  total_customers: number;
-  total_equipment: number;
-  total_offers: number;
-  total_offer_lines: number;
-  countries: { country: string; count: number }[];
-};
-
-export function getDashboard(): Promise<Dashboard> {
-  return fetch(`${BASE}/dashboard`, { headers: headers() }).then((r) => checked(r, "GET dashboard"));
-}
-
 export type ImportReport = {
   dry_run: boolean;
   total_rows: number;
   customers_created: number;
   customers_skipped: number;
+  sites_created: number;
+  sites_skipped: number;
   equipment_created: number;
+  equipment_updated: number;
   equipment_skipped: number;
   errors: { line: number; reason: string }[];
   warnings: string[];

@@ -1,24 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { type ColumnDef } from "@tanstack/react-table";
 import {
   calculate,
   closeOffer,
   createOffer,
   deleteOffer,
   downloadOfferPdf,
+  getCustomerDetail,
   getOffer,
   getPrices,
   listAllCustomers,
-  listEquipment,
   listOffers,
-  me,
+  maintenanceDraft,
   updateOffer,
   type Breakdown,
   type Customer,
+  type CustomerDetail,
   type Equipment,
   type OfferListItem,
 } from "./api";
 import FieldRow from "./components/FieldRow";
+import DataTable from "./components/DataTable";
 import SectionCard from "./components/SectionCard";
+import { quoteLinesFromDraft, type CatalogQuoteLine } from "./catalogLines";
 import { t, type Lang } from "./i18n";
 
 const num = (v: string, fallback: number) => {
@@ -40,7 +44,14 @@ const FREQUENCIES = ["Annual", "Semi-annual", "Biennial"];
 const STATUSES = ["Draft", "Pending response", "Finished", "Cancelled", "Rejected"];
 const RESPONSIBLES = ["", "Xevi Mira", "David"];
 
-const COLORS = ["#e3f2fd", "#fce4ec", "#e8f5e9", "#fff3e0", "#f3e5f5", "#e0f7fa", "#fff9c4", "#efebe9"];
+type OfferTableRow = {
+  id: string;
+  pos: number;
+  equipment: string;
+  module: string;
+  amount: number;
+  catalogWarning?: CatalogQuoteLine["catalogWarning"];
+};
 
 // Create or edit one offer. With editingOfferId the form is filled from the
 // stored offer (header, lines and the hour snapshot the offer keeps).
@@ -57,19 +68,19 @@ export default function OfferBuilder({
   const [customerId, setCustomerId] = useState("");
   const [clientSearch, setClientSearch] = useState("");
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [customerDetail, setCustomerDetail] = useState<CustomerDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [calc, setCalc] = useState<Breakdown | null>(null);
 
-  const [workHours, setWorkHours] = useState("10");
-  const [reportHours, setReportHours] = useState("2");
-  const [tripBase, setTripBase] = useState("3");
-  const [km, setKm] = useState("50");
-  const [kmRate, setKmRate] = useState("0.5");
-  const [techRate, setTechRate] = useState("60");
-  const [dietFull, setDietFull] = useState("40");
-  const [dietHalf, setDietHalf] = useState("20");
-  const [hotelRate, setHotelRate] = useState("80");
+  const [reportHours, setReportHours] = useState("0");
+  const [tripBase, setTripBase] = useState("0");
+  const km = "0";
+  const [kmRate, setKmRate] = useState("0");
+  const [techRate, setTechRate] = useState("0");
+  const [dietFull, setDietFull] = useState("0");
+  const [dietHalf, setDietHalf] = useState("0");
+  const [hotelRate, setHotelRate] = useState("0");
   const [offerNumber, setOfferNumber] = useState("");
   const [offerDate, setOfferDate] = useState(todayIso());
   const [language, setLanguage] = useState("Spanish");
@@ -78,13 +89,21 @@ export default function OfferBuilder({
   const [responsible, setResponsible] = useState("");
   const [guardianType, setGuardianType] = useState("Audit");
   const [comments, setComments] = useState("");
-  type QuoteLine = { equipment: string; description: string; import_amount: string; workload: string };
+  type QuoteLine = CatalogQuoteLine;
   const [items, setItems] = useState<QuoteLine[]>([]);
   const [offers, setOffers] = useState<OfferListItem[]>([]);
   const [savedOffer, setSavedOffer] = useState<{ id: string; status: string } | null>(null);
   const [equipList, setEquipList] = useState<Equipment[]>([]);
+  const [equipmentLoading, setEquipmentLoading] = useState(false);
   const [selectedEquip, setSelectedEquip] = useState<string[]>([]);
   const [editStatus, setEditStatus] = useState<string | null>(null);
+
+  // The selected component workloads are the authoritative work-hours input
+  // for the existing offer pricing engine; no manual work-hours box is needed.
+  const workHours = useMemo(
+    () => items.reduce((sum, item) => sum + num(item.workload, 0), 0).toFixed(2),
+    [items],
+  );
 
   // Edit mode: fill the form from the stored offer. Trip inputs (km, rates)
   // are not part of the offer snapshot on purpose: they come from the current
@@ -103,7 +122,6 @@ export default function OfferBuilder({
         setFrequency(o.inspection_frequency || "Annual");
         setResponsible(o.responsible_person || "");
         setComments(o.general_comments || "");
-        setWorkHours(String(Number(o.work_hours ?? 0)));
         setReportHours(String(Number(o.report_hours ?? 0)));
         setTripBase(String(Number(o.trip_hours ?? 0)));
         setItems(
@@ -119,13 +137,17 @@ export default function OfferBuilder({
       .catch((e) => setError(String(e)));
   }, [editingOfferId]);
 
-  const availableCodes = useMemo(
-    () =>
-      [...new Set(equipList.map((e) => e.equipment_name).filter((x): x is string => !!x))].filter(
-        (c) => !selectedEquip.includes(c)
-      ),
-    [equipList, selectedEquip]
+  const equipmentCodes = useMemo(
+    () => [...new Set(equipList.map((row) => row.equipment_name).filter((name): name is string => !!name))].sort(),
+    [equipList],
   );
+  const componentCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const row of equipList) {
+      if (row.equipment_name) counts.set(row.equipment_name, (counts.get(row.equipment_name) ?? 0) + 1);
+    }
+    return counts;
+  }, [equipList]);
 
   function toggleEquip(code: string) {
     setSelectedEquip((p) => (p.includes(code) ? p.filter((c) => c !== code) : [...p, code]));
@@ -138,84 +160,159 @@ export default function OfferBuilder({
   // cannot duplicate rows.
   const autoLines = useRef<Set<string>>(new Set());
   const prevSelected = useRef<string[]>([]);
-  const lineKey = (equipment: string, description: string) => `${equipment}||${description}`;
+  const selectedEquipRef = useRef(selectedEquip);
+  selectedEquipRef.current = selectedEquip;
+
+  const lineKey = (equipment: string, description: string) =>
+    `${equipment}||${description}`;
+
   useEffect(() => {
     const prev = prevSelected.current;
     const added = selectedEquip.filter((c) => !prev.includes(c));
     const removed = prev.filter((c) => !selectedEquip.includes(c));
+
     prevSelected.current = selectedEquip;
+
     if (added.length === 0 && removed.length === 0) return;
-    const rowsOf = (code: string) => equipList.filter((e) => e.equipment_name === code);
-    const wasAuto = new Set(autoLines.current);
-    const removedKeys = new Set<string>();
-    for (const code of removed) {
-      for (const row of rowsOf(code)) {
-        const key = lineKey(code, row.component_type ?? "");
-        if (wasAuto.has(key)) removedKeys.add(key);
-      }
-    }
-    const desired = new Map<string, { equipment: string; description: string }>();
-    for (const code of added) {
-      for (const row of rowsOf(code)) {
-        const description = row.component_type ?? "";
-        if (!desired.has(lineKey(code, description))) {
-          desired.set(lineKey(code, description), { equipment: code, description });
+
+    // Remove automatically generated lines belonging to machines that
+    // have just been deselected. Hand-entered lines are left untouched.
+    if (removed.length > 0) {
+      const removedKeys = new Set<string>();
+
+      for (const code of removed) {
+        for (const key of autoLines.current) {
+          if (key.startsWith(`${code}||`)) {
+            removedKeys.add(key);
+          }
         }
       }
-    }
-    autoLines.current = new Set([...autoLines.current].filter((k) => !removedKeys.has(k)));
-    for (const key of desired.keys()) autoLines.current.add(key);
-    setItems((lines) => {
-      const have = new Set(lines.map((l) => lineKey(l.equipment, l.description)));
-      const fresh = [...desired.entries()]
-        .filter(([key]) => !have.has(key))
-        .map(([, v]) => ({ ...v, import_amount: "0", workload: "0" }));
-      // Drop lines the picker added for deselected machines; keep
-      // everything else, including hand-typed lines.
-      const dropped = (l: { equipment: string; description: string }) =>
-        removedKeys.has(lineKey(l.equipment, l.description)) && wasAuto.has(lineKey(l.equipment, l.description));
-      return [...lines.filter((l) => !dropped(l)), ...fresh];
-    });
-  }, [selectedEquip, equipList]);
 
-  // Full in-scope customer list (paged behind the scenes) + instant local
-  // filter: picking a client must offer every customer of the filial.
+      autoLines.current = new Set(
+        [...autoLines.current].filter((key) => !removedKeys.has(key))
+      );
+
+      if (removedKeys.size > 0) {
+        setItems((lines) =>
+          lines.filter(
+            (line) => !removedKeys.has(lineKey(line.equipment, line.description))
+          )
+        );
+      }
+    }
+
+    if (added.length === 0 || !customerId) return;
+
+    async function loadDraft(): Promise<void> {
+      const draft = await maintenanceDraft(customerId, added);
+
+      if (!selectedEquipRef.current.some((code) => added.includes(code))) {
+        return;
+      }
+
+      const desired = new Map<string, CatalogQuoteLine>();
+      for (const line of quoteLinesFromDraft(draft.rows)) {
+        if (selectedEquipRef.current.includes(line.equipment)) {
+          desired.set(lineKey(line.equipment, line.description), line);
+        }
+      }
+
+      for (const key of desired.keys()) {
+        autoLines.current.add(key);
+      }
+
+      setItems((lines) => {
+        const have = new Set(
+          lines.map((line) => lineKey(line.equipment, line.description))
+        );
+
+        const fresh = [...desired.entries()]
+          .filter(([key]) => !have.has(key))
+          .map(([, line]) => line);
+
+        return [...lines, ...fresh];
+      });
+    }
+
+    void loadDraft().catch((e) => {
+      setError(e instanceof Error ? e.message : String(e));
+    });
+  }, [selectedEquip, equipList, customerId]);
+
+  // Load the full in-scope customer list once; filial-specific rates are
+  // loaded alongside the selected customer's fleet below.
   useEffect(() => {
     listAllCustomers().then(setCustomers).catch((e) => setError(String(e)));
-    // Travel rates follow the effective scope, so an admin browsing a
-    // filial gets that filial's rates pre-filled.
-    me()
-      .then((mine) => (mine.scope_subsidiary_id ? getPrices(mine.scope_subsidiary_id) : null))
-      .then((p) => {
-        if (!p) return;
-        setKmRate(p.km_rate);
-        setTechRate(p.tech_rate);
-        setDietFull(p.diet_full_rate);
-        setDietHalf(p.diet_half_rate);
-        setHotelRate(p.hotel_rate);
-      })
-      .catch(() => {});
   }, []);
 
   useEffect(() => {
-    setCustomer(customers.find((c) => c.customer_id === customerId) ?? null);
+    let active = true;
+    const selectedCustomer = customers.find((c) => c.customer_id === customerId) ?? null;
+    setCustomer(selectedCustomer);
     setSavedOffer(null);
     if (customerId) {
+      setEquipmentLoading(true);
+      setCustomerDetail(null);
+      setEquipList([]);
+      setSelectedEquip([]);
+      setKmRate("0");
+      setTechRate("0");
+      setDietFull("0");
+      setDietHalf("0");
+      setHotelRate("0");
       listOffers(customerId).then(setOffers).catch(() => setOffers([]));
-      listEquipment(customerId)
-        .then((eq) => {
-          setEquipList(eq);
+      if (selectedCustomer?.subsidiary_id) {
+        getPrices(selectedCustomer.subsidiary_id)
+          .then((prices) => {
+            if (!active) return;
+            setKmRate(prices.km_rate);
+            setTechRate(prices.tech_rate);
+            setDietFull(prices.diet_full_rate);
+            setDietHalf(prices.diet_half_rate);
+            setHotelRate(prices.hotel_rate);
+          })
+          .catch((e) => {
+            if (active) setError(e instanceof Error ? e.message : String(e));
+          });
+      }
+      getCustomerDetail(customerId)
+        .then((detail) => {
+          if (!active) return;
+          setCustomerDetail(detail);
+          const sitesById = new Map(detail.sites.map((site) => [site.id, site]));
+          const equipmentRows: Equipment[] = detail.machines.flatMap((machine) =>
+            machine.components.map((component, index) => ({
+              id: `${machine.equipment_name}:${component.material_no ?? index}`,
+              customer_id: detail.customer.customer_id,
+              equipment_name: machine.equipment_name,
+              machine_type: machine.machine_type,
+              component_type: component.component_type,
+              material_no: component.material_no,
+              purchase_date: component.purchase_date,
+              site: machine.site_id ? sitesById.get(machine.site_id) ?? null : null,
+            })),
+          );
+          setEquipList(equipmentRows);
           setSelectedEquip([]);
+          setEquipmentLoading(false);
         })
         .catch(() => {
+          if (!active) return;
+          setCustomerDetail(null);
           setEquipList([]);
           setSelectedEquip([]);
+          setEquipmentLoading(false);
         });
     } else {
       setOffers([]);
+      setCustomerDetail(null);
       setEquipList([]);
       setSelectedEquip([]);
+      setEquipmentLoading(false);
     }
+    return () => {
+      active = false;
+    };
   }, [customerId, customers]);
 
   // Picking the customer clears the saved offer, so in edit mode we re-attach
@@ -272,6 +369,7 @@ export default function OfferBuilder({
     setSaved(null);
     try {
       if (!customerId) throw new Error(t(lang, "ob_select_first"));
+      if (items.some((item) => item.catalogWarning)) throw new Error(t(lang, "ob_resolve_module"));
       const pricing = {
         work_hours: num(workHours, 0),
         bk_hours: 0,
@@ -367,91 +465,196 @@ export default function OfferBuilder({
   }
 
   const input = "border rounded px-2 py-1.5 text-sm w-full";
-
-  const moduleRows = items.map((m, i) => ({ pos: i + 1, equipment: m.equipment, module: m.description, amount: num(m.import_amount, 0) }));
-  const colorMap: Record<string, string> = {};
-  [...new Set(items.map((m) => m.equipment))].forEach((eq, i) => {
-    colorMap[eq] = COLORS[i % COLORS.length];
-  });
-
   const eur = (v: string | number | null | undefined) =>
     `${Number(v ?? 0).toLocaleString("en-GB", { minimumFractionDigits: 2 })} €`;
 
+  const moduleRows: OfferTableRow[] = items.map((item, index) => ({
+    id: `${index}:${lineKey(item.equipment, item.description)}`,
+    pos: index + 1,
+    equipment: item.equipment,
+    module: item.description,
+    amount: num(item.import_amount, 0),
+    catalogWarning: item.catalogWarning,
+  }));
+
+  const moduleColumns = useMemo<ColumnDef<OfferTableRow>[]>(
+    () => [
+      {
+        accessorKey: "pos",
+        header: t(lang, "ob_col_pos"),
+        size: 48,
+      },
+      {
+        accessorKey: "equipment",
+        header: t(lang, "ob_col_equipment"),
+        cell: ({ getValue }) => <span className="font-semibold">{String(getValue())}</span>,
+      },
+      {
+        accessorKey: "module",
+        header: t(lang, "ob_col_module"),
+        cell: ({ row }) => (
+          <span>
+            {row.original.module}
+            {row.original.catalogWarning && (
+              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800">
+                {t(lang, row.original.catalogWarning === "unconfirmed" ? "ob_unconfirmed" : "ob_unpriced")}
+              </span>
+            )}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "amount",
+        header: () => <span className="block text-right">{t(lang, "ob_col_amount")}</span>,
+        cell: ({ getValue }) => <span className="block text-right font-mono">{eur(Number(getValue()))}</span>,
+      },
+    ],
+    [lang],
+  );
+
   return (
-    <div className="min-h-screen flex flex-col bg-gray-100">
-      <div className="bg-weber-blue text-white px-6 py-3 flex items-center justify-between shadow">
-        <div className="flex items-baseline gap-3">
-          <h1 className="text-xl font-bold tracking-wide">{t(lang, "ob_title")}</h1>
+    <div className="flex h-full min-h-0 flex-col bg-slate-100 text-slate-800">
+      <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-2 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-lg bg-weber-blue text-white grid place-items-center font-bold">W</div>
+          <h1 className="text-lg font-bold tracking-tight text-slate-900">Guardian Offers</h1>
           {editingOfferId && (
-            <span className="text-sm opacity-90">
+            <span className="text-sm text-slate-500">
               {t(lang, "ob_editing")} {offerNumber}
             </span>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <button
             onClick={handlePrint}
             disabled={!savedOffer}
-            title={t(lang, "common_download")}
-            aria-label={t(lang, "common_download")}
-            className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium disabled:opacity-40 inline-flex items-center justify-center"
+            title={t(lang, "ob_print")}
+            aria-label={t(lang, "ob_print")}
+            className="px-3 py-1.5 border border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100 rounded text-xs font-semibold disabled:opacity-40 inline-flex items-center justify-center gap-1.5"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4" aria-hidden="true">
-              <path d="M12 3v12" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M7 10l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M4 19h16" strokeLinecap="round" strokeLinejoin="round" />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4" aria-hidden="true">
+              <path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M7 14h10v7H7z" strokeLinejoin="round" />
+              <path d="M17 11h.01" strokeLinecap="round" />
             </svg>
+            {t(lang, "ob_print")}
           </button>
           <button
             onClick={handleSave}
             disabled={!customerId}
-            className="px-3 py-1 bg-white text-weber-blue hover:bg-white/90 rounded text-sm font-bold disabled:opacity-40"
+            className="px-3 py-1.5 border border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100 rounded text-xs font-semibold disabled:opacity-40"
           >
             {editingOfferId ? t(lang, "ob_update") : t(lang, "ob_save")}
           </button>
-          <button onClick={handleDelete} disabled={!savedOffer} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium disabled:opacity-40">
+          <button onClick={handleDelete} disabled={!savedOffer} className="px-3 py-1.5 border border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100 rounded text-xs font-semibold disabled:opacity-40">
             {t(lang, "ob_delete_offer")}
           </button>
-          <button onClick={handleClose} disabled={!savedOffer} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium disabled:opacity-40">
+          <button onClick={handleClose} disabled={!savedOffer} className="px-3 py-1.5 border border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100 rounded text-xs font-semibold disabled:opacity-40">
             {t(lang, "ob_close_offer")}
           </button>
-          <button onClick={onDone} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded text-sm font-medium">
+          <button onClick={onDone} className="px-3 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 rounded text-xs font-semibold">
             {t(lang, "ob_back")}
           </button>
         </div>
       </div>
 
-      <div className="flex-1 p-4 space-y-3 w-full">
+      <div className="flex min-h-0 flex-1">
+        <aside className="hidden min-h-0 w-[260px] shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
+          <div className="p-3 pb-2">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-bold text-slate-800">{t(lang, "nav_customers")}</h2>
+              <span className="text-xs text-slate-500">{customers.length}</span>
+            </div>
+            <input
+              value={clientSearch}
+              onChange={(e) => setClientSearch(e.target.value)}
+              placeholder={t(lang, "cust_search_ph")}
+              className={`${input} border-slate-300`}
+            />
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3">
+            {filteredCustomers.map((c) => {
+              const selected = c.customer_id === customerId;
+              return (
+                <button
+                  key={c.customer_id}
+                  type="button"
+                  onClick={() => setCustomerId(c.customer_id)}
+                  className={`w-full text-left rounded-md border-l-[3px] px-2.5 py-2 mb-1 transition-colors ${
+                    selected
+                      ? "border-weber-blue bg-blue-50 text-slate-900"
+                      : "border-transparent hover:bg-slate-50 text-slate-700"
+                  }`}
+                >
+                  <span className="block text-xs font-semibold truncate">{c.account_name}</span>
+                  <span className="block text-[11px] text-slate-500 truncate">
+                    {[c.city, c.province, c.country].filter(Boolean).join(", ") || c.customer_id}
+                  </span>
+                  {selected && offers.length > 0 && (
+                    <span className="mt-1 inline-block rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-900">
+                      {offers.length} {t(lang, "ob_client_offers")}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {filteredCustomers.length === 0 && (
+              <p className="px-2 py-5 text-center text-xs text-slate-400">{t(lang, "home_no_results")}</p>
+            )}
+          </div>
+        </aside>
+
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden p-2">
         {error && <p className="text-sm text-red-600 bg-white rounded-lg shadow p-3">{error}</p>}
         {saved && <p className="text-sm text-green-700 bg-white rounded-lg shadow p-3">{saved}</p>}
 
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="shrink-0 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
           <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-5 border-r pr-4">
-              <div className="text-xs font-bold text-gray-500 uppercase mb-2">{t(lang, "ob_customer_data")}</div>
-              <input
-                value={clientSearch}
-                onChange={(e) => setClientSearch(e.target.value)}
-                placeholder={t(lang, "cust_search_ph")}
-                className={`${input} mb-1`}
-              />
-              <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className={`${input} bg-blue-50 mb-2`}>
+            <div className="col-span-5 border-r border-slate-200 pr-4">
+              <div className="text-xs font-bold text-weber-blue uppercase mb-2">{t(lang, "ob_customer_data")}</div>
+              <select
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                className={`${input} mb-2 lg:hidden bg-blue-50`}
+              >
                 <option value="">{t(lang, "ob_select_client")}</option>
-                {filteredCustomers.map((c) => (
+                {customers.map((c) => (
                   <option key={c.customer_id} value={c.customer_id}>
                     {c.customer_id} {c.account_name}
                   </option>
                 ))}
               </select>
-              {customer && (
-                <div className="text-sm">
-                  <div className="font-semibold">{customer.account_name}</div>
-                  <div className="text-gray-600">{customer.country ?? ""}</div>
+              {customer ? (
+                <div className="rounded border border-slate-200 bg-white p-2.5 text-sm min-h-[84px]">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-xs">{customer.customer_id}</span>
+                    <span className="font-bold">{customer.account_name}</span>
+                  </div>
+                  <div className="text-slate-700">
+                    {customerDetail?.sites.length ? (
+                      customerDetail.sites.map((site) => (
+                        <div key={site.id}>
+                          {[
+                            site.physical_street,
+                            [site.physical_postal_code, site.physical_city].filter(Boolean).join(" "),
+                            site.physical_province,
+                            site.physical_country,
+                          ].filter(Boolean).join(", ")}
+                        </div>
+                      ))
+                    ) : (
+                      [customer.city, customer.province, customer.country].filter(Boolean).join(", ") || "—"
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded border border-dashed border-slate-300 p-3 text-sm text-slate-400 min-h-[84px]">
+                  {t(lang, "ob_select_client")}
                 </div>
               )}
             </div>
 
-            <div className="col-span-4 border-r pr-4">
+            <div className="col-span-4 border-r border-slate-200 pr-4">
               <div className="space-y-1.5 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="text-gray-500 w-28">{t(lang, "ob_offer_no")}</span>
@@ -491,6 +694,7 @@ export default function OfferBuilder({
             </div>
 
             <div className="col-span-3 space-y-1.5 text-sm">
+              <div className="text-xs font-bold text-weber-blue uppercase mb-2">{t(lang, "ob_options")}</div>
               <div className="flex items-center gap-2">
                 <span className="text-gray-500">{t(lang, "ob_language")}</span>
                 <select value={language} onChange={(e) => setLanguage(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
@@ -529,112 +733,54 @@ export default function OfferBuilder({
           </div>
         </div>
 
-        <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-2 space-y-3">
-            <div className="bg-white rounded shadow p-2">
-              <div className="text-xs font-bold text-gray-500 uppercase mb-1">{t(lang, "ob_no_selected")}</div>
-              <div className="border rounded h-56 overflow-y-auto bg-gray-50">
-                {availableCodes.length === 0 ? (
-                  <div className="p-2 text-xs text-gray-400">Empty</div>
-                ) : (
-                  availableCodes.map((c) => (
-                    <div key={c} onClick={() => toggleEquip(c)} className="px-2 py-1 text-xs hover:bg-blue-100 cursor-pointer border-b last:border-0">
-                      {c}
-                    </div>
-                  ))
-                )}
+        <div className="grid min-h-0 flex-1 grid-cols-12 gap-2">
+          <section className="col-span-2 flex min-h-0 flex-col rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+            <div className="mb-2 flex shrink-0 items-center justify-between gap-1">
+              <span className="text-xs font-bold uppercase text-slate-700">
+                {t(lang, "ob_machines")} ({selectedEquip.length}/{equipmentCodes.length})
+              </span>
+              <div className="flex gap-2 text-[10px]">
+                <button type="button" onClick={() => setSelectedEquip(equipmentCodes)} className="text-blue-700 hover:underline">{t(lang, "ob_all")}</button>
+                <button type="button" onClick={() => setSelectedEquip([])} className="text-slate-600 hover:underline">{t(lang, "ob_none")}</button>
               </div>
             </div>
-            <div className="bg-white rounded shadow p-2">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-gray-500 uppercase">{t(lang, "ob_selected")}</span>
-                <div className="flex gap-1">
-                  <button onClick={() => setSelectedEquip(availableCodes.concat(selectedEquip))} className="text-[10px] text-blue-600 hover:underline">
-                    {t(lang, "ob_all")}
-                  </button>
-                  <button onClick={() => setSelectedEquip([])} className="text-[10px] text-red-600 hover:underline">
-                    {t(lang, "ob_none")}
-                  </button>
-                </div>
-              </div>
-              <div className="border rounded h-56 overflow-y-auto bg-blue-50">
-                {selectedEquip.length === 0 ? (
-                  <div className="p-2 text-xs text-gray-400">None</div>
-                ) : (
-                  selectedEquip.map((c) => (
-                    <div key={c} onClick={() => toggleEquip(c)} className="px-2 py-1 text-xs cursor-pointer border-b last:border-0 font-medium hover:bg-red-100 bg-blue-200">
-                      {c}
-                    </div>
-                  ))
-                )}
-              </div>
+            <div className="min-h-0 flex-1 overflow-y-auto rounded border border-slate-200">
+              {equipmentLoading ? (
+                <p className="p-3 text-xs text-slate-500">{t(lang, "dash_loading")}</p>
+              ) : equipmentCodes.length === 0 ? (
+                <p className="p-3 text-xs text-slate-400">{t(lang, "ob_empty_modules")}</p>
+              ) : equipmentCodes.map((code) => (
+                <label key={code} className="flex cursor-pointer items-start gap-2 border-b px-2 py-2 text-xs last:border-0 hover:bg-blue-50">
+                  <input
+                    type="checkbox"
+                    checked={selectedEquip.includes(code)}
+                    onChange={() => toggleEquip(code)}
+                    className="mt-0.5 shrink-0 accent-blue-700"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block break-words font-medium">{code}</span>
+                    <span className="text-[10px] text-slate-500">{componentCounts.get(code) ?? 0}</span>
+                  </span>
+                </label>
+              ))}
             </div>
-          </div>
+          </section>
 
-          <div className="col-span-6">
-            <div className="bg-white rounded shadow h-full min-h-[420px] max-h-[640px] flex flex-col">
-              <div className="overflow-auto flex-1 min-h-0">
-                <table className="w-full text-xs">
-                  <thead className="bg-gray-700 text-white sticky top-0">
-                    <tr>
-                      <th className="px-2 py-2 text-left w-10">{t(lang, "ob_col_pos")}</th>
-                      <th className="px-2 py-2 text-left">{t(lang, "ob_col_equipment")}</th>
-                      <th className="px-2 py-2 text-left">{t(lang, "ob_col_module")}</th>
-                      <th className="px-2 py-2 text-right w-24">{t(lang, "ob_col_amount")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {moduleRows.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
-                          {t(lang, "ob_empty_modules")}
-                        </td>
-                      </tr>
-                    ) : (
-                      moduleRows.map((row) => (
-                        <tr key={row.pos} style={{ backgroundColor: colorMap[row.equipment] || "#fff" }} className="border-b">
-                          <td className="px-2 py-1.5 font-medium">{row.pos}</td>
-                          <td className="px-2 py-1.5 font-semibold">{row.equipment}</td>
-                          <td className="px-2 py-1.5">{row.module}</td>
-                          <td className="px-2 py-1.5 text-right font-mono">{eur(row.amount)}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <div className="p-2 border-t">
-                <div className="text-xs font-bold text-gray-500 uppercase mb-1">{t(lang, "ob_items")}</div>
-                <div className="grid grid-cols-12 gap-1 mb-1 text-[10px] font-bold text-gray-500 uppercase">
-                  <span className="col-span-3">Equipment</span>
-                  <span className="col-span-4">Module</span>
-                  <span className="col-span-2 text-right">Amount €</span>
-                  <span className="col-span-2 text-right">Hours</span>
-                  <span className="col-span-1" />
-                </div>
-                {items.map((it, i) => (
-                  <div key={i} className="grid grid-cols-12 gap-1 mb-1">
-                    <input value={it.equipment} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, equipment: e.target.value } : x)))} placeholder="304-565" className="col-span-3 border rounded px-1 py-0.5 text-xs" />
-                    <input value={it.description} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} placeholder="—" className="col-span-4 border rounded px-1 py-0.5 text-xs" />
-                    <input value={it.import_amount} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, import_amount: e.target.value } : x)))} placeholder="0.00" className="col-span-2 border rounded px-1 py-0.5 text-xs text-right" />
-                    <input value={it.workload} onChange={(e) => setItems((p) => p.map((x, j) => (j === i ? { ...x, workload: e.target.value } : x)))} placeholder="0.0" className="col-span-2 border rounded px-1 py-0.5 text-xs text-right" />
-                    <button onClick={() => setItems((p) => p.filter((_, j) => j !== i))} className="col-span-1 text-xs text-red-600 hover:underline">
-                      ×
-                    </button>
-                  </div>
-                ))}
-                <button
-                  onClick={() => setItems((p) => [...p, { equipment: "", description: "", import_amount: "0", workload: "0" }])}
-                  className="text-xs text-blue-600 hover:underline"
-                >
-                  {t(lang, "ob_add_lines")}
-                </button>
-              </div>
-            </div>
-          </div>
+          <section className="col-span-7 flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <DataTable
+              data={moduleRows}
+              columns={moduleColumns}
+              loading={equipmentLoading}
+              loadingText={t(lang, "dash_loading")}
+              emptyText={t(lang, "ob_empty_modules")}
+              getRowId={(row) => row.id}
+              className="min-h-0 flex-1 border-0"
+            />
+          </section>
 
-          <div className="col-span-4">
-            <div className="bg-white rounded shadow p-3 text-xs space-y-1">
+          <section className="col-span-3 min-h-0 overflow-y-auto rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="text-sm font-bold text-slate-900 pb-2">{t(lang, "ob_estimated_costs")}</div>
+            <div className="space-y-1 text-xs">
               <FieldRow label={t(lang, "ob_f_trip")}>€{calc?.trip_cost ?? "—"}</FieldRow>
               <FieldRow label={t(lang, "ob_f_diets")}>€{calc?.diets ?? "—"}</FieldRow>
               <FieldRow label={t(lang, "ob_f_hotels")}>€{calc?.hotel_nights_cost ?? "—"}</FieldRow>
@@ -658,30 +804,19 @@ export default function OfferBuilder({
                 <span>{t(lang, "ob_f_expenses")}</span>
                 <span className="font-mono">€{calc?.expenses ?? "—"}</span>
               </div>
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <label className="text-xs">{t(lang, "ob_in_work")}<input value={workHours} onChange={(e) => setWorkHours(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-                <label className="text-xs">{t(lang, "ob_in_report")}<input value={reportHours} onChange={(e) => setReportHours(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-                <label className="text-xs">{t(lang, "ob_in_trip_base")}<input value={tripBase} onChange={(e) => setTripBase(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-                <label className="text-xs">{t(lang, "ob_in_km")}<input value={km} onChange={(e) => setKm(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-                <label className="text-xs">{t(lang, "ob_in_km_rate")}<input value={kmRate} onChange={(e) => setKmRate(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-                <label className="text-xs">{t(lang, "ob_in_tech")}<input value={techRate} onChange={(e) => setTechRate(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-                <label className="text-xs">{t(lang, "ob_in_diet_full")}<input value={dietFull} onChange={(e) => setDietFull(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-                <label className="text-xs">{t(lang, "ob_in_diet_half")}<input value={dietHalf} onChange={(e) => setDietHalf(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-                <label className="text-xs col-span-2">{t(lang, "ob_in_hotel")}<input value={hotelRate} onChange={(e) => setHotelRate(e.target.value)} className="border rounded px-1 py-0.5 text-xs w-full" /></label>
-              </div>
             </div>
-          </div>
+          </section>
         </div>
 
-        <div className="grid grid-cols-12 gap-3">
+        <div className="grid shrink-0 grid-cols-12 gap-2">
           <div className="col-span-8">
-            <div className="bg-white rounded shadow p-3">
+            <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-2">
               <div className="text-xs font-bold text-gray-500 uppercase mb-1">{t(lang, "ob_comments")}</div>
-              <textarea value={comments} onChange={(e) => setComments(e.target.value)} className="w-full border rounded p-2 text-sm h-16 resize-none" placeholder={t(lang, "ob_comments_ph")} />
+              <textarea value={comments} onChange={(e) => setComments(e.target.value)} className="w-full border rounded p-2 text-sm h-12 resize-none" placeholder={t(lang, "ob_comments_ph")} />
             </div>
           </div>
           <div className="col-span-4">
-            <div className="bg-white rounded shadow p-3 text-sm space-y-2">
+            <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-3 text-sm space-y-2">
               <div className="flex justify-between">
                 <span className="text-gray-600">{t(lang, "ob_total")}</span>
                 <span className="font-mono font-bold">{calc ? eur(calc.total) : "—"}</span>
@@ -702,37 +837,7 @@ export default function OfferBuilder({
           </div>
         </div>
 
-        {offers.length > 0 && (
-          <div className="bg-white rounded shadow p-3">
-            <div className="text-xs font-bold text-gray-500 uppercase mb-2">{t(lang, "ob_client_offers")} ({offers.length})</div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="px-2 py-1.5 text-left">ID</th>
-                    <th className="px-2 py-1.5 text-left">Language</th>
-                    <th className="px-2 py-1.5 text-left">Status</th>
-                    <th className="px-2 py-1.5 text-left">Frequency</th>
-                    <th className="px-2 py-1.5 text-right">Total</th>
-                    <th className="px-2 py-1.5 text-right">Total End</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {offers.map((o) => (
-                    <tr key={o.id_guardian_offer} className="border-b hover:bg-gray-50">
-                      <td className="px-2 py-1.5 font-mono font-bold text-blue-600">{o.id_guardian_offer}</td>
-                      <td className="px-2 py-1.5">{o.language || "-"}</td>
-                      <td className="px-2 py-1.5">{o.status || "Draft"}</td>
-                      <td className="px-2 py-1.5">{o.inspection_frequency || "-"}</td>
-                      <td className="px-2 py-1.5 text-right font-mono">{eur(o.total)}</td>
-                      <td className="px-2 py-1.5 text-right font-mono font-bold">{eur(o.total_end)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+      </main>
       </div>
     </div>
   );

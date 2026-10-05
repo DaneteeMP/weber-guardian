@@ -1,11 +1,29 @@
 import type { ReactNode } from "react";
 
-// White card with a small uppercase section title, as in OfferBuilder.
-export default function SectionCard({ title, children }: { title: string; children: ReactNode }) {
+type SectionCardProps = {
+  title?: string;
+  children: ReactNode;
+  className?: string;
+};
+
+export default function SectionCard({
+  title,
+  children,
+  className = "",
+}: SectionCardProps) {
   return (
-    <section className="bg-white rounded-lg shadow p-4">
-      <h2 className="text-xs font-bold text-gray-500 uppercase mb-2">{title}</h2>
-      {children}
+    <section
+      className={`rounded-lg bg-white shadow ${className}`}
+    >
+      {title && (
+        <h2 className="shrink-0 border-b px-4 py-3 text-sm font-semibold text-gray-900">
+          {title}
+        </h2>
+      )}
+
+      <div className="flex min-h-0 flex-1 flex-col p-4">
+        {children}
+      </div>
     </section>
   );
 }
