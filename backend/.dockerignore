@@ -1,0 +1,12 @@
+# Keep local secrets and caches out of the image. The app reads its
+# configuration from environment variables in the platform, never from a
+# baked .env file. Tests stay IN the image: docker compose run ... pytest
+# relies on them.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+.env
+*.log

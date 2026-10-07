@@ -4,6 +4,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+import pypdfium2 as pdfium
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -73,9 +74,66 @@ def test_renderer_rejects_unknown_language_and_subsidiary():
 
 
 def test_renderer_supports_all_executor_subsidiaries():
-    for subsidiary_id in ("Weber Iberica", "Weber Benelux", "Weber Germany", "Weber Argentina", "España", "Deutschland"):
+    for subsidiary_id in (
+        "Weber Iberica",
+        "Weber Benelux",
+        "Weber Germany",
+        "Weber Argentina",
+        "Weber Italy",
+        "España",
+        "Deutschland",
+    ):
         pdf = build_offer_pdf(_doc(subsidiary_id=subsidiary_id))
         assert pdf[:5] == b"%PDF-"
+
+
+def test_renderer_uses_only_selected_annex_pages():
+    base_pdf = build_offer_pdf(_doc())
+    base = pdfium.PdfDocument(base_pdf)
+    assert len(base) == 12
+    base.close()
+
+    selected_pdf = build_offer_pdf(
+        _doc(guardian_selections=("service_support", "remote_support"))
+    )
+    selected = pdfium.PdfDocument(selected_pdf)
+    assert len(selected) == 13
+    selected.close()
+
+
+def test_renderer_adds_an_equipment_continuation_for_more_than_two_machines():
+    lines = tuple(
+        OfferLine(
+            pos=position,
+            equipment=f"M{position}",
+            description=f"Module for M{position}",
+            import_amount=Decimal("10.00"),
+        )
+        for position in range(1, 4)
+    )
+    rendered = pdfium.PdfDocument(build_offer_pdf(_doc(lines=lines)))
+    assert len(rendered) == 13
+    continuation = rendered[9].get_textpage()
+    text = continuation.get_text_range(0, continuation.count_chars())
+    assert "M3" in text
+    rendered.close()
+
+
+def test_guardian_options_require_a_known_selected_parent_module():
+    pricing = OfferCalculateIn(work_hours=Decimal("0"))
+    with pytest.raises(ValueError, match="require module selection"):
+        OfferCreate(
+            customer_id="C-1",
+            guardian_selections=["remote_support"],
+            pricing=pricing,
+        )
+
+    with pytest.raises(ValueError, match="unknown Guardian selections"):
+        OfferCreate(
+            customer_id="C-1",
+            guardian_selections=["made_up_service"],
+            pricing=pricing,
+        )
 
 
 def test_renderer_falls_back_to_provisional_block_without_invented_data():
@@ -93,6 +151,13 @@ def test_renderer_falls_back_to_provisional_block_without_invented_data():
     for subsidiary_id in ("Weber Iberica", "Weber Benelux", "Weber Germany", "Weber Argentina"):
         _, provisional = _executor(_doc(subsidiary_id=subsidiary_id))
         assert provisional is False
+
+    italy, provisional = _executor(_doc(subsidiary_id="Weber Italy"))
+    assert provisional is False
+    assert italy["name"] == "WEBER FOOD TECHNOLOGY ITALIA SrL"
+    assert italy["street"] == "Via Josef Maria Pernter, 14"
+    assert italy["city"] == "39044 Egna BZ"
+    assert italy["country"] == "Italia"
 
 
 @pytest.fixture
@@ -121,7 +186,12 @@ def client(monkeypatch):
     pricing = OfferCalculateIn(work_hours=Decimal("8"), tech_rate=Decimal("60"))
     es_id = create_offer(
         seed,
-        OfferCreate(customer_id="C-ES", pricing=pricing, items=[]),
+        OfferCreate(
+            customer_id="C-ES",
+            pricing=pricing,
+            items=[],
+            guardian_selections=["service_support", "remote_support"],
+        ),
         created_by=None,
     ).id
     de_id = create_offer(
@@ -137,10 +207,27 @@ def client(monkeypatch):
 
 def test_pdf_endpoint_serves_bytes_with_scope(client):
     test_client, ids = client
+    offer = test_client.get(f"/api/v1/offers/{ids['es']}", headers={"X-Dev-User": "oid-es"})
+    assert offer.status_code == 200
+    assert offer.json()["guardian_selections"] == ["service_support", "remote_support"]
+
     res = test_client.get(f"/api/v1/offers/{ids['es']}/pdf", headers={"X-Dev-User": "oid-es"})
     assert res.status_code == 200
     assert res.headers["content-type"] == "application/pdf"
     assert res.content[:5] == b"%PDF-"
+    rendered = pdfium.PdfDocument(res.content)
+    assert len(rendered) == 13
+    visible_text = " ".join(
+        rendered[index].get_textpage().get_text_range(
+            0, rendered[index].get_textpage().count_chars()
+        )
+        for index in range(len(rendered))
+    )
+    assert "[x]" in visible_text
+    assert "Remote Support" in visible_text
+    assert "INTERNAL GENERATION RULE" not in visible_text
+    assert "DOCUMENT STRUCTURE" not in visible_text
+    rendered.close()
     # Out-of-scope reads as missing; anonymous as unauthenticated.
     assert test_client.get(f"/api/v1/offers/{ids['de']}/pdf", headers={"X-Dev-User": "oid-es"}).status_code == 404
     assert test_client.get(f"/api/v1/offers/{ids['es']}/pdf").status_code == 401

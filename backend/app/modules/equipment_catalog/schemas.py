@@ -58,3 +58,13 @@ class EquipmentCatalogEntryOut(BaseModel):
     workload: Decimal | None
     matches: list[EquipmentCatalogMatchOut]
     created_at: datetime
+
+
+class LineWorkloadUpdateIn(BaseModel):
+    """Set the hours of one machine line (equipment_catalog)."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    workload: Decimal | None = Field(default=None, ge=Decimal("0"))
+    # Only used when the machine_type is new and an entry must be created.
+    label: str | None = Field(default=None, min_length=1, max_length=128)

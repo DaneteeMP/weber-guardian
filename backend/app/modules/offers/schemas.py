@@ -8,10 +8,59 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Money = Decimal
 MAX12 = 9999999999.99
+
+GUARDIAN_OPTIONS_BY_MODULE = {
+    "maintenance_inspection": (
+        "inspection",
+        "machine_checklist",
+        "inspection_report",
+        "preventive_maintenance",
+        "maintenance_kit",
+    ),
+    "service_support": ("standard_hotline", "remote_support", "priority_response"),
+    "parts_availability": ("parts_discount", "priority_handling", "recommended_parts_list"),
+    "blade_solutions": (
+        "blade_discount",
+        "stock_agreement",
+        "sharpening_assessment",
+        "blade_application_review",
+    ),
+    "training_optimization": (
+        "operator_training",
+        "maintenance_training",
+        "line_optimization",
+        "epip_audit",
+    ),
+    "digital_services": (
+        "factory_cockpit",
+        "performance_review",
+        "mro_review",
+        "dedicated_account_team",
+    ),
+}
+GUARDIAN_SELECTION_KEYS = frozenset(
+    key
+    for module, options in GUARDIAN_OPTIONS_BY_MODULE.items()
+    for key in (module, *options)
+)
+
+
+def _validate_guardian_selections(value: list[str]) -> list[str]:
+    """Validate selected module/option keys and require parents for options."""
+    if len(value) != len(set(value)):
+        raise ValueError("guardian selections must not contain duplicates")
+    unknown = set(value) - GUARDIAN_SELECTION_KEYS
+    if unknown:
+        raise ValueError(f"unknown Guardian selections: {', '.join(sorted(unknown))}")
+    selected = set(value)
+    for module, options in GUARDIAN_OPTIONS_BY_MODULE.items():
+        if any(option in selected for option in options) and module not in selected:
+            raise ValueError(f"Guardian options require module selection: {module}")
+    return value
 
 
 class OfferItemCreate(BaseModel):
@@ -93,6 +142,13 @@ class MaintenanceDraftRowOut(BaseModel):
     description: str | None
     material_no: str | None = None
     type_code: str | None = None
+    # Where the hours are edited from: the machine line (equipment_catalog,
+    # keyed by machine_type), the legacy module table (type_code) or the
+    # product catalog (component_workloads, slicer models).
+    workload_kind: Literal["line", "module", "product"] | None = None
+    workload_id: uuid.UUID | None = None
+    line_code: str | None = None
+    component_type: str | None = None
     workload: Decimal | None
     amount: Decimal
     match_state: Literal["confirmed", "unconfirmed", "unknown"]
@@ -156,8 +212,14 @@ class OfferCreate(BaseModel):
     inspection_frequency: str | None = Field(default=None, max_length=32)
     general_comments: str | None = Field(default=None, max_length=2000)
     offer_date: date | None = None
+    guardian_selections: list[str] = Field(default_factory=list, max_length=40)
     pricing: OfferCalculateIn
     items: list[OfferItemCreate] = Field(default_factory=list)
+
+    @field_validator("guardian_selections")
+    @classmethod
+    def guardian_selections_are_valid(cls, value: list[str]) -> list[str]:
+        return _validate_guardian_selections(value)
 
 
 class OfferUpdate(BaseModel):
@@ -169,8 +231,14 @@ class OfferUpdate(BaseModel):
     inspection_frequency: str | None = Field(default=None, max_length=32)
     general_comments: str | None = Field(default=None, max_length=2000)
     offer_date: date | None = None
+    guardian_selections: list[str] = Field(default_factory=list, max_length=40)
     pricing: OfferCalculateIn
     items: list[OfferItemCreate] = Field(default_factory=list)
+
+    @field_validator("guardian_selections")
+    @classmethod
+    def guardian_selections_are_valid(cls, value: list[str]) -> list[str]:
+        return _validate_guardian_selections(value)
 
 
 class OfferOut(BaseModel):
@@ -202,4 +270,5 @@ class OfferOut(BaseModel):
     created_by: uuid.UUID | None
     created_at: datetime
     offer_date: date | None
+    guardian_selections: list[str]
     items: list[OfferItemOut] = Field(default_factory=list)

@@ -40,6 +40,27 @@ class ComponentName(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
+class ModuleWorkload(Base):
+    """Legacy module workload, keyed by the component type code.
+
+    This mirrors the legacy ``TblWorkLoad`` table: one hour value per
+    ``type_code`` (the legacy "Component Description"). It is the source of
+    truth for ordinary modules; ``ComponentWorkload`` above is the product
+    layer used to refine model-based components such as slicers.
+    """
+
+    __tablename__ = "module_workloads"
+
+    type_code: Mapped[str] = mapped_column(String(16), primary_key=True)
+    # Business wording copied from the legacy list, kept for readability.
+    label: Mapped[str] = mapped_column(String(128), nullable=False)
+    workload: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    needs_review: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class ComponentWorkload(Base):
     __tablename__ = "component_workloads"
     __table_args__ = (

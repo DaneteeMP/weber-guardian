@@ -10,6 +10,10 @@ function row(overrides: Partial<MaintenanceDraftRow> = {}): MaintenanceDraftRow 
     description: "Checkweigher",
     material_no: "CCW04001",
     type_code: "CCW",
+    workload_kind: "module",
+    workload_id: null,
+    line_code: null,
+    component_type: "Checkweigher",
     workload: "1.50",
     amount: "87.00",
     match_state: "confirmed",
@@ -26,6 +30,11 @@ describe("maintenance draft row adapter", () => {
         description: "Checkweigher",
         workload: "1.50",
         import_amount: "87.00",
+        workloadKind: "module",
+        workloadId: null,
+        lineCode: null,
+        typeCode: "CCW",
+        componentType: "Checkweigher",
       },
     ]);
   });

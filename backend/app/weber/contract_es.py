@@ -36,6 +36,13 @@ EXECUTORS: dict[str, dict[str, str]] = {
         "country": "Argentina",
         "place_date": "Buenos Aires",
     },
+    "IT": {
+        "name": "WEBER FOOD TECHNOLOGY ITALIA SrL",
+        "street": "Via Josef Maria Pernter, 14",
+        "city": "39044 Egna BZ",
+        "country": "Italia",
+        "place_date": "Egna",
+    },
 }
 
 TITLE = "CONTRATO DE MANTENIMIENTO"

@@ -116,7 +116,6 @@ export default function Customers({
     <div className="p-4 space-y-3 w-full h-full">
       <PageHeader
         title={t(lang, "cust_title")}
-        count={total}
         action={
           <Button
             onClick={() => setShowCreateModal(true)}

@@ -49,6 +49,9 @@ class OfferDocument:
     total: Decimal
     total_end: Decimal
     general_comments: str | None
+    guardian_selections: tuple[str, ...] = ()
+    customer_number: str | None = None
+    customer_site: str | None = None
     lines: tuple[OfferLine, ...] = field(default_factory=tuple)
 
 

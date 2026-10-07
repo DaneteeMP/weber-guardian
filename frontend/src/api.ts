@@ -357,6 +357,65 @@ export async function deleteComponentWorkload(id: string): Promise<void> {
   if (!response.ok) await checked(response, "DELETE component workload");
 }
 
+// Legacy module workloads, keyed by type_code (the restored TblWorkLoad).
+// Ordinary maintenance modules price from here; slicers from component_workloads.
+export type ModuleWorkload = {
+  type_code: string;
+  label: string;
+  workload: string | null;
+  needs_review: boolean;
+};
+
+export function listModuleWorkloads(opts?: {
+  search?: string;
+  needs_review?: boolean;
+  limit?: number;
+  offset?: number;
+}): Promise<{ rows: ModuleWorkload[]; total: number }> {
+  const params = new URLSearchParams();
+  if (opts?.search) params.set("search", opts.search);
+  if (opts?.needs_review !== undefined) params.set("needs_review", String(opts.needs_review));
+  params.set("limit", String(opts?.limit ?? 200));
+  params.set("offset", String(opts?.offset ?? 0));
+  return fetch(`${BASE}/module-workloads?${params}`, { headers: headers() }).then(async (r) => {
+    const rows = (await checked(r, "GET module workloads")) as ModuleWorkload[];
+    return { rows, total: Number(r.headers.get("X-Total-Count") ?? rows.length) };
+  });
+}
+
+export function updateModuleWorkload(
+  typeCode: string,
+  changes: { workload: string | null; needs_review?: boolean; label?: string },
+): Promise<ModuleWorkload> {
+  return fetch(`${BASE}/module-workloads/${encodeURIComponent(typeCode)}`, {
+    method: "PUT",
+    headers: headers(),
+    body: JSON.stringify(changes),
+  }).then((r) => checked(r, "PUT module workload"));
+}
+
+// Machine-line workloads (equipment_catalog), keyed by machine_type. The line
+// is the machine itself (family price), e.g. "40x" for the 402/404/405 slicers.
+export type LineWorkload = {
+  id: string;
+  kind: "line";
+  label: string;
+  workload: string | null;
+  matches: { id: string; match_field: "machine_type"; match_value: string; is_confirmed: boolean }[];
+  created_at: string;
+};
+
+export function updateLineWorkload(
+  machineType: string,
+  changes: { workload: string | null; label?: string },
+): Promise<LineWorkload> {
+  return fetch(`${BASE}/line-workloads/${encodeURIComponent(machineType)}`, {
+    method: "PUT",
+    headers: headers(),
+    body: JSON.stringify(changes),
+  }).then((r) => checked(r, "PUT line workload"));
+}
+
 export function calculate(pricing: Pricing): Promise<Breakdown> {
   return fetch(`${BASE}/offers/calculate`, {
     method: "POST",
@@ -376,6 +435,7 @@ export function createOffer(payload: {
   items: OfferItemIn[];
   general_comments?: string;
   offer_date?: string;
+  guardian_selections?: string[];
 }): Promise<{ id: string; id_guardian_offer: string }> {
   return fetch(`${BASE}/offers`, {
     method: "POST",
@@ -441,6 +501,7 @@ export type OfferOut = OfferListItem & {
   language: string | null;
   inspection_frequency: string | null;
   general_comments: string | null;
+  guardian_selections: string[];
   work_hours: string | number;
   report_hours: string | number;
   trip_hours: string | number;
@@ -456,6 +517,7 @@ export function updateOffer(
     inspection_frequency?: string;
     general_comments?: string;
     offer_date?: string;
+    guardian_selections?: string[];
     pricing: Pricing;
     items: OfferItemIn[];
   }
@@ -565,6 +627,10 @@ export type MaintenanceDraftRow = {
   description: string | null;
   material_no: string | null;
   type_code: string | null;
+  workload_kind: "line" | "module" | "product" | null;
+  workload_id: string | null;
+  line_code: string | null;
+  component_type: string | null;
   workload: string | null;
   amount: string;
   match_state: "confirmed" | "unconfirmed" | "unknown";

@@ -5,10 +5,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.basic_auth import BasicAuthMiddleware
 from app.core.config import settings
 from app.modules.basic_kit.router import router as basic_kit_router
+from app.modules.component_names.module_workload_router import router as module_workloads_router
 from app.modules.component_names.router import router as component_names_router
 from app.modules.component_names.workload_router import router as component_workloads_router
 from app.modules.customers.router import router as customers_router
 from app.modules.distances.router import router as distances_router
+from app.modules.equipment_catalog.line_workload_router import router as line_workloads_router
 from app.modules.imports.router import router as imports_router
 from app.modules.machine_prices.router import router as machine_prices_router
 from app.modules.offers.router import router as offers_router
@@ -52,3 +54,5 @@ app.include_router(distances_router, prefix="/api/v1")
 app.include_router(basic_kit_router, prefix="/api/v1")
 app.include_router(component_names_router, prefix="/api/v1")
 app.include_router(component_workloads_router, prefix="/api/v1")
+app.include_router(module_workloads_router, prefix="/api/v1")
+app.include_router(line_workloads_router, prefix="/api/v1")

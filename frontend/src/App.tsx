@@ -120,10 +120,12 @@ export default function App() {
           />
         ) : tab === "offers" ? (
           <OfferBuilder
-            key={`${contentKey}:${editingOffer ?? "new"}`}
+            key={contentKey}
             lang={lang}
             editingOfferId={editingOffer}
             onDone={() => setTab("home")}
+            onEdit={openOffer}
+            onNew={openNewOffer}
           />
         ) : tab === "import" ? (
           <ImportData key={contentKey} lang={lang} />

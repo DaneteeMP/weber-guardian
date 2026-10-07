@@ -183,8 +183,15 @@ export default function OffersHome({
                   key={o.id}
                   className={`border-b border-gray-100 ${i % 2 ? "bg-gray-50" : "bg-white"} hover:bg-blue-50`}
                 >
-                  <td className="px-2 py-1 font-mono font-semibold text-weber-blue whitespace-nowrap">
-                    {o.id_guardian_offer}
+                  <td className="px-2 py-1 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => onEdit(o.id)}
+                      title={t(lang, "home_edit")}
+                      className="font-mono font-semibold text-weber-blue hover:underline"
+                    >
+                      {o.id_guardian_offer}
+                    </button>
                   </td>
                   <td className="px-2 py-1 font-mono whitespace-nowrap text-gray-700">
                     {day(o.offer_date) || day(o.created_at)}

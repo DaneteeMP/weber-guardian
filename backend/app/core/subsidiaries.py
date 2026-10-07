@@ -44,6 +44,7 @@ EXECUTOR_CODES = {
     "Weber Benelux": "BNL",
     "Weber Germany": "DE",
     "Weber Argentina": "AR",
+    "Weber Italy": "IT",
 }
 
 # CSV spellings that normalization alone cannot reconcile with the catalog.

@@ -89,6 +89,34 @@ class ComponentWorkloadUpdateIn(BaseModel):
     needs_review: bool | None = None
 
 
+class ModuleWorkloadOut(BaseModel):
+    """Legacy module workload, keyed by the component type code."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    type_code: str
+    label: str
+    workload: Decimal | None
+    needs_review: bool
+
+
+class ModuleWorkloadUpdateIn(BaseModel):
+    """Set the legacy hours of one module type_code."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    workload: Decimal | None = Field(default=None, ge=Decimal("0"))
+    needs_review: bool | None = None
+    # Only used when the type_code is new and a row must be created.
+    label: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @model_validator(mode="after")
+    def validate_review_state(self) -> "ModuleWorkloadUpdateIn":
+        if self.workload is None and self.needs_review is False:
+            raise ValueError("a workload without hours must remain marked for review")
+        return self
+
+
 class WorkloadImportReportOut(BaseModel):
     """Summary of dictionary cleaning and product workload reconciliation."""
 

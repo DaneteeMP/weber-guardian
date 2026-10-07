@@ -11,6 +11,8 @@ from app.modules.component_names.models import ComponentName
 from app.modules.component_names.service import (
     DictionaryFileError,
     import_dictionary,
+    legacy_base_material_no,
+    normalize_material_no,
     parse_and_clean,
 )
 
@@ -33,6 +35,18 @@ def test_single_row_becomes_one_entry():
     assert entry.description == "Textor Slicer"
     assert entry.source_rows == 1
     assert entry.has_conflict is False
+
+
+def test_material_normalization_keeps_model_hyphens():
+    """A '-' after a spaced model is part of the model, not a serial suffix."""
+    # Single-token prefix: the suffix is a unit/serial and is stripped.
+    assert normalize_material_no("CCE04001-10591") == "CCE04001"
+    assert normalize_material_no("TSX06001-10261") == "TSX06001"
+    # Spaced prefix: "CCS 302" is a model, so the whole number is the identity.
+    assert normalize_material_no("CCS 302-376") == "CCS 302-376"
+    assert normalize_material_no("CCS 302-376-Z") == "CCS 302-376-Z"
+    # The legacy collapse stays available for dictionaries imported earlier.
+    assert legacy_base_material_no("CCS 302-376") == "CCS 302"
 
 
 def test_cp1252_umlauts_force_the_cp1252_decoder():

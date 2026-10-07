@@ -6,8 +6,11 @@ import {
   deleteComponentWorkload,
   importWorkloadCsv,
   listComponentWorkloads,
+  listModuleWorkloads,
   updateComponentWorkload,
+  updateModuleWorkload,
   type ComponentWorkload,
+  type ModuleWorkload,
   type WorkloadImportReport,
 } from "./api";
 import DataTable from "./components/DataTable";
@@ -25,6 +28,15 @@ type WorkloadDraft = {
   workload: string;
   needs_review: boolean;
 };
+
+type ModuleDraft = {
+  type_code: string;
+  label: string;
+  workload: string;
+  needs_review: boolean;
+};
+
+type CatalogView = "products" | "modules";
 
 function EditIcon() {
   return (
@@ -82,6 +94,11 @@ export default function WorkloadCatalog({
   const [importOpen, setImportOpen] = useState(false);
   const [report, setReport] = useState<WorkloadImportReport | null>(null);
 
+  const [view, setView] = useState<CatalogView>("products");
+  const [moduleRows, setModuleRows] = useState<ModuleWorkload[]>([]);
+  const [moduleTotal, setModuleTotal] = useState(0);
+  const [moduleDraft, setModuleDraft] = useState<ModuleDraft | null>(null);
+
   async function load() {
     setLoading(true);
     setError(null);
@@ -106,6 +123,8 @@ export default function WorkloadCatalog({
   }
 
   useEffect(() => {
+    if (view !== "products") return;
+
     const timer = setTimeout(() => {
       void load();
     }, 200);
@@ -114,7 +133,83 @@ export default function WorkloadCatalog({
 
     // load intentionally follows the current filters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, needsReviewOnly]);
+  }, [view, search, needsReviewOnly]);
+
+  async function loadModules() {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const result = await listModuleWorkloads({
+        search: search.trim() || undefined,
+        needs_review: needsReviewOnly ? true : undefined,
+        limit: LOAD_LIMIT,
+        offset: 0,
+      });
+
+      setModuleRows(result.rows);
+      setModuleTotal(result.total);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Could not load module workloads",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (view !== "modules") return;
+
+    const timer = setTimeout(() => {
+      void loadModules();
+    }, 200);
+
+    return () => clearTimeout(timer);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, search, needsReviewOnly]);
+
+  function startEditModule(row: ModuleWorkload) {
+    setModuleDraft({
+      type_code: row.type_code,
+      label: row.label,
+      workload: row.workload ?? "",
+      needs_review: row.needs_review,
+    });
+  }
+
+  async function saveModuleDraft(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!moduleDraft) return;
+
+    const workload = moduleDraft.workload.trim() || null;
+
+    if (!moduleDraft.needs_review && workload === null) {
+      setError(t(lang, "workload_hours_required"));
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+
+    try {
+      await updateModuleWorkload(moduleDraft.type_code, {
+        workload,
+        needs_review: moduleDraft.needs_review,
+      });
+
+      setModuleDraft(null);
+      await loadModules();
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Could not save module workload",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function startCreate() {
     setDraft({
@@ -313,6 +408,68 @@ export default function WorkloadCatalog({
     [lang, canEdit],
   );
 
+  const moduleColumns = useMemo<ColumnDef<ModuleWorkload>[]>(
+    () => [
+      {
+        accessorKey: "type_code",
+        header: t(lang, "workload_type_code"),
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span className="font-mono font-medium">{row.original.type_code}</span>
+        ),
+      },
+      {
+        accessorKey: "label",
+        header: t(lang, "workload_name"),
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span className="text-gray-700">{row.original.label}</span>
+        ),
+      },
+      {
+        accessorKey: "workload",
+        header: t(lang, "eq_workload"),
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span className="font-mono">
+            {row.original.workload === null
+              ? "—"
+              : `${row.original.workload} h`}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "needs_review",
+        header: t(lang, "workload_needs_review"),
+        enableSorting: true,
+        cell: ({ row }) =>
+          row.original.needs_review ? (
+            <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+              {t(lang, "workload_needs_review")}
+            </span>
+          ) : (
+            <span className="text-gray-400">—</span>
+          ),
+      },
+      {
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) =>
+          canEdit ? (
+            <div className="flex justify-end">
+              <IconButton
+                label={t(lang, "cfg_edit")}
+                onClick={() => startEditModule(row.original)}
+                icon={<EditIcon />}
+              />
+            </div>
+          ) : null,
+      },
+    ],
+    [lang, canEdit],
+  );
+
   const inputClass = "w-full rounded border px-2 py-1.5 text-sm";
 
   return (
@@ -387,8 +544,33 @@ export default function WorkloadCatalog({
                 className="min-w-0 flex-1 rounded border px-3 py-1.5 text-sm"
               />
 
+              <div className="flex shrink-0 overflow-hidden rounded border text-sm">
+                <button
+                  type="button"
+                  onClick={() => setView("products")}
+                  className={`px-3 py-1.5 ${
+                    view === "products"
+                      ? "bg-weber-blue font-semibold text-white"
+                      : "bg-white hover:bg-gray-50"
+                  }`}
+                >
+                  {t(lang, "workload_view_products")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView("modules")}
+                  className={`px-3 py-1.5 ${
+                    view === "modules"
+                      ? "bg-weber-blue font-semibold text-white"
+                      : "bg-white hover:bg-gray-50"
+                  }`}
+                >
+                  {t(lang, "workload_view_modules")}
+                </button>
+              </div>
+
               <span className="shrink-0 text-sm text-gray-500">
-                {total.toLocaleString()} entries
+                {(view === "products" ? total : moduleTotal).toLocaleString()} entries
               </span>
 
               <label className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm">
@@ -403,7 +585,7 @@ export default function WorkloadCatalog({
                 {t(lang, "workload_review_only")}
               </label>
 
-              {canEdit && (
+              {canEdit && view === "products" && (
                 <>
                   <button
                     type="button"
@@ -425,14 +607,25 @@ export default function WorkloadCatalog({
             </div>
 
             {/* Table */}
-            <DataTable
-              data={rows}
-              columns={columns}
-              loading={loading}
-              loadingText={t(lang, "dash_loading")}
-              emptyText={t(lang, "workload_no_results")}
-              getRowId={(row) => row.id}
-            />
+            {view === "products" ? (
+              <DataTable
+                data={rows}
+                columns={columns}
+                loading={loading}
+                loadingText={t(lang, "dash_loading")}
+                emptyText={t(lang, "workload_no_results")}
+                getRowId={(row) => row.id}
+              />
+            ) : (
+              <DataTable
+                data={moduleRows}
+                columns={moduleColumns}
+                loading={loading}
+                loadingText={t(lang, "dash_loading")}
+                emptyText={t(lang, "workload_no_results")}
+                getRowId={(row) => row.type_code}
+              />
+            )}
           </SectionCard>
         </div>
       </div>
@@ -581,6 +774,76 @@ export default function WorkloadCatalog({
           </form>
         </Modal>
       )}
+
+      {/* Module workload edit modal */}
+      {moduleDraft && (
+        <Modal
+          title={t(lang, "cfg_edit")}
+          onClose={() => setModuleDraft(null)}
+        >
+          <form
+            onSubmit={(event) => void saveModuleDraft(event)}
+            className="space-y-3"
+          >
+            <div className="text-xs text-gray-500">
+              {moduleDraft.type_code} · {moduleDraft.label}
+            </div>
+
+            <label className="block text-xs">
+              {t(lang, "eq_workload")}
+
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                autoFocus
+                value={moduleDraft.workload}
+                onChange={(event) =>
+                  setModuleDraft({
+                    ...moduleDraft,
+                    workload: event.target.value,
+                  })
+                }
+                className={`${inputClass} mt-1`}
+              />
+            </label>
+
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={moduleDraft.needs_review}
+                onChange={(event) =>
+                  setModuleDraft({
+                    ...moduleDraft,
+                    needs_review: event.target.checked,
+                  })
+                }
+              />
+
+              {t(lang, "workload_needs_review")}
+            </label>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                className="rounded border px-3 py-1.5 text-sm"
+                onClick={() => setModuleDraft(null)}
+              >
+                {t(lang, "cfg_cancel")}
+              </button>
+
+              <button
+                type="submit"
+                disabled={busy}
+                className="rounded bg-weber-blue px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {busy ? t(lang, "dash_loading") : t(lang, "cfg_save")}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
     </main>
   );
 }

@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.modules.customers.models import Customer
+from app.modules.equipment.models import CustomerSite, Equipment
 from app.modules.offers.document import OfferDocument, OfferLine
 from app.modules.offers.models import Offer, OfferItem
 from app.modules.offers.pricing_engine import PricingInput, calculate
@@ -114,6 +115,7 @@ def create_offer(
         total=priced.total,
         total_end=priced.total_end,
         general_comments=data.general_comments,
+        guardian_selections=list(data.guardian_selections),
         created_by=created_by,
         offer_date=offer_date,
     )
@@ -231,7 +233,8 @@ def update_offer(
     priced = calculate_price(data.pricing)
     offer.status = data.status
     offer.responsible_person = data.responsible_person
-    offer.language = data.language
+    if data.language is not None:
+        offer.language = data.language
     offer.inspection_frequency = data.inspection_frequency
     offer.currency = priced.currency
     offer.work_hours = priced.work_hours
@@ -249,6 +252,7 @@ def update_offer(
     offer.total = priced.total
     offer.total_end = priced.total_end
     offer.general_comments = data.general_comments
+    offer.guardian_selections = list(data.guardian_selections)
     # offer_date=None means "keep the day the row was created", so an edit that
     # does not touch the date can never wipe it.
     offer.offer_date = data.offer_date or offer.offer_date or (
@@ -314,6 +318,37 @@ def get_offer_document(db: Session, offer_id: uuid.UUID, subsidiary_id: str | No
     customer = db.scalar(select(Customer).where(Customer.customer_id == offer.customer_id))
     if customer is None:
         return None
+    items = sorted(offer.items, key=lambda item: item.row_no)
+    equipment_names = {item.equipment for item in items if item.equipment}
+    sites = []
+    if equipment_names:
+        sites = list(
+            db.scalars(
+                select(CustomerSite)
+                .join(Equipment, Equipment.site_id == CustomerSite.id)
+                .where(
+                    Equipment.customer_id == offer.customer_id,
+                    Equipment.equipment_name.in_(equipment_names),
+                )
+                .order_by(CustomerSite.physical_city, CustomerSite.physical_street)
+            ).unique()
+        )
+    site_addresses = []
+    for site in sites:
+        address = ", ".join(
+            value
+            for value in (
+                site.physical_street,
+                " ".join(
+                    value for value in (site.physical_postal_code, site.physical_city) if value
+                ),
+                site.physical_province,
+                site.physical_country,
+            )
+            if value
+        )
+        if address and address not in site_addresses:
+            site_addresses.append(address)
     return OfferDocument(
         offer_id=offer.id,
         number=offer.id_guardian_offer,
@@ -343,6 +378,9 @@ def get_offer_document(db: Session, offer_id: uuid.UUID, subsidiary_id: str | No
         total=offer.total,
         total_end=offer.total_end,
         general_comments=offer.general_comments,
+        guardian_selections=tuple(offer.guardian_selections or []),
+        customer_number=customer.customer_id,
+        customer_site="; ".join(site_addresses) or None,
         lines=tuple(
             OfferLine(
                 pos=item.row_no,
@@ -350,6 +388,6 @@ def get_offer_document(db: Session, offer_id: uuid.UUID, subsidiary_id: str | No
                 description=item.description,
                 import_amount=item.import_amount,
             )
-            for item in sorted(offer.items, key=lambda i: i.row_no)
+            for item in items
         ),
     )

@@ -151,7 +151,9 @@ def test_update_offer_recomputes_and_replaces_lines(db):
     from app.modules.offers.service import update_offer
 
     _customer(db)
-    offer = create_offer(db, _offer_data())
+    # An edit without a language must keep the stored one (the form no longer
+    # sends it, so a legacy offer can never lose its historical value).
+    offer = create_offer(db, _offer_data().model_copy(update={"language": "Portuguese"}))
     assert len(offer.items) == 2
     updated = update_offer(
         db,
@@ -164,6 +166,7 @@ def test_update_offer_recomputes_and_replaces_lines(db):
     )
     assert updated is not None
     assert updated.status == "Pending response"
+    assert updated.language == "Portuguese"
     assert updated.total == Decimal("1050.00")
     assert [i.row_no for i in updated.items] == [1]
     assert update_offer(

@@ -62,12 +62,13 @@ export default function TopBar({
     { id: "home", label: t(lang, "nav_offers") },
     { id: "offers", label: t(lang, "nav_new_offer") },
     { id: "customers", label: t(lang, "nav_customers") },
-    { id: "import", label: t(lang, "nav_import") },
   ];
   // The workload catalog is shared by all subsidiaries; writes are restricted
   // again by the API to admins and sales users.
   if (showWorkloadCatalog) tabs.push({ id: "workloads", label: t(lang, "nav_workloads") });
   if (showConfig) tabs.push({ id: "config", label: t(lang, "nav_config") });
+  // Import always sits after Settings.
+  tabs.push({ id: "import", label: t(lang, "nav_import") });
 
   return (
     <header className="bg-white shadow">
@@ -140,7 +141,7 @@ export default function TopBar({
           </select>
         </div>
       </div>
-      <nav className="flex gap-1 px-4 border-t overflow-x-auto">
+      <nav className="flex flex-wrap gap-1 px-4 border-t">
         {tabs.map((item) => (
           <button
             key={item.id}

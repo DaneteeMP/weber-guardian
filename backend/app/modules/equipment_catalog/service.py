@@ -1,4 +1,5 @@
 """Global equipment-catalog operations and exact code resolution."""
+from decimal import Decimal
 import uuid
 
 from sqlalchemy import select
@@ -93,6 +94,54 @@ def delete_entry(db: Session, entry_id: uuid.UUID) -> bool:
     db.delete(row)
     db.commit()
     return True
+
+
+def upsert_line_workload(
+    db: Session,
+    machine_type: str,
+    workload: Decimal | None,
+    label: str | None = None,
+) -> EquipmentCatalogEntry:
+    """Set the hours of one machine line, creating the entry when it is new.
+
+    Used from the Offer badge when a line shows "Workload not configured":
+    the entry's machine_type match is confirmed at the same time, so a
+    configured line stops asking for review.
+    """
+    match = db.scalar(
+        select(EquipmentCatalogMatch).where(
+            EquipmentCatalogMatch.match_field == "machine_type",
+            EquipmentCatalogMatch.match_value == machine_type,
+        )
+    )
+    if match is not None:
+        entry = get_entry(db, match.entry_id)
+        entry.workload = workload
+        match.is_confirmed = True
+        db.commit()
+        db.refresh(entry)
+        return entry
+
+    entry = EquipmentCatalogEntry(
+        kind="line",
+        label=(label or machine_type).strip(),
+        workload=workload,
+        matches=[
+            EquipmentCatalogMatch(
+                match_field="machine_type",
+                match_value=machine_type,
+                is_confirmed=True,
+            )
+        ],
+    )
+    db.add(entry)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise EquipmentCatalogConflict("Catalog label or equipment code is already assigned") from None
+    db.refresh(entry)
+    return entry
 
 
 def resolve_line(

@@ -84,12 +84,33 @@ def _clean_cell(value: str) -> str:
 
 
 def normalize_material_no(material_no: str) -> str:
-    """Return the catalogue material number without the unit/serial suffix.
+    """Return the catalogue material number without a unit/serial suffix.
 
-    Example:
-        CCE04001-10591 -> CCE04001
+    The part after the first '-' is a unit/serial only when the part before it
+    is a single token. Examples:
 
-    Material numbers without '-' are left untouched.
+        CCE04001-10591  -> CCE04001   (serial suffix stripped)
+        TSX06001-10261  -> TSX06001
+        CCS 302-376     -> CCS 302-376 (the '-' belongs to the model, kept)
+        CCS 302-376-Z   -> CCS 302-376-Z
+
+    A prefix with whitespace (``"CCS 302"``) is a model, not a serial base, so
+    the whole material number is the identity. Material numbers without '-' are
+    left untouched.
+    """
+    base, separator, _ = material_no.partition("-")
+    base = base.strip()
+    if separator and base and " " not in base:
+        return base
+    return material_no.strip()
+
+
+def legacy_base_material_no(material_no: str) -> str:
+    """Collapse at the first '-' regardless of whitespace.
+
+    Kept only to look up dictionaries that were imported before
+    :func:`normalize_material_no` became model-aware. New imports use
+    :func:`normalize_material_no`.
     """
     return material_no.split("-", 1)[0].strip()
 

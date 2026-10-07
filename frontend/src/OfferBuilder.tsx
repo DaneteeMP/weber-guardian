@@ -1,26 +1,34 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
   calculate,
   closeOffer,
+  createComponentWorkload,
   createOffer,
   deleteOffer,
   downloadOfferPdf,
   getCustomerDetail,
   getOffer,
+  getOffersSummary,
   getPrices,
   listAllCustomers,
+  listAllOffers,
   listOffers,
   maintenanceDraft,
+  updateComponentWorkload,
+  updateLineWorkload,
+  updateModuleWorkload,
   updateOffer,
   type Breakdown,
   type Customer,
   type CustomerDetail,
   type Equipment,
   type OfferListItem,
+  type OffersSummary,
 } from "./api";
 import FieldRow from "./components/FieldRow";
 import DataTable from "./components/DataTable";
+import Modal from "./components/Modal";
 import SectionCard from "./components/SectionCard";
 import { quoteLinesFromDraft, type CatalogQuoteLine } from "./catalogLines";
 import { t, type Lang } from "./i18n";
@@ -29,6 +37,11 @@ const num = (v: string, fallback: number) => {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 };
+
+const money = (v: string | number | null | undefined) =>
+  Number(v ?? 0).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const day = (v: string | null | undefined) => (v ? v.slice(0, 10) : "");
 
 // ISO day (yyyy-mm-dd) for <input type="date">. Built from local parts, not
 // toISOString, which would shift the day for any timezone behind UTC.
@@ -39,10 +52,70 @@ const todayIso = () => {
 };
 
 const GUARDIAN_TYPES = ["Basic Kit", "Audit", "Off-Guardian", "Campaign"];
-const LANGUAGES = ["Spanish", "Portuguese"];
 const FREQUENCIES = ["Annual", "Semi-annual", "Biennial"];
 const STATUSES = ["Draft", "Pending response", "Finished", "Cancelled", "Rejected"];
 const RESPONSIBLES = ["", "Xevi Mira", "David"];
+const GUARDIAN_SCOPE = [
+  {
+    id: "maintenance_inspection",
+    label: "Maintenance & Inspection",
+    options: [
+      ["inspection", "Inspection / Annual Inspection"],
+      ["machine_checklist", "Machine Checklist"],
+      ["inspection_report", "Inspection Report"],
+      ["preventive_maintenance", "Preventive Maintenance"],
+      ["maintenance_kit", "Spare Parts / Maintenance Kit"],
+    ],
+  },
+  {
+    id: "service_support",
+    label: "Service Support",
+    options: [
+      ["standard_hotline", "Standard Hotline"],
+      ["remote_support", "Remote Support"],
+      ["priority_response", "Priority Response"],
+    ],
+  },
+  {
+    id: "parts_availability",
+    label: "Parts & Availability",
+    options: [
+      ["parts_discount", "Parts Discount"],
+      ["priority_handling", "Priority Handling"],
+      ["recommended_parts_list", "Recommended Parts List"],
+    ],
+  },
+  {
+    id: "blade_solutions",
+    label: "Blade Solutions",
+    options: [
+      ["blade_discount", "Blade Discount"],
+      ["stock_agreement", "Stock Agreement"],
+      ["sharpening_assessment", "Sharpening Assessment"],
+      ["blade_application_review", "Blade Application Review"],
+    ],
+  },
+  {
+    id: "training_optimization",
+    label: "Training & Optimization",
+    options: [
+      ["operator_training", "Operator Training"],
+      ["maintenance_training", "Maintenance Training"],
+      ["line_optimization", "Line Optimization"],
+      ["epip_audit", "EPIP Audit"],
+    ],
+  },
+  {
+    id: "digital_services",
+    label: "Digital Services",
+    options: [
+      ["factory_cockpit", "Factory Cockpit"],
+      ["performance_review", "Performance Review"],
+      ["mro_review", "MRO Review"],
+      ["dedicated_account_team", "Dedicated Account Team"],
+    ],
+  },
+] as const;
 
 type OfferTableRow = {
   id: string;
@@ -51,6 +124,20 @@ type OfferTableRow = {
   module: string;
   amount: number;
   catalogWarning?: CatalogQuoteLine["catalogWarning"];
+  workloadKind: CatalogQuoteLine["workloadKind"];
+  workloadId: string | null;
+  lineCode: string | null;
+  typeCode: string | null;
+  componentType: string | null;
+};
+
+type WorkloadEdit = {
+  description: string;
+  workloadKind: CatalogQuoteLine["workloadKind"];
+  workloadId: string | null;
+  lineCode: string | null;
+  typeCode: string | null;
+  componentType: string | null;
 };
 
 // Create or edit one offer. With editingOfferId the form is filled from the
@@ -59,10 +146,14 @@ export default function OfferBuilder({
   lang,
   editingOfferId,
   onDone,
+  onEdit,
+  onNew,
 }: {
   lang: Lang;
   editingOfferId: string | null;
   onDone: () => void;
+  onEdit?: (offerId: string) => void;
+  onNew?: () => void;
 }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState("");
@@ -83,11 +174,11 @@ export default function OfferBuilder({
   const [hotelRate, setHotelRate] = useState("0");
   const [offerNumber, setOfferNumber] = useState("");
   const [offerDate, setOfferDate] = useState(todayIso());
-  const [language, setLanguage] = useState("Spanish");
   const [frequency, setFrequency] = useState("Annual");
   const [status, setStatus] = useState("Pending response");
   const [responsible, setResponsible] = useState("");
   const [guardianType, setGuardianType] = useState("Audit");
+  const [guardianSelections, setGuardianSelections] = useState<string[]>([]);
   const [comments, setComments] = useState("");
   type QuoteLine = CatalogQuoteLine;
   const [items, setItems] = useState<QuoteLine[]>([]);
@@ -97,6 +188,19 @@ export default function OfferBuilder({
   const [equipmentLoading, setEquipmentLoading] = useState(false);
   const [selectedEquip, setSelectedEquip] = useState<string[]>([]);
   const [editStatus, setEditStatus] = useState<string | null>(null);
+  const [editWorkload, setEditWorkload] = useState<WorkloadEdit | null>(null);
+  const [editHours, setEditHours] = useState("");
+  const [editBusy, setEditBusy] = useState(false);
+  // Sidebar offers panel: every offer in scope, filterable by status. Selecting
+  // one hands the id back to App, which reopens OfferBuilder in edit mode.
+  const [offerList, setOfferList] = useState<OfferListItem[]>([]);
+  const [offerListLoading, setOfferListLoading] = useState(false);
+  const [offerStatusFilter, setOfferStatusFilter] = useState("");
+  const [offerSummary, setOfferSummary] = useState<OffersSummary | null>(null);
+  // Machines to tick in the picker once the customer's fleet finishes loading
+  // in edit mode, so an existing offer reopens with the machines it was made
+  // with instead of an empty selection.
+  const restoreEquipRef = useRef<string[] | null>(null);
 
   // The selected component workloads are the authoritative work-hours input
   // for the existing offer pricing engine; no manual work-hours box is needed.
@@ -105,9 +209,8 @@ export default function OfferBuilder({
     [items],
   );
 
-  // Edit mode: fill the form from the stored offer. Trip inputs (km, rates)
-  // are not part of the offer snapshot on purpose: they come from the current
-  // subsidiary rates, same as when the offer is created.
+  // Fill the form from the stored offer. Trip inputs are reloaded from the
+  // current subsidiary rates, while the remaining values come from the offer.
   useEffect(() => {
     if (!editingOfferId) return;
     getOffer(editingOfferId)
@@ -118,10 +221,10 @@ export default function OfferBuilder({
         // somehow has no business date at all.
         setOfferDate(o.offer_date || todayIso());
         setStatus(o.status || "Draft");
-        setLanguage(o.language || "Spanish");
         setFrequency(o.inspection_frequency || "Annual");
         setResponsible(o.responsible_person || "");
         setComments(o.general_comments || "");
+        setGuardianSelections(o.guardian_selections || []);
         setReportHours(String(Number(o.report_hours ?? 0)));
         setTripBase(String(Number(o.trip_hours ?? 0)));
         setItems(
@@ -130,8 +233,26 @@ export default function OfferBuilder({
             description: i.description ?? "",
             import_amount: String(Number(i.import_amount ?? 0)),
             workload: String(Number(i.workload ?? 0)),
+            workloadKind: null,
+            workloadId: null,
+            lineCode: null,
+            typeCode: null,
+            componentType: null,
           }))
         );
+        // Remember the offer's machines so the picker re-ticks them once the
+        // fleet loads, and treat their lines as picker-generated so unticking
+        // one removes exactly the lines it brought in.
+        const offerMachines = [
+          ...new Set(o.items.map((i) => i.equipment).filter((name): name is string => !!name)),
+        ];
+        restoreEquipRef.current = offerMachines;
+        prevSelected.current = offerMachines;
+        setSelectedEquip(offerMachines);
+        autoLines.current = new Set();
+        for (const item of o.items) {
+          if (item.equipment) autoLines.current.add(lineKey(item.equipment, item.description ?? ""));
+        }
         setEditStatus(o.status || "Draft");
       })
       .catch((e) => setError(String(e)));
@@ -153,6 +274,24 @@ export default function OfferBuilder({
     setSelectedEquip((p) => (p.includes(code) ? p.filter((c) => c !== code) : [...p, code]));
   }
 
+  function toggleGuardianModule(moduleId: string, optionIds: readonly string[]) {
+    setGuardianSelections((current) => {
+      if (current.includes(moduleId)) {
+        return current.filter((key) => key !== moduleId && !optionIds.includes(key));
+      }
+      return [...current, moduleId];
+    });
+  }
+
+  function toggleGuardianOption(moduleId: string, optionId: string) {
+    setGuardianSelections((current) => {
+      const next = current.includes(optionId)
+        ? current.filter((key) => key !== optionId)
+        : [...current, optionId];
+      return next.includes(moduleId) ? next : [...next, moduleId];
+    });
+  }
+
   // Picker drives the quote directly: selecting a machine expands ALL its
   // component rows into lines; deselecting removes the lines it added.
   // Hand-typed lines are never touched. The updater below is pure (reads
@@ -165,6 +304,39 @@ export default function OfferBuilder({
 
   const lineKey = (equipment: string, description: string) =>
     `${equipment}||${description}`;
+
+  // Blank the offer-specific fields so the next save creates a new offer. The
+  // selected customer is deliberately kept: choosing a customer IS starting a
+  // new offer, and its fleet/rates load from the customer effect.
+  function resetOfferFields() {
+    setOfferNumber("");
+    setOfferDate(todayIso());
+    setStatus("Pending response");
+    setFrequency("Annual");
+    setResponsible("");
+    setGuardianType("Audit");
+    setComments("");
+    setGuardianSelections([]);
+    setReportHours("0");
+    setTripBase("0");
+    setItems([]);
+    setSelectedEquip([]);
+    setEditStatus(null);
+    setSavedOffer(null);
+    restoreEquipRef.current = null;
+    autoLines.current = new Set();
+    prevSelected.current = [];
+  }
+
+  // Picking a customer and picking an offer are mutually exclusive: the former
+  // starts a new offer, the latter loads an existing one. Re-clicking the same
+  // customer while already in new mode is a no-op so nothing is lost by accident.
+  function selectCustomer(id: string) {
+    if (id === customerId && !editingOfferId) return;
+    setCustomerId(id);
+    resetOfferFields();
+    if (editingOfferId) onNew?.();
+  }
 
   useEffect(() => {
     const prev = prevSelected.current;
@@ -245,71 +417,97 @@ export default function OfferBuilder({
     listAllCustomers().then(setCustomers).catch((e) => setError(String(e)));
   }, []);
 
+  // Fleet of the selected customer. Keyed only by customerId, so a later
+  // refresh of the customer list can never wipe a restored machine selection.
   useEffect(() => {
     let active = true;
-    const selectedCustomer = customers.find((c) => c.customer_id === customerId) ?? null;
-    setCustomer(selectedCustomer);
     setSavedOffer(null);
-    if (customerId) {
-      setEquipmentLoading(true);
-      setCustomerDetail(null);
-      setEquipList([]);
-      setSelectedEquip([]);
-      setKmRate("0");
-      setTechRate("0");
-      setDietFull("0");
-      setDietHalf("0");
-      setHotelRate("0");
-      listOffers(customerId).then(setOffers).catch(() => setOffers([]));
-      if (selectedCustomer?.subsidiary_id) {
-        getPrices(selectedCustomer.subsidiary_id)
-          .then((prices) => {
-            if (!active) return;
-            setKmRate(prices.km_rate);
-            setTechRate(prices.tech_rate);
-            setDietFull(prices.diet_full_rate);
-            setDietHalf(prices.diet_half_rate);
-            setHotelRate(prices.hotel_rate);
-          })
-          .catch((e) => {
-            if (active) setError(e instanceof Error ? e.message : String(e));
-          });
-      }
-      getCustomerDetail(customerId)
-        .then((detail) => {
-          if (!active) return;
-          setCustomerDetail(detail);
-          const sitesById = new Map(detail.sites.map((site) => [site.id, site]));
-          const equipmentRows: Equipment[] = detail.machines.flatMap((machine) =>
-            machine.components.map((component, index) => ({
-              id: `${machine.equipment_name}:${component.material_no ?? index}`,
-              customer_id: detail.customer.customer_id,
-              equipment_name: machine.equipment_name,
-              machine_type: machine.machine_type,
-              component_type: component.component_type,
-              material_no: component.material_no,
-              purchase_date: component.purchase_date,
-              site: machine.site_id ? sitesById.get(machine.site_id) ?? null : null,
-            })),
-          );
-          setEquipList(equipmentRows);
-          setSelectedEquip([]);
-          setEquipmentLoading(false);
-        })
-        .catch(() => {
-          if (!active) return;
-          setCustomerDetail(null);
-          setEquipList([]);
-          setSelectedEquip([]);
-          setEquipmentLoading(false);
-        });
-    } else {
-      setOffers([]);
+    setKmRate("0");
+    setTechRate("0");
+    setDietFull("0");
+    setDietHalf("0");
+    setHotelRate("0");
+    if (!customerId) {
       setCustomerDetail(null);
       setEquipList([]);
       setSelectedEquip([]);
       setEquipmentLoading(false);
+      return () => {
+        active = false;
+      };
     }
+    setEquipmentLoading(true);
+    setCustomerDetail(null);
+    setEquipList([]);
+    setSelectedEquip([]);
+    getCustomerDetail(customerId)
+      .then((detail) => {
+        if (!active) return;
+        setCustomerDetail(detail);
+        const sitesById = new Map(detail.sites.map((site) => [site.id, site]));
+        const equipmentRows: Equipment[] = detail.machines.flatMap((machine) =>
+          machine.components.map((component, index) => ({
+            id: `${machine.equipment_name}:${component.material_no ?? index}`,
+            customer_id: detail.customer.customer_id,
+            equipment_name: machine.equipment_name,
+            machine_type: machine.machine_type,
+            component_type: component.component_type,
+            material_no: component.material_no,
+            purchase_date: component.purchase_date,
+            site: machine.site_id ? sitesById.get(machine.site_id) ?? null : null,
+          })),
+        );
+        setEquipList(equipmentRows);
+        const restored = restoreEquipRef.current;
+        if (restored) {
+          // Reopening an offer: tick the machines it was made with and sync
+          // the picker's baseline so the draft merge does not re-run for them.
+          const available = new Set(equipmentRows.map((row) => row.equipment_name));
+          const restoredAvailable = restored.filter((name) => available.has(name));
+          prevSelected.current = restoredAvailable;
+          setSelectedEquip(restoredAvailable);
+          restoreEquipRef.current = null;
+        } else {
+          setSelectedEquip([]);
+        }
+        setEquipmentLoading(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setCustomerDetail(null);
+        setEquipList([]);
+        setSelectedEquip([]);
+        setEquipmentLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [customerId]);
+
+  // Customer identity, its offer history and the subsidiary rates. Re-runs when
+  // the customer list arrives so the rates can be fetched once the filial is known.
+  useEffect(() => {
+    const selectedCustomer = customers.find((c) => c.customer_id === customerId) ?? null;
+    setCustomer(selectedCustomer);
+    if (!customerId) {
+      setOffers([]);
+      return;
+    }
+    listOffers(customerId).then(setOffers).catch(() => setOffers([]));
+    if (!selectedCustomer?.subsidiary_id) return;
+    let active = true;
+    getPrices(selectedCustomer.subsidiary_id)
+      .then((prices) => {
+        if (!active) return;
+        setKmRate(prices.km_rate);
+        setTechRate(prices.tech_rate);
+        setDietFull(prices.diet_full_rate);
+        setDietHalf(prices.diet_half_rate);
+        setHotelRate(prices.hotel_rate);
+      })
+      .catch((e) => {
+        if (active) setError(e instanceof Error ? e.message : String(e));
+      });
     return () => {
       active = false;
     };
@@ -333,6 +531,30 @@ export default function OfferBuilder({
         (c.country ?? "").toLowerCase().includes(q)
     );
   }, [customers, clientSearch]);
+
+  const customerNames = useMemo(
+    () => Object.fromEntries(customers.map((c) => [c.customer_id, c.account_name])),
+    [customers],
+  );
+  const offerStatuses = useMemo(() => offerSummary?.by_status ?? [], [offerSummary]);
+
+  // Sidebar offers panel: the status options come from the same summary the
+  // dashboard uses, so the dropdown reflects the real statuses in scope.
+  useEffect(() => {
+    getOffersSummary()
+      .then(setOfferSummary)
+      .catch(() => setOfferSummary(null));
+  }, []);
+
+  const loadOfferList = useCallback(() => {
+    setOfferListLoading(true);
+    listAllOffers(200, offerStatusFilter || undefined)
+      .then(setOfferList)
+      .catch(() => setOfferList([]))
+      .finally(() => setOfferListLoading(false));
+  }, [offerStatusFilter]);
+
+  useEffect(loadOfferList, [loadOfferList]);
 
   // Live preview: authoritative breakdown comes from the backend on every input change.
   useEffect(() => {
@@ -362,6 +584,75 @@ export default function OfferBuilder({
     if (customerId) {
       await listOffers(customerId).then(setOffers).catch(() => {});
     }
+    loadOfferList();
+  }
+
+  // Rebuild every auto line from the server draft for the currently selected
+  // machines. Used after editing a workload so hours and amounts always come
+  // from the backend, never from React math.
+  async function reloadDraft() {
+    if (!customerId || selectedEquip.length === 0) return;
+    const draft = await maintenanceDraft(customerId, selectedEquip);
+    const lines = quoteLinesFromDraft(draft.rows).filter((line) =>
+      selectedEquip.includes(line.equipment)
+    );
+    autoLines.current = new Set(lines.map((line) => lineKey(line.equipment, line.description)));
+    prevSelected.current = [...selectedEquip];
+    setItems(lines);
+  }
+
+  function startEditWorkload(row: OfferTableRow) {
+    setError(null);
+    setEditHours("");
+    setEditWorkload({
+      description: row.module,
+      workloadKind: row.workloadKind,
+      workloadId: row.workloadId,
+      lineCode: row.lineCode,
+      typeCode: row.typeCode,
+      componentType: row.componentType,
+    });
+  }
+
+  async function saveWorkload() {
+    if (!editWorkload) return;
+    const hours = editHours.trim();
+    const workload = hours === "" ? null : hours;
+    setEditBusy(true);
+    setError(null);
+    try {
+      if (editWorkload.workloadKind === "line" && editWorkload.lineCode) {
+        await updateLineWorkload(editWorkload.lineCode, { workload });
+      } else if (editWorkload.workloadKind === "product") {
+        if (editWorkload.workloadId) {
+          await updateComponentWorkload(editWorkload.workloadId, {
+            workload,
+            needs_review: workload === null,
+          });
+        } else {
+          await createComponentWorkload({
+            name: editWorkload.description,
+            component_type: editWorkload.componentType ?? "Slicer",
+            workload,
+            needs_review: workload === null,
+          });
+        }
+      } else if (editWorkload.workloadKind === "module" && editWorkload.typeCode) {
+        await updateModuleWorkload(editWorkload.typeCode, {
+          workload,
+          needs_review: workload === null,
+          label: editWorkload.description || editWorkload.componentType || undefined,
+        });
+      } else {
+        throw new Error("This row has no configurable workload");
+      }
+      setEditWorkload(null);
+      await reloadDraft();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save workload");
+    } finally {
+      setEditBusy(false);
+    }
   }
 
   async function handleSave() {
@@ -369,7 +660,8 @@ export default function OfferBuilder({
     setSaved(null);
     try {
       if (!customerId) throw new Error(t(lang, "ob_select_first"));
-      if (items.some((item) => item.catalogWarning)) throw new Error(t(lang, "ob_resolve_module"));
+      // Unresolved modules stay flagged in the table and priced at 0.00; they
+      // must not block saving the whole offer.
       const pricing = {
         work_hours: num(workHours, 0),
         bk_hours: 0,
@@ -395,10 +687,10 @@ export default function OfferBuilder({
         await updateOffer(editingOfferId, {
           status,
           responsible_person: responsible || undefined,
-          language,
           inspection_frequency: frequency,
           general_comments: comments || undefined,
           offer_date: offerDate || undefined,
+          guardian_selections: guardianSelections,
           pricing,
           items: lines,
         });
@@ -410,10 +702,10 @@ export default function OfferBuilder({
           id_guardian_offer: offerNumber || undefined,
           status,
           responsible_person: responsible || undefined,
-          language,
           inspection_frequency: frequency,
           general_comments: comments || undefined,
           offer_date: offerDate || undefined,
+          guardian_selections: guardianSelections,
           pricing,
           items: lines,
         });
@@ -475,6 +767,11 @@ export default function OfferBuilder({
     module: item.description,
     amount: num(item.import_amount, 0),
     catalogWarning: item.catalogWarning,
+    workloadKind: item.workloadKind,
+    workloadId: item.workloadId,
+    lineCode: item.lineCode,
+    typeCode: item.typeCode,
+    componentType: item.componentType,
   }));
 
   const moduleColumns = useMemo<ColumnDef<OfferTableRow>[]>(
@@ -495,11 +792,21 @@ export default function OfferBuilder({
         cell: ({ row }) => (
           <span>
             {row.original.module}
-            {row.original.catalogWarning && (
-              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800">
-                {t(lang, row.original.catalogWarning === "unconfirmed" ? "ob_unconfirmed" : "ob_unpriced")}
-              </span>
-            )}
+            {row.original.catalogWarning &&
+              (row.original.workloadKind ? (
+                <button
+                  type="button"
+                  onClick={() => startEditWorkload(row.original)}
+                  title={t(lang, "ob_workload_edit")}
+                  className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800 transition-colors hover:bg-amber-300 hover:text-amber-950"
+                >
+                  {t(lang, row.original.catalogWarning === "unconfirmed" ? "ob_unconfirmed" : "ob_unpriced")}
+                </button>
+              ) : (
+                <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800">
+                  {t(lang, row.original.catalogWarning === "unconfirmed" ? "ob_unconfirmed" : "ob_unpriced")}
+                </span>
+              ))}
           </span>
         ),
       },
@@ -558,53 +865,117 @@ export default function OfferBuilder({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        <aside className="hidden min-h-0 w-[260px] shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
-          <div className="p-3 pb-2">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-bold text-slate-800">{t(lang, "nav_customers")}</h2>
-              <span className="text-xs text-slate-500">{customers.length}</span>
+      <div className="flex min-h-0 flex-1 gap-2 p-2">
+        <aside className="hidden min-h-0 w-[280px] shrink-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm lg:flex">
+          <div className="flex min-h-0 flex-1 flex-col border-b border-slate-200">
+            <div className="shrink-0 p-3 pb-2">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-bold text-slate-800">{t(lang, "home_list")}</h2>
+                <span className="text-xs text-slate-500">{offerList.length}</span>
+              </div>
+              <select
+                value={offerStatusFilter}
+                onChange={(e) => setOfferStatusFilter(e.target.value)}
+                className={`${input} border-slate-300`}
+              >
+                <option value="">{t(lang, "home_filter_all")}</option>
+                {offerStatuses.map((s) => (
+                  <option key={s.status} value={s.status}>
+                    {s.status} ({s.count})
+                  </option>
+                ))}
+              </select>
             </div>
-            <input
-              value={clientSearch}
-              onChange={(e) => setClientSearch(e.target.value)}
-              placeholder={t(lang, "cust_search_ph")}
-              className={`${input} border-slate-300`}
-            />
+            <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+              {offerListLoading ? (
+                <p className="px-2 py-5 text-center text-xs text-slate-400">{t(lang, "dash_loading")}</p>
+              ) : offerList.length === 0 ? (
+                <p className="px-2 py-5 text-center text-xs text-slate-400">{t(lang, "home_no_results")}</p>
+              ) : (
+                offerList.map((o) => {
+                  const selected = o.id === editingOfferId;
+                  return (
+                    <button
+                      key={o.id}
+                      type="button"
+                      onClick={() => onEdit?.(o.id)}
+                      className={`w-full text-left rounded-md border-l-[3px] px-2.5 py-2 mb-1 transition-colors ${
+                        selected
+                          ? "border-weber-blue bg-blue-50 text-slate-900"
+                          : "border-transparent hover:bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      <span className="flex items-center justify-between gap-1">
+                        <span className="block truncate font-mono text-xs font-semibold">
+                          {o.id_guardian_offer}
+                        </span>
+                        <span className="shrink-0 rounded bg-slate-100 px-1 py-0.5 text-[10px] text-slate-600">
+                          {o.status || "Draft"}
+                        </span>
+                      </span>
+                      <span className="mt-0.5 block truncate text-[11px] text-slate-500">
+                        {customerNames[o.customer_id] ?? o.customer_id}
+                      </span>
+                      <span className="mt-0.5 flex items-center justify-between gap-1 text-[10px] text-slate-400">
+                        <span>{day(o.offer_date) || day(o.created_at)}</span>
+                        <span className="font-mono">
+                          {money(o.total_end)} {o.currency ?? "EUR"}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3">
-            {filteredCustomers.map((c) => {
-              const selected = c.customer_id === customerId;
-              return (
-                <button
-                  key={c.customer_id}
-                  type="button"
-                  onClick={() => setCustomerId(c.customer_id)}
-                  className={`w-full text-left rounded-md border-l-[3px] px-2.5 py-2 mb-1 transition-colors ${
-                    selected
-                      ? "border-weber-blue bg-blue-50 text-slate-900"
-                      : "border-transparent hover:bg-slate-50 text-slate-700"
-                  }`}
-                >
-                  <span className="block text-xs font-semibold truncate">{c.account_name}</span>
-                  <span className="block text-[11px] text-slate-500 truncate">
-                    {[c.city, c.province, c.country].filter(Boolean).join(", ") || c.customer_id}
-                  </span>
-                  {selected && offers.length > 0 && (
-                    <span className="mt-1 inline-block rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-900">
-                      {offers.length} {t(lang, "ob_client_offers")}
+
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="shrink-0 p-3 pb-2">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-bold text-slate-800">{t(lang, "nav_customers")}</h2>
+                <span className="text-xs text-slate-500">{customers.length}</span>
+              </div>
+              <input
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                placeholder={t(lang, "cust_search_ph")}
+                className={`${input} border-slate-300`}
+              />
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3">
+              {filteredCustomers.map((c) => {
+                const selected = c.customer_id === customerId;
+                return (
+                  <button
+                    key={c.customer_id}
+                    type="button"
+                    onClick={() => selectCustomer(c.customer_id)}
+                    className={`w-full text-left rounded-md border-l-[3px] px-2.5 py-2 mb-1 transition-colors ${
+                      selected
+                        ? "border-weber-blue bg-blue-50 text-slate-900"
+                        : "border-transparent hover:bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    <span className="block text-xs font-semibold truncate">{c.account_name}</span>
+                    <span className="block text-[11px] text-slate-500 truncate">
+                      {[c.city, c.province, c.country].filter(Boolean).join(", ") || c.customer_id}
                     </span>
-                  )}
-                </button>
-              );
-            })}
-            {filteredCustomers.length === 0 && (
-              <p className="px-2 py-5 text-center text-xs text-slate-400">{t(lang, "home_no_results")}</p>
-            )}
+                    {selected && offers.length > 0 && (
+                      <span className="mt-1 inline-block rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-900">
+                        {offers.length} {t(lang, "ob_client_offers")}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+              {filteredCustomers.length === 0 && (
+                <p className="px-2 py-5 text-center text-xs text-slate-400">{t(lang, "home_no_results")}</p>
+              )}
+            </div>
           </div>
         </aside>
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden p-2">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
         {error && <p className="text-sm text-red-600 bg-white rounded-lg shadow p-3">{error}</p>}
         {saved && <p className="text-sm text-green-700 bg-white rounded-lg shadow p-3">{saved}</p>}
 
@@ -614,7 +985,7 @@ export default function OfferBuilder({
               <div className="text-xs font-bold text-weber-blue uppercase mb-2">{t(lang, "ob_customer_data")}</div>
               <select
                 value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
+                onChange={(e) => selectCustomer(e.target.value)}
                 className={`${input} mb-2 lg:hidden bg-blue-50`}
               >
                 <option value="">{t(lang, "ob_select_client")}</option>
@@ -696,14 +1067,6 @@ export default function OfferBuilder({
             <div className="col-span-3 space-y-1.5 text-sm">
               <div className="text-xs font-bold text-weber-blue uppercase mb-2">{t(lang, "ob_options")}</div>
               <div className="flex items-center gap-2">
-                <span className="text-gray-500">{t(lang, "ob_language")}</span>
-                <select value={language} onChange={(e) => setLanguage(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
-                  {LANGUAGES.map((l) => (
-                    <option key={l}>{l}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
                 <span className="text-gray-500">{t(lang, "ob_frequency")}</span>
                 <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
                   {FREQUENCIES.map((f) => (
@@ -729,6 +1092,45 @@ export default function OfferBuilder({
                   ))}
                 </select>
               </div>
+              <details className="mt-2 rounded border border-slate-200 bg-slate-50 p-2">
+                <summary className="cursor-pointer text-xs font-semibold text-slate-700">
+                  {t(lang, "ob_contract_scope")} ({GUARDIAN_SCOPE.filter((module) => guardianSelections.includes(module.id)).length}/6)
+                </summary>
+                <p className="mt-1 text-[10px] leading-snug text-slate-500">{t(lang, "ob_scope_help")}</p>
+                <div className="mt-2 max-h-44 space-y-2 overflow-y-auto pr-1">
+                  {GUARDIAN_SCOPE.map((module) => {
+                    const moduleSelected = guardianSelections.includes(module.id);
+                    return (
+                      <fieldset key={module.id} className="rounded border border-slate-200 bg-white p-1.5">
+                        <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold text-slate-800">
+                          <input
+                            type="checkbox"
+                            checked={moduleSelected}
+                            onChange={() => toggleGuardianModule(module.id, module.options.map(([id]) => id))}
+                            className="accent-blue-700"
+                          />
+                          {module.label}
+                        </label>
+                        {moduleSelected && (
+                          <div className="ml-5 mt-1 space-y-1">
+                            {module.options.map(([optionId, optionLabel]) => (
+                              <label key={optionId} className="flex cursor-pointer items-center gap-1.5 text-[10px] text-slate-600">
+                                <input
+                                  type="checkbox"
+                                  checked={guardianSelections.includes(optionId)}
+                                  onChange={() => toggleGuardianOption(module.id, optionId)}
+                                  className="accent-blue-700"
+                                />
+                                {optionLabel}
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </fieldset>
+                    );
+                  })}
+                </div>
+              </details>
             </div>
           </div>
         </div>
@@ -808,15 +1210,15 @@ export default function OfferBuilder({
           </section>
         </div>
 
-        <div className="grid shrink-0 grid-cols-12 gap-2">
-          <div className="col-span-8">
-            <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-2">
+        <div className="grid shrink-0 grid-cols-12 items-stretch gap-2">
+          <div className="col-span-8 flex">
+            <div className="flex w-full flex-col rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
               <div className="text-xs font-bold text-gray-500 uppercase mb-1">{t(lang, "ob_comments")}</div>
-              <textarea value={comments} onChange={(e) => setComments(e.target.value)} className="w-full border rounded p-2 text-sm h-12 resize-none" placeholder={t(lang, "ob_comments_ph")} />
+              <textarea value={comments} onChange={(e) => setComments(e.target.value)} className="w-full min-h-[48px] flex-1 resize-none rounded border p-2 text-sm" placeholder={t(lang, "ob_comments_ph")} />
             </div>
           </div>
-          <div className="col-span-4">
-            <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-3 text-sm space-y-2">
+          <div className="col-span-4 flex">
+            <div className="flex w-full flex-col space-y-2 rounded-lg border border-slate-200 bg-white p-3 text-sm shadow-sm">
               <div className="flex justify-between">
                 <span className="text-gray-600">{t(lang, "ob_total")}</span>
                 <span className="font-mono font-bold">{calc ? eur(calc.total) : "—"}</span>
@@ -839,6 +1241,46 @@ export default function OfferBuilder({
 
       </main>
       </div>
+
+      {editWorkload && (
+        <Modal
+          title={t(lang, "ob_workload_edit")}
+          onClose={() => setEditWorkload(null)}
+        >
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-slate-700">{editWorkload.description}</p>
+            <label className="block text-xs">
+              {t(lang, "eq_workload")}
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                autoFocus
+                value={editHours}
+                onChange={(e) => setEditHours(e.target.value)}
+                className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
+              />
+            </label>
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                className="rounded border px-3 py-1.5 text-sm"
+                onClick={() => setEditWorkload(null)}
+              >
+                {t(lang, "cfg_cancel")}
+              </button>
+              <button
+                type="button"
+                disabled={editBusy}
+                className="rounded bg-weber-blue px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+                onClick={() => void saveWorkload()}
+              >
+                {editBusy ? t(lang, "dash_loading") : t(lang, "cfg_save")}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

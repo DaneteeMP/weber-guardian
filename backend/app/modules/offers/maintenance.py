@@ -4,15 +4,17 @@ A maintenance line has no price of its own. Its amount is the row's standard
 hours (workload) times the technician hourly rate of the customer's subsidiary
 (prices.tech_rate).
 
-Workloads are global master data:
+Each selected machine produces:
 
-* Normal component types use one workload per component type.
-* Special model-based component types (currently Slicer) use one workload
-  per pure product/model, ignoring variants such as "-Basic", "-Extended",
-  "-1" and "-2".
+* one ``line`` row: the machine itself, priced by its family (the
+  ``equipment_catalog`` line entry for its ``machine_type``, e.g. "40x");
+* one ``module`` row per attached component, priced by its ``type_code``
+  workload (``module_workloads``).
 
-Unknown workloads are never invented. They produce needs_review=True and
-amount=0.00 until an administrator configures them.
+The slicer component of a machine IS the machine line, so it is never repeated
+as a module: a compact "UB" slicer (no attachments) therefore yields its line
+row alone. Unknown workloads are never invented: they produce
+needs_review=True and amount=0.00 until an administrator configures them.
 """
 
 from decimal import Decimal, ROUND_HALF_UP
@@ -22,9 +24,9 @@ from sqlalchemy.orm import Session
 
 from app.modules.customers.models import Customer
 from app.modules.customers.service import CustomerNotFound
-from app.modules.component_names.models import ComponentName, ComponentWorkload
-from app.modules.component_names.service import normalize_material_no
-from app.modules.component_names.workloads import workload_identity
+from app.modules.component_names.models import ComponentName, ModuleWorkload
+from app.modules.component_names.service import legacy_base_material_no, normalize_material_no
+from app.modules.component_names.workloads import SLICER_TYPE_CODES
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_catalog.service import resolve_line
 from app.modules.offers.schemas import MaintenanceDraftOut, MaintenanceDraftRowOut
@@ -48,13 +50,6 @@ def _money(value: Decimal) -> Decimal:
     return value.quantize(TWOPLACES, rounding=ROUND_HALF_UP)
 
 
-def _clean_text(value: str | None) -> str:
-    """Normalize whitespace without changing the actual wording."""
-    if not value:
-        return ""
-    return " ".join(value.split()).strip()
-
-
 def _machine_rows(rows: list[Equipment], name: str) -> list[Equipment]:
     return [row for row in rows if row.equipment_name == name]
 
@@ -67,30 +62,6 @@ def _machine_type_of(rows: list[Equipment]) -> str | None:
     return None
 
 
-def _workload_key(name: ComponentName) -> str | None:
-    """Resolve a dictionary row to its stable workload source key."""
-    component_type = _clean_text(name.component_type)
-    if not component_type:
-        return None
-    return workload_identity(
-        component_type,
-        name.name_en,
-        name.description,
-    )[0]
-
-
-def _workload_index(
-    workloads: list[ComponentWorkload],
-) -> dict[str, ComponentWorkload]:
-    """Index workload master by stable identity, never by its editable name."""
-    result: dict[str, ComponentWorkload] = {}
-
-    for workload in workloads:
-        result[workload.source_key] = workload
-
-    return result
-
-
 def _line_row(
     machine: str,
     rows: list[Equipment],
@@ -99,7 +70,20 @@ def _line_row(
 ) -> MaintenanceDraftRowOut:
     machine_type = _machine_type_of(rows)
 
-    if machine_type is None or resolved is None:
+    if machine_type is None:
+        return MaintenanceDraftRowOut(
+            machine=machine,
+            kind="line",
+            description=None,
+            workload=None,
+            amount=Decimal("0.00"),
+            match_state="unknown",
+            needs_review=True,
+        )
+
+    # The line is editable from the Offer badge: by machine_type (line_code),
+    # through the equipment_catalog line entry when one exists.
+    if resolved is None:
         return MaintenanceDraftRowOut(
             machine=machine,
             kind="line",
@@ -108,6 +92,8 @@ def _line_row(
             amount=Decimal("0.00"),
             match_state="unknown",
             needs_review=True,
+            workload_kind="line",
+            line_code=machine_type,
         )
 
     entry, is_confirmed = resolved
@@ -128,6 +114,9 @@ def _line_row(
         amount=amount,
         match_state="confirmed" if is_confirmed else "unconfirmed",
         needs_review=needs_review,
+        workload_kind="line",
+        workload_id=entry.id,
+        line_code=machine_type,
     )
 
 
@@ -135,27 +124,31 @@ def _module_rows(
     machine: str,
     rows: list[Equipment],
     rate: Decimal,
-    names_by_material: dict[str, ComponentName],
-    workloads_by_key: dict[tuple[str, str], ComponentWorkload],
+    names_by_key: dict[str, ComponentName],
+    legacy_by_code: dict[str, ModuleWorkload],
 ) -> list[MaintenanceDraftRowOut]:
-    """Build one maintenance row per distinct material number.
+    """Build one maintenance row per attached component of a machine.
 
     The same material can appear multiple times in the imported equipment
     data. It is therefore collapsed to one row so its workload is not counted
-    repeatedly.
+    repeatedly. The slicer component is skipped: it is the machine line, already
+    priced by the line row, and repeating it would double the machine.
     """
-    materials = sorted(
-        {
-            normalize_material_no(row.material_no)
-            for row in rows
-            if row.material_no
-        }
-    )
+    # One row per distinct catalogue material; keep the raw material so a
+    # dictionary imported before the model-aware normalization still resolves.
+    raw_by_key: dict[str, str] = {}
+    for row in rows:
+        if not row.material_no:
+            continue
+        raw_by_key.setdefault(normalize_material_no(row.material_no), row.material_no)
 
     output: list[MaintenanceDraftRowOut] = []
 
-    for material_no in materials:
-        name = names_by_material.get(material_no)
+    for material_no in sorted(raw_by_key):
+        raw_material = raw_by_key[material_no]
+        name = names_by_key.get(material_no) or names_by_key.get(
+            legacy_base_material_no(raw_material)
+        )
 
         if name is None:
             output.append(
@@ -173,48 +166,35 @@ def _module_rows(
             )
             continue
 
-        workload_key = _workload_key(name)
-        workload_row = (
-            workloads_by_key.get(workload_key)
-            if workload_key is not None
-            else None
-        )
+        type_code = name.type_code
 
-        workload = (
-            workload_row.workload
-            if workload_row is not None
-            else None
-        )
+        # The slicer is the machine line itself (priced by family in the line
+        # row). Never add it again as a module, and drop its variants such as
+        # the "-Z" accessory rows.
+        if (type_code or "").strip().upper() in SLICER_TYPE_CODES:
+            continue
 
-        description = (
-            workload_row.name
-            if workload_row is not None
-            else name.name_en
-        )
-
-        known = workload is not None
-        needs_review = not known or (workload_row is not None and workload_row.needs_review)
-        match_state = (
-            "unknown"
-            if not known
-            else "unconfirmed"
-            if needs_review
-            else "confirmed"
-        )
+        legacy = legacy_by_code.get(type_code) if type_code else None
+        workload = legacy.workload if legacy is not None else None
+        if workload is None:
+            needs_review = True
+            match_state = "unknown"
+        else:
+            needs_review = legacy.needs_review
+            match_state = "confirmed" if not needs_review else "unconfirmed"
 
         output.append(
             MaintenanceDraftRowOut(
                 machine=machine,
                 kind="module",
-                description=description,
+                description=name.name_en,
                 material_no=material_no,
-                type_code=name.type_code,
+                type_code=type_code,
+                workload_kind="module" if type_code else None,
+                workload_id=None,
+                component_type=name.component_type,
                 workload=workload,
-                amount=(
-                    _money(workload * rate)
-                    if known
-                    else Decimal("0.00")
-                ),
+                amount=_money(workload * rate) if workload is not None else Decimal("0.00"),
                 match_state=match_state,
                 needs_review=needs_review,
             )
@@ -299,38 +279,38 @@ def maintenance_draft(
         for name in machine_names
     ]
 
-    materials = {
-        normalize_material_no(row.material_no)
-        for group in all_rows
-        for row in group
-        if row.material_no
-    }
+    # Look up the dictionary by the model-aware key first, then by the legacy
+    # collapse, so both dictionaries imported before and after the
+    # normalize_material_no fix resolve.
+    candidate_keys: set[str] = set()
+    for group in all_rows:
+        for row in group:
+            if row.material_no:
+                candidate_keys.add(normalize_material_no(row.material_no))
+                candidate_keys.add(legacy_base_material_no(row.material_no))
 
-    names_by_material: dict[str, ComponentName] = {}
+    names_by_key: dict[str, ComponentName] = {}
 
-    if materials:
+    if candidate_keys:
         for name in db.scalars(
             select(ComponentName).where(
-                ComponentName.material_no.in_(materials)
+                ComponentName.material_no.in_(candidate_keys)
             )
         ):
-            names_by_material[name.material_no] = name
+            names_by_key[name.material_no] = name
 
     # ---------------------------------------------------------------
     # Global workload master
     #
-    # We deliberately load the workload catalog independently from the
-    # imported dictionary. This means a dictionary re-import cannot
-    # overwrite manually configured workloads.
+    # Ordinary module hours come from the legacy type_code table
+    # (module_workloads), loaded independently from the imported dictionary so
+    # a dictionary re-import cannot overwrite manually configured workloads.
     # ---------------------------------------------------------------
 
-    workloads = list(
-        db.scalars(
-            select(ComponentWorkload)
-        )
-    )
-
-    workloads_by_key = _workload_index(workloads)
+    legacy_by_code = {
+        row.type_code: row
+        for row in db.scalars(select(ModuleWorkload))
+    }
 
     # ---------------------------------------------------------------
     # Build draft
@@ -355,8 +335,8 @@ def maintenance_draft(
                 machine,
                 group,
                 rate,
-                names_by_material,
-                workloads_by_key,
+                names_by_key,
+                legacy_by_code,
             )
         )
 

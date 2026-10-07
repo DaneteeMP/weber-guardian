@@ -15,6 +15,7 @@ delete an existing workload row, so manual hours and labels survive imports.
 """
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+from decimal import Decimal
 import re
 import uuid
 
@@ -23,7 +24,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.modules.component_names import service as component_name_service
-from app.modules.component_names.models import ComponentName, ComponentWorkload
+from app.modules.component_names.models import ComponentName, ComponentWorkload, ModuleWorkload
 from app.modules.component_names.schemas import (
     ComponentWorkloadCreateIn,
     WorkloadImportReportOut,
@@ -125,6 +126,67 @@ def normalize_slicer_model(name_en: str | None, description: str | None = None) 
         if model is not None:
             return model
     return None
+
+
+# Component type codes whose workload depends on the concrete model, verified
+# against the real dictionary: only CCS, SLI and TSX are "Slicer" products.
+SLICER_TYPE_CODES = frozenset({"CCS", "SLI", "TSX"})
+
+_ACCESSORY_RE = re.compile(r"\baccessor(?:y|ies)\b", re.IGNORECASE)
+
+
+def _mentions_accessory(*values: str | None) -> bool:
+    return any(_ACCESSORY_RE.search(value) for value in values if value)
+
+
+def slicer_model_from_material(material_no: str | None) -> str | None:
+    """Extract a slicer model from a material number, without guessing.
+
+    Only the CCS formats observed in the real dictionary are handled:
+
+        CCS 302-376   -> Slicer 302   (model then serial)
+        CCS04051      -> Slicer 405   (CCS0<model><sequence>)
+
+    Any other family or format returns None so the caller flags the row for a
+    human instead of inventing a model.
+    """
+    value = _clean_text(material_no)
+    if not value:
+        return None
+    match = re.search(r"\bCCS\s+(\d{3})(?:\D|$)", value, re.IGNORECASE)
+    if match:
+        return f"Slicer {match.group(1)}"
+    match = re.search(r"\bCCS0(\d{3})\d\b", value, re.IGNORECASE)
+    if match:
+        return f"Slicer {match.group(1)}"
+    return None
+
+
+def slicer_model_for(
+    type_code: str | None,
+    name_en: str | None,
+    description: str | None,
+    material_no: str | None,
+) -> str | None:
+    """Resolve the slicer model of a component, or None when it cannot be known.
+
+    The English name is authoritative. Only when it names no model and is not
+    an accessory is the material number consulted. Accessory rows stay
+    unresolved on purpose: they must never be guessed into a nearby slicer.
+    """
+    if (type_code or "").strip().upper() not in SLICER_TYPE_CODES:
+        return None
+    model = normalize_slicer_model(name_en, description)
+    if model is not None:
+        return model
+    if _mentions_accessory(name_en, description):
+        return None
+    return slicer_model_from_material(material_no)
+
+
+def slicer_source_key(model: str) -> str:
+    """Stable product identity of a slicer model, matching the importer."""
+    return f"slicer:{_key_text(model)}"
 
 
 def workload_identity(
@@ -261,6 +323,83 @@ def count_workloads(
 ) -> int:
     statement = _filtered(db, search, component_type, needs_review).order_by(None)
     return db.scalar(select(func.count()).select_from(statement.subquery())) or 0
+
+
+def list_module_workloads(
+    db: Session,
+    search: str | None = None,
+    needs_review: bool | None = None,
+    limit: int = 200,
+    offset: int = 0,
+) -> list[ModuleWorkload]:
+    """List the legacy module workloads (type_code keyed)."""
+    statement = select(ModuleWorkload)
+    if search:
+        pattern = f"%{_clean_text(search)}%"
+        statement = statement.where(
+            ModuleWorkload.type_code.ilike(pattern) | ModuleWorkload.label.ilike(pattern)
+        )
+    if needs_review is not None:
+        statement = statement.where(ModuleWorkload.needs_review.is_(needs_review))
+    statement = statement.order_by(ModuleWorkload.type_code).limit(limit).offset(offset)
+    return list(db.scalars(statement))
+
+
+def count_module_workloads(
+    db: Session,
+    search: str | None = None,
+    needs_review: bool | None = None,
+) -> int:
+    statement = select(ModuleWorkload)
+    if search:
+        pattern = f"%{_clean_text(search)}%"
+        statement = statement.where(
+            ModuleWorkload.type_code.ilike(pattern) | ModuleWorkload.label.ilike(pattern)
+        )
+    if needs_review is not None:
+        statement = statement.where(ModuleWorkload.needs_review.is_(needs_review))
+    return db.scalar(select(func.count()).select_from(statement.subquery())) or 0
+
+
+def update_module_workload(
+    db: Session,
+    type_code: str,
+    workload: Decimal | None,
+    needs_review: bool | None,
+    label: str | None = None,
+) -> ModuleWorkload:
+    """Set the hours of one module, creating the row when the code is new.
+
+    A type_code outside the legacy list can still arrive from a machine
+    component (e.g. MLC, SLC); configuring it from the offer creates the row
+    instead of failing.
+    """
+    # A NULL workload always stays flagged; a real value clears the flag unless
+    # the caller explicitly asks to keep it.
+    if needs_review is None:
+        next_needs_review = workload is None
+    else:
+        next_needs_review = needs_review
+    if workload is None and next_needs_review is False:
+        raise ValueError("a workload without hours must remain marked for review")
+
+    row = db.get(ModuleWorkload, type_code)
+    if row is None:
+        row = ModuleWorkload(
+            type_code=type_code,
+            label=_clean_text(label) or type_code,
+            workload=workload,
+            needs_review=next_needs_review,
+        )
+        db.add(row)
+    else:
+        if label:
+            row.label = _clean_text(label)
+        row.workload = workload
+        row.needs_review = next_needs_review
+    db.commit()
+    db.refresh(row)
+    return row
 
 
 def get_workload(db: Session, workload_id: uuid.UUID) -> ComponentWorkload:

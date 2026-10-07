@@ -117,6 +117,11 @@ def calculate(inp: PricingInput, bk_price: Decimal = Decimal("0")) -> PricingOut
         diets = Decimal(num_days - 1) * inp.diet_full_rate + inp.diet_half_rate
 
     expenses = trip_cost + diets + hotel
+    # hours_import is charged on the ROUNDED total_hours (whole 8h days), so it
+    # can exceed the sum of the raw workload lines by the rounding adjustment
+    # (legacy "HorasRedondeadas"). The stored line amounts are the
+    # pre-distribution workload × rate: the legacy RepartirCostes pass that made
+    # the lines sum to the total is not implemented yet.
     hours_import = total_hours * inp.tech_rate
     discount = hours_import * inp.discount_rate
     total = hours_import + expenses + bk_price

@@ -32,9 +32,15 @@ contraseña compartida y **no** es una postura de produccion.
    ```
    El contenedor de Render no lanza migraciones al arrancar (no hay migraciones
    automaticas en el plan gratuito), por eso se hace aqui y a mano.
-3. Datos de la demo (clientes y ofertas inventados):
+3. Identidades: la app todavia no tiene login real y arranca como `dev-admin`,
+   asi que **siempre** hacen falta los usuarios dev:
    ```
    docker compose run --rm -e DATABASE_URL="postgresql+psycopg://.../postgres?sslmode=require" api python seed_dev.py
+   ```
+4. Datos de ejemplo (opcional). Solo si quieres una demo con datos inventados
+   (clientes y ofertas); para una instancia vacia que vayas a importar tu, se
+   salta este paso:
+   ```
    docker compose run --rm -e DATABASE_URL="postgresql+psycopg://.../postgres?sslmode=require" api python seed_demo.py
    ```
    `seed_demo.py` se niega a ejecutarse si la tabla `offers` ya tiene filas, de
@@ -49,14 +55,20 @@ el propio servicio de Render, y para eso esta `bootstrap_demo.py`: migra y
 siembra en un solo comando.
 
 1. En Render, servicio `weberguardian-api` -> **Settings** -> **Docker Command**:
-   ```
-   python bootstrap_demo.py
-   ```
+   - Instancia **vacia** (solo esquema + usuarios dev, sin clientes/ofertas):
+     ```
+     python bootstrap.py
+     ```
+   - Demo **con** datos inventados (anade clientes y ofertas):
+     ```
+     python bootstrap_demo.py
+     ```
    Ese campo acepta **un unico ejecutable, sin operadores de shell**: escribir
    `sh -c "a && b && c"` falla con `not found`.
 2. Guardar y esperar el reinicio. En **Logs** deben aparecer `--- alembic
-   upgrade head ---`, `users: 4 created`, `offers: 24 across 8 customers` y
-   `bootstrap finished`. El contenedor acaba en `Exited`, y es lo esperado: el
+   upgrade head ---`, `users: 4 created` y `bootstrap finished` (con
+   `bootstrap.py`) o ademas `offers: 24 across 8 customers` (con
+   `bootstrap_demo.py`). El contenedor acaba en `Exited`, y es lo esperado: el
    script solo prepara datos, no arranca el servidor.
 3. **Volver a vaciar el Docker Command** y guardar, para que arranque el CMD
    normal con uvicorn.
