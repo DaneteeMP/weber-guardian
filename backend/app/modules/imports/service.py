@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.subsidiaries import normalize_subsidiary
 from app.modules.customers.models import Customer
+from app.modules.customers.service import normalize_customer_id
 from app.modules.equipment.models import CustomerSite, Equipment, row_hash_of, site_hash_of
 from app.modules.imports.schemas import ImportReport, RowError
 from app.modules.subsidiaries.service import subsidiary_for_country, supervision_map
@@ -117,19 +118,21 @@ def _customer_id_lookup(db: Session) -> tuple[set[str], dict[str, str]]:
 def _resolve_customer_id(raw_id: str, stored: set[str], by_digits: dict[str, str]) -> str:
     """Return the stored customer ID a CSV row belongs to.
 
-    SAP has sent the same debitor as both "0001012933" and "1012933", and
-    both formats end up in one database. Because the customer ID feeds both
-    row hashes, importing the second format silently built a second customer
-    with a second copy of the same machines. An exact hit always wins so a
-    re-import stays idempotent; otherwise any padded variant already on file
-    is reused, and an ID with no match is stored exactly as the file sends it.
+    SAP has sent the same debitor as both "0001012933" and "1012933", and both
+    formats end up in one database. Because the customer ID feeds both row
+    hashes, importing the second format silently built a second customer with a
+    second copy of the same machines. The ID is canonicalized first (numeric ->
+    10 digits): an exact hit wins so a re-import stays idempotent, a legacy
+    unpadded variant already on file is reused to avoid splitting it, and an ID
+    with no match is stored in the canonical padded form.
     """
-    if raw_id in stored:
-        return raw_id
-    digits = raw_id.lstrip("0")
-    if not raw_id.isdigit() or not digits:
-        return raw_id
-    return by_digits.get(digits, raw_id)
+    canonical = normalize_customer_id(raw_id)
+    if canonical in stored:
+        return canonical
+    digits = canonical.lstrip("0")
+    if not canonical.isdigit() or not digits:
+        return canonical
+    return by_digits.get(digits, canonical)
 
 
 def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: bool) -> ImportReport:

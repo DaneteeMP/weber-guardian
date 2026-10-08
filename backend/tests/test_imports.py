@@ -53,6 +53,22 @@ def test_real_run_is_idempotent(db):
     assert db.scalar(select(func.count()).select_from(CustomerSite)) == 2
 
 
+def test_unpadded_sap_id_imports_padded_and_does_not_split(db):
+    """A CSV that sends "1052152" must land as "0001052152"; re-importing the
+    padded form must not create a second customer for the same company."""
+    unpadded = '"1052152";"";"Rosso S.p.A.";"305-100";"Slicer";"";"CCS 305-100";"";"CCS305";"";"Parma";"43012";"Parma";"Italy"\n'
+    report = run_import(db, (HEADER + unpadded).encode(), subsidiary_id=None, dry_run=False)
+    assert report.errors == []
+    assert report.customers_created == 1
+    assert db.scalar(select(Customer).where(Customer.customer_id == "0001052152")) is not None
+
+    padded = unpadded.replace('"1052152"', '"0001052152"', 1)
+    again = run_import(db, (HEADER + padded).encode(), subsidiary_id=None, dry_run=False)
+    assert again.errors == []
+    assert again.customers_created == 0
+    assert db.scalar(select(func.count()).select_from(Customer)) == 1
+
+
 def test_any_row_error_aborts_everything(db):
     bad = '"0001012933";"";"";"304-565";"Slicer";"";"CCS 304-565";"";"CCS304";"Lithuania"\n'
     report = run_import(db, (HEADER + ROW_ES + bad).encode(), subsidiary_id=None, dry_run=False)
@@ -171,8 +187,8 @@ ROW_ES_UNPADDED = ROW_ES.replace('"0001012933"', '"1012933"')
 
 
 def test_padded_row_reuses_the_customer_stored_without_padding(db):
-    """SAP sends 0001012933 in one export and 1012933 in the next one. The
-    second load must enrich the existing customer, not create a twin."""
+    """SAP sends 0001012933 in one export and 1012933 in the next one. Both
+    land on the same canonical padded customer, never a twin."""
     first = run_import(db, (HEADER + ROW_ES_UNPADDED).encode(), subsidiary_id=None, dry_run=False)
     assert first.errors == [] and first.customers_created == 1
 
@@ -181,7 +197,7 @@ def test_padded_row_reuses_the_customer_stored_without_padding(db):
     assert padded.customers_created == 0
     assert padded.customers_skipped == 1
     assert db.scalar(select(func.count()).select_from(Customer)) == 1
-    assert db.scalar(select(Customer)).customer_id == "1012933"
+    assert db.scalar(select(Customer)).customer_id == "0001012933"
 
 
 def test_unpadded_row_reuses_the_customer_stored_padded(db):

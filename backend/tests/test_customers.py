@@ -24,6 +24,16 @@ def test_create_and_list(db):
     assert str(rows[0].id) != "EXT-001"
 
 
+def test_customer_id_is_zero_padded_to_sap_form(db):
+    """Numeric SAP Debitors are stored zero-padded to 10 digits, so "1052152"
+    and "0001052152" can never become two customers for the same company."""
+    row = create_customer(db, CustomerCreate(customer_id="1052152", account_name="Rosso S.p.A."))
+    assert row.customer_id == "0001052152"
+    with pytest.raises(CustomerAlreadyExists):
+        create_customer(db, CustomerCreate(customer_id="0001052152", account_name="Rosso S.p.A."))
+    assert count_customers(db) == 1
+
+
 def test_duplicate_customer_id_raises_domain_error(db):
     """Duplicate customer_id must raise a domain error, not a raw DB error."""
     create_customer(db, CustomerCreate(customer_id="EXT-001", account_name="First"))

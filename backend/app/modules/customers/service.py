@@ -167,16 +167,32 @@ def get_customer_detail(db: Session, customer_id: str, subsidiary_id: str | None
     )
 
 
+def normalize_customer_id(value: str) -> str:
+    """Canonical SAP Debitor ID: numeric IDs are zero-padded to 10 digits.
+
+    SAP sends the same debitor as both "1052152" and "0001052152"; storing each
+    variant as-is split one company into two customers, and the customer ID also
+    feeds the equipment row hashes. Numeric IDs are normalized to the 10-digit
+    SAP form; non-numeric IDs are kept exactly as sent.
+    """
+    stripped = value.strip()
+    if stripped.isdigit():
+        return stripped.zfill(10)
+    return stripped
+
+
 def create_customer(db: Session, data: CustomerCreate, scope_subsidiary: str | None = None) -> Customer:
     """Create one customer. Commits explicitly, rolls back on duplicate.
 
     Scoped callers land inside their own filial: an empty subsidiary
     defaults to it, a foreign one is rejected (403 at the router).
     """
+    updates = {"customer_id": normalize_customer_id(data.customer_id)}
     if scope_subsidiary is not None:
         if data.subsidiary_id and data.subsidiary_id != scope_subsidiary:
             raise OutsideScope(scope_subsidiary)
-        data = data.model_copy(update={"subsidiary_id": scope_subsidiary})
+        updates["subsidiary_id"] = scope_subsidiary
+    data = data.model_copy(update=updates)
     row = Customer(**data.model_dump())
     db.add(row)
     try:
