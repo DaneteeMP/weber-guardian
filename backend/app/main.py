@@ -21,6 +21,14 @@ from app.weber.pdf import build_offer_pdf
 
 app = FastAPI(title="Guardian Contract Management API", version="0.1.0")
 
+# One startup line so the platform logs show the effective config: a wrong or
+# empty ALLOWED_ORIGINS is the usual cause of "CORS: no Access-Control-Allow-Origin".
+print(
+    f"startup: CORS origins={settings.cors_origins} "
+    f"dev_auth={settings.dev_auth_enabled} gate={settings.basic_auth_enabled}",
+    flush=True,
+)
+
 # Composition root: the only place allowed to wire the Weber adapter into
 # the core. Routers read request.app.state.pdf_renderer; modules never
 # import app.weber.
