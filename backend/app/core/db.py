@@ -14,7 +14,16 @@ class Base(DeclarativeBase):
     pass
 
 
-engine = create_engine(settings.database_url, pool_pre_ping=True)
+# Supabase's pooler (Supavisor / PgBouncer in transaction mode) does not support
+# server-side prepared statements, which psycopg uses automatically after a few
+# executions. Disabling them keeps the pooler URL usable; on a direct connection
+# the cost is negligible. The pooler is much faster to connect to than the direct
+# database, which is what makes the first requests on a cold/fresh pool slow.
+_connect_args: dict = {}
+if settings.database_url.startswith("postgresql"):
+    _connect_args["prepare_threshold"] = None
+
+engine = create_engine(settings.database_url, pool_pre_ping=True, connect_args=_connect_args)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 

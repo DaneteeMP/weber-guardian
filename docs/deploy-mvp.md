@@ -22,9 +22,15 @@ contraseña compartida y **no** es una postura de produccion.
 
 ## 1. Supabase (base de datos)
 
-1. Crear un proyecto y copiar la cadena de conexion **directa** (puerto 5432),
-   no la del pooler: `postgresql+psycopg://USER:PASSWORD@HOST:5432/postgres?sslmode=require`.
-   Con el pooler (pgbouncer) psycopg necesita `prepare_threshold=0`.
+1. Crear un proyecto y copiar la cadena del **pooler** ("Transaction pooler",
+   puerto 6543):
+   `postgresql+psycopg://USER:PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres?sslmode=require`.
+   El pooler abre conexiones mucho mas rapido que la directa (5432), y eso es lo
+   que hacia que la primera carga tardase varios segundos: cada recarga pagaba
+   el establecimiento de la conexion TLS. El backend ya desactiva las sentencias
+   preparadas del servidor (`prepare_threshold=None`), que el pooler en modo
+   transaccion no soporta. La conexion directa tambien sigue valiendo, pero es
+   mas lenta de abrir.
 2. Crear el schema ejecutando las migraciones **una sola vez**, contra esa
    cadena de conexion:
    ```
