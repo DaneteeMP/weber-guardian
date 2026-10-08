@@ -1,9 +1,12 @@
 """FastAPI app. Mounts routers under /api/v1. Free OpenAPI at /docs."""
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.basic_auth import BasicAuthMiddleware
 from app.core.config import settings
+from app.core.db import engine
 from app.modules.basic_kit.router import router as basic_kit_router
 from app.modules.component_names.module_workload_router import router as module_workloads_router
 from app.modules.component_names.router import router as component_names_router
@@ -58,6 +61,26 @@ app.add_middleware(
 
 @app.get("/health")
 def health():
+    return {"status": "ok"}
+
+
+@app.get("/warmup")
+def warmup():
+    """Cheap keep-alive that also touches the database.
+
+    Exposed without the Basic gate (see EXEMPT_PATHS), so an external cron can
+    call it every few minutes. It opens a pooled connection and runs SELECT 1,
+    which keeps both the free instance and its remote Supabase connection warm,
+    so real users skip the cold-start cost. It returns no data.
+    """
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("select 1"))
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="database unavailable",
+        ) from exc
     return {"status": "ok"}
 
 

@@ -97,6 +97,22 @@ primera peticion tras un rato tarda 30-60 s. Con una instancia de pago no pasa.
 Se puede evitar el imprevisto de la demo dejando el plan gratuito y aceptando
 la espera, o pasando a `starter`.
 
+### Evitar el cold start (plan gratuito)
+
+Cada vez que la instancia se duerme, la primera carga paga el arranque **y** la
+apertura de conexiones TLS contra Supabase (varios segundos, una sola vez). Para
+evitarlo sin pagar, un cron externo (cron-job.org, UptimeRobot) debe llamar cada
+~10 min a:
+
+```
+https://weberguardian-api.onrender.com/warmup
+```
+
+`/warmup` no pide credenciales y ademas ejecuta un `SELECT 1`, asi que mantiene
+despierta la instancia **y** con la conexion a la base ya abierta. Con eso la
+carga de las peticiones de la app baja a lo normal (cientos de ms). `/health`
+sirve solo para despertar; `/warmup` es el que conviene pings.
+
 ## 3. Vercel (frontend)
 
 1. New Project, importar el repositorio y poner **Root Directory = `frontend`**

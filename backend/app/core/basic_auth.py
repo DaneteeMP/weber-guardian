@@ -18,8 +18,9 @@ from starlette.responses import Response
 
 from app.core.config import settings
 
-# Health probes come from the platform and carry no credentials.
-EXEMPT_PATHS = {"/health"}
+# Health/keep-alive probes come from the platform or a cron and carry no
+# credentials. They expose no data.
+EXEMPT_PATHS = {"/health", "/warmup"}
 
 
 class BasicAuthMiddleware(BaseHTTPMiddleware):
