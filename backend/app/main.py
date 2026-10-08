@@ -17,7 +17,6 @@ from app.modules.offers.router import router as offers_router
 from app.modules.prices.router import router as prices_router
 from app.modules.subsidiaries.router import router as subsidiaries_router
 from app.modules.users.router import router as users_router
-from app.weber.pdf import build_offer_pdf
 
 app = FastAPI(title="Guardian Contract Management API", version="0.1.0")
 
@@ -32,7 +31,18 @@ print(
 # Composition root: the only place allowed to wire the Weber adapter into
 # the core. Routers read request.app.state.pdf_renderer; modules never
 # import app.weber.
-app.state.pdf_renderer = build_offer_pdf
+#
+# Import is deferred to the first PDF request: reportlab and pypdfium2 (plus
+# its native library) are heavy, and on the free hosting plan a cold start is
+# dominated by import time. Once imported, the module stays in sys.modules so
+# later calls are a dict lookup.
+def _pdf_renderer(doc):
+    from app.weber.pdf import build_offer_pdf
+
+    return build_offer_pdf(doc)
+
+
+app.state.pdf_renderer = _pdf_renderer
 
 # Demo gate first, CORS last: middleware runs in reverse order of addition, so
 # CORS ends up outermost and stamps headers on the 401 this returns too.
