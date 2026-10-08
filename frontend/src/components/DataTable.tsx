@@ -24,6 +24,9 @@ type DataTableProps<TData> = {
   renderExpandedRow?: (row: TData) => ReactNode;
 
   className?: string;
+
+  // Minimum width of the inner table; wide tables scroll horizontally.
+  tableClassName?: string;
 };
 
 export default function DataTable<TData>({
@@ -37,6 +40,7 @@ export default function DataTable<TData>({
   selectedRowId,
   renderExpandedRow,
   className = "",
+  tableClassName = "min-w-[850px]",
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
@@ -66,7 +70,7 @@ export default function DataTable<TData>({
     <div
       className={`min-h-0 flex-1 overflow-auto border ${className}`}
     >
-      <table className="w-full min-w-[850px] text-sm">
+      <table className={`w-full text-sm ${tableClassName}`}>
         <thead className="sticky top-0 z-10">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr
