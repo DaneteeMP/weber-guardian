@@ -86,7 +86,12 @@ detecta que ya hay ofertas en vez de depender del codigo de salida de
 
 ## 2. Render (API)
 
-1. New > Blueprint, apuntando al repositorio. Render lee `render.yaml`.
+1. New > Blueprint, apuntando al repositorio. Render lee `render.yaml`
+   (que ya fija `region: frankfurt`). Pon el servicio en la **misma region/continente
+   que Supabase**: cada consulta viaja Render -> Supabase, y si cruzan el Atlantico
+   cada round-trip suma ~0,4 s. Con Supabase en Irlanda, la region EU de Render es
+   Frankfurt (~20-30 ms). No se puede cambiar la region de un servicio ya creado:
+   hay que borrarlo y recrearlo.
 2. Completar las variables `sync: false` en el panel:
    - `DATABASE_URL`: la de Supabase del paso 1.
    - `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD`: la contraseña de la demo. Solo
