@@ -113,7 +113,7 @@ export default function Customers({
   }, [search]);
 
   return (
-    <div className="p-4 space-y-3 w-full h-full">
+    <div className="flex h-full min-h-0 w-full flex-col gap-3 p-4">
       <PageHeader
         title={t(lang, "cust_title")}
         action={
@@ -132,6 +132,7 @@ export default function Customers({
       )}
 
       <SectionCard
+        className="flex min-h-0 flex-1 flex-col"
         title={`${t(lang, "nav_customers")} (${total.toLocaleString()})`}
       >
         <CustomerTable
