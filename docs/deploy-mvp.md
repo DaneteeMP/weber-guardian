@@ -78,6 +78,15 @@ contraseña compartida y **no** es una postura de produccion.
       diccionario. Reimportar el propio export es un no-op; sirve para comprobar
       que el entorno de destino tiene exactamente el mismo catalogo.
 
+   3) **Consistencia diccionario <-> catalogo.** Los enlaces apuntan a
+      `material_no`, y el importador normaliza el material (colapsa a material
+      base). Si el diccionario de destino se importo con otra version de la
+      normalizacion, los `material_no` no coinciden y los enlaces se omiten
+      (`materials_skipped`). En la practica: importa el **mismo**
+      `names_dictionary_clean.csv` en origen y destino antes del catalogo.
+      El import mueve solo reglas y lineas; **no** clientes ni equipos, asi que
+      `unresolved` puede diferir entre entornos con distinta poblacion instalada.
+
 ### Si la red local no llega a Supabase
 
 En algunas redes (sobre todo detras de VPN o con DNS filtrado) el host de
