@@ -72,10 +72,12 @@ def test_price_update_replaces_whole_row(db):
             diet_full_rate=Decimal("45"),
             diet_half_rate=Decimal("22"),
             hotel_rate=Decimal("90"),
+            discount_rate=Decimal("0.20"),
         ),
     )
     assert updated is not None
     assert updated.tech_rate == Decimal("65") and updated.km_rate == Decimal("0.7")
+    assert updated.discount_rate == Decimal("0.20")
     assert get_prices(db, "NOWHERE") is None
     assert (
         update_prices(
@@ -88,6 +90,7 @@ def test_price_update_replaces_whole_row(db):
                 diet_full_rate=Decimal("1"),
                 diet_half_rate=Decimal("1"),
                 hotel_rate=Decimal("1"),
+                discount_rate=Decimal("0.15"),
             ),
         )
         is None
@@ -108,6 +111,7 @@ def test_price_update_creates_missing_row_only_for_registered_subsidiary(db):
             diet_full_rate=Decimal("48"),
             diet_half_rate=Decimal("24"),
             hotel_rate=Decimal("110"),
+            discount_rate=Decimal("0.18"),
         ),
     )
 
@@ -115,6 +119,7 @@ def test_price_update_creates_missing_row_only_for_registered_subsidiary(db):
     assert created.currency == "EUR"
     assert created.km_rate == Decimal("0.6200")
     assert created.tech_rate == Decimal("78.00")
+    assert created.discount_rate == Decimal("0.1800")
     assert get_prices(db, "Weber Unknown") is None
     assert update_prices(
         db,
@@ -126,6 +131,7 @@ def test_price_update_creates_missing_row_only_for_registered_subsidiary(db):
             diet_full_rate=Decimal("1"),
             diet_half_rate=Decimal("1"),
             hotel_rate=Decimal("1"),
+            discount_rate=Decimal("0.15"),
         ),
     ) is None
 

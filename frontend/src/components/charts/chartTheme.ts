@@ -13,11 +13,14 @@ export const CHART_BLUE = "#1D4F91";
 // Offer statuses are fixed data, not free text, so a fixed palette is safe.
 // Anything unexpected falls back to the brand blue instead of a random colour.
 export const STATUS_COLORS: Record<string, string> = {
-  Draft: "#9ca3af",
   "Pending response": "#f59e0b",
+  Accepted: "#1d4ed8",
+  "In progress": "#0284c7",
+  "Pending invoicing": "#7c3aed",
   Finished: "#16a34a",
-  Cancelled: "#dc2626",
   Rejected: "#6b7280",
+  Cancelled: "#dc2626",
+  "Pending Service": "#0e7490",
 };
 
 export function statusColor(status: string): string {

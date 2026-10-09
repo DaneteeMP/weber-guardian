@@ -10,8 +10,9 @@ export type Tab =
   | "workloads"
   | "config";
 
-// Salesforce-style shell: brand row (logo, global search, scope, language) plus
-// the tab bar. No routing library: tabs are plain state in App.
+// One compact bar: brand, scope label, navigation tabs, filial scope and
+// language. The search box lives on the pages that need it (Customers,
+// Offers), not here, so the shell stays a single row.
 //
 // The "Filial:" control is the view scope, not a filter: it decides whose
 // data the whole app shows. Admins pick any filial (or all of them);
@@ -21,8 +22,6 @@ export default function TopBar({
   setTab,
   lang,
   setLang,
-  search,
-  setSearch,
   identity,
   scope,
   setScope,
@@ -33,8 +32,6 @@ export default function TopBar({
   setTab: (t: Tab) => void;
   lang: Lang;
   setLang: (l: Lang) => void;
-  search: string;
-  setSearch: (s: string) => void;
   identity: {
     role: string;
     subsidiary_id: string | null;
@@ -72,90 +69,83 @@ export default function TopBar({
 
   return (
     <header className="bg-white shadow">
-      <div className="flex items-center gap-4 px-4 py-2">
-        <img src="/guardian-logo.png" alt={APP_NAME} className="h-9 w-auto" />
+      <div className="flex items-center gap-3 px-4 py-2">
+        <img src="/guardian-logo.png" alt={APP_NAME} className="h-8 w-auto shrink-0" />
         <span
-          className="max-w-[240px] truncate text-lg font-bold text-gray-800"
+          className="max-w-[180px] shrink-0 truncate text-base font-bold text-gray-800"
           title={currentScopeLabel}
         >
           {currentScopeLabel}
         </span>
-        <input
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            if (e.target.value) setTab("customers");
-          }}
-          placeholder="Search..."
-          className="border rounded-full px-4 py-1.5 text-sm w-full max-w-xl mx-auto"
-        />
-        <div className="flex items-center gap-1.5 whitespace-nowrap">
-          <span className="text-xs font-semibold text-gray-600">{t(lang, "scope_filial")}:</span>
-          {isAdmin ? (
-            <select
-              value={scope ?? ""}
-              onChange={(e) => setScope(e.target.value || null)}
-              className="border rounded px-2 py-1 text-sm font-medium bg-white"
-              title={t(lang, "scope_filial")}
+        <nav className="flex min-w-0 items-center gap-1 overflow-x-auto">
+          {tabs.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setTab(item.id)}
+              className={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium ${
+                tab === item.id
+                  ? "bg-weber-blue text-white"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              }`}
             >
-              <option value="">{t(lang, "scope_admin_all")}</option>
-              {subsidiaries.map((s) => (
-                <option key={s.name} value={s.name}>
-                  {s.name}
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        <div className="ml-auto flex shrink-0 items-center gap-4 whitespace-nowrap">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-gray-600">{t(lang, "scope_filial")}:</span>
+            {isAdmin ? (
+              <select
+                value={scope ?? ""}
+                onChange={(e) => setScope(e.target.value || null)}
+                className="border rounded px-2 py-1 text-sm font-medium bg-white"
+                title={t(lang, "scope_filial")}
+              >
+                <option value="">{t(lang, "scope_admin_all")}</option>
+                {subsidiaries.map((s) => (
+                  <option key={s.name} value={s.name}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-sm font-medium text-gray-700">
+                {identity?.subsidiary_short ?? identity?.subsidiary_id ?? "—"}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              className="h-4 w-4 text-gray-600"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" />
+            </svg>
+            <label htmlFor="language-select" className="text-xs font-semibold text-gray-600">
+              {t(lang, "language_label")}:
+            </label>
+            <select
+              id="language-select"
+              value={lang}
+              onChange={(e) => setLang(e.target.value as Lang)}
+              className="border rounded px-2 py-1 text-sm font-medium bg-white"
+              aria-label={t(lang, "language_label")}
+            >
+              {LANGS.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.label}
                 </option>
               ))}
             </select>
-          ) : (
-            <span className="text-sm font-medium text-gray-700">
-              {identity?.subsidiary_short ?? identity?.subsidiary_id ?? "—"}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5 whitespace-nowrap">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.8}
-            className="h-4 w-4 text-gray-600"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="12" r="9" />
-            <path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" />
-          </svg>
-          <label htmlFor="language-select" className="text-xs font-semibold text-gray-600">
-            {t(lang, "language_label")}:
-          </label>
-          <select
-            id="language-select"
-            value={lang}
-            onChange={(e) => setLang(e.target.value as Lang)}
-            className="border rounded px-2 py-1 text-sm font-medium bg-white"
-            aria-label={t(lang, "language_label")}
-          >
-            {LANGS.map((l) => (
-              <option key={l.code} value={l.code}>
-                {l.label}
-              </option>
-            ))}
-          </select>
+          </div>
         </div>
       </div>
-      <nav className="flex flex-wrap gap-1 px-4 border-t">
-        {tabs.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setTab(item.id)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
-              tab === item.id
-                ? "border-weber-blue text-weber-blue"
-                : "border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
     </header>
   );
 }

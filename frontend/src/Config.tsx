@@ -5,19 +5,15 @@ import {
   createKit,
   deleteDistance,
   deleteKit,
-  deleteMachinePrice,
   listDistances,
   listKits,
-  listMachinePrices,
   getPrices,
   listSubsidiaries,
   updateKit,
   updatePrices,
   upsertDistance,
-  upsertMachinePrice,
   type Distance,
   type Kit,
-  type MachinePrice,
   type Subsidiary,
 } from "./api";
 import Button from "./components/Button";
@@ -48,7 +44,7 @@ function DeleteIcon() {
   );
 }
 
-type Section = "rates" | "distances" | "kits" | "machines";
+type Section = "rates" | "distances" | "kits";
 type Editing =
   | {
       kind: "distance";
@@ -67,10 +63,9 @@ type Editing =
       route_date: string;
     }
   | { kind: "kit"; model: string; hours: string; spares: string; isNew: boolean }
-  | { kind: "machine"; model: string; price: string; inspections: string; isNew: boolean }
   | null;
 
-const EMPTY_RATES = { currency: "", km_rate: "", tech_rate: "", diet_full_rate: "", diet_half_rate: "", hotel_rate: "" };
+const EMPTY_RATES = { currency: "", km_rate: "", tech_rate: "", diet_full_rate: "", diet_half_rate: "", hotel_rate: "", discount_rate: "" };
 
 function formatClock(value: string | number | null | undefined): string {
   if (value === null || value === undefined || value === "") return "";
@@ -124,16 +119,15 @@ export default function Config({
   const [distances, setDistances] = useState<Distance[]>([]);
   const [distanceSubsidiary, setDistanceSubsidiary] = useState(scope ?? "");
   const [kits, setKits] = useState<Kit[]>([]);
-  const [machines, setMachines] = useState<MachinePrice[]>([]);
+  const [importOpen, setImportOpen] = useState(false);
 
   const input = "border rounded px-2 py-1 text-sm";
 
   async function refreshTables() {
     try {
-      const [d, k, m] = await Promise.all([listDistances(), listKits(), listMachinePrices()]);
+      const [d, k] = await Promise.all([listDistances(), listKits()]);
       setDistances(d);
       setKits(k);
-      setMachines(m);
     } catch (e) {
       setError(String(e));
     }
@@ -163,6 +157,7 @@ export default function Config({
                 diet_full_rate: p.diet_full_rate,
                 diet_half_rate: p.diet_half_rate,
                 hotel_rate: p.hotel_rate,
+                discount_rate: p.discount_rate,
               }),
             )
             .catch((e) => setError(String(e)));
@@ -185,6 +180,7 @@ export default function Config({
         diet_full_rate: p.diet_full_rate,
         diet_half_rate: p.diet_half_rate,
         hotel_rate: p.hotel_rate,
+        discount_rate: p.discount_rate,
       });
     } catch (e) {
       setError(String(e));
@@ -239,8 +235,6 @@ export default function Config({
         } else {
           await updateKit(editing.model, num(editing.hours, 0), num(editing.spares, 0));
         }
-      } else {
-        await upsertMachinePrice(editing.model, num(editing.price, 0), Math.max(1, Math.floor(num(editing.inspections, 1))));
       }
       setEditing(null);
       await refreshTables();
@@ -376,12 +370,7 @@ export default function Config({
   const tab = (active: boolean) =>
     `px-3 py-1 rounded text-sm font-medium ${active ? "bg-weber-blue text-white" : "bg-gray-200 hover:bg-gray-300"}`;
 
-  const modalTitle =
-    !editing || editing.kind === "distance"
-      ? t(lang, "cfg_distances")
-      : editing.kind === "kit"
-        ? t(lang, "cfg_kits")
-        : t(lang, "cfg_machines");
+  const modalTitle = editing?.kind === "kit" ? t(lang, "cfg_kits") : t(lang, "cfg_distances");
   const visibleDistances = distanceSubsidiary
     ? distances.filter((distance) => distance.subsidiary_id === distanceSubsidiary)
     : distances;
@@ -390,9 +379,9 @@ export default function Config({
     <div className="flex h-full min-h-0 w-full flex-col gap-3 p-4">
       <h1 className="shrink-0 text-2xl font-bold text-gray-900">{t(lang, "cfg_title")}</h1>
       <div className="flex shrink-0 gap-2">
-        {(["rates", "distances", "kits", "machines"] as Section[]).map((s) => (
+        {(["rates", "distances", "kits"] as Section[]).map((s) => (
           <button key={s} onClick={() => setSection(s)} className={tab(section === s)}>
-            {t(lang, s === "rates" ? "cfg_rates" : s === "distances" ? "cfg_distances" : s === "kits" ? "cfg_kits" : "cfg_machines")}
+            {t(lang, s === "rates" ? "cfg_rates" : s === "distances" ? "cfg_distances" : "cfg_kits")}
           </button>
         ))}
       </div>
@@ -424,7 +413,7 @@ export default function Config({
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
             {(Object.keys(rates) as (keyof typeof rates)[]).map((k) => (
               <label key={k} className="text-xs">
-                {t(lang, `cfg_${k}` as "cfg_currency" | "cfg_km_rate" | "cfg_tech_rate" | "cfg_diet_full_rate" | "cfg_diet_half_rate" | "cfg_hotel_rate")}
+                {t(lang, `cfg_${k}` as "cfg_currency" | "cfg_km_rate" | "cfg_tech_rate" | "cfg_diet_full_rate" | "cfg_diet_half_rate" | "cfg_hotel_rate" | "cfg_discount_rate")}
                 <input
                   type={k === "currency" ? "text" : "number"}
                   min={k === "currency" ? undefined : "0"}
@@ -443,7 +432,6 @@ export default function Config({
       )}
 
       {section === "distances" && (
-        <>
         <SectionCard className="flex min-h-0 flex-1 flex-col" title={t(lang, "cfg_distances")}>
           <div className="mb-2 flex shrink-0 flex-wrap items-center gap-2">
             <label className="text-xs font-medium text-gray-600">
@@ -465,6 +453,11 @@ export default function Config({
             <Button size="sm" onClick={newDistance}>
               {t(lang, "cfg_add")}
             </Button>
+            {distanceSubsidiary === "Weber Italy" && (
+              <Button size="sm" variant="secondary" onClick={() => setImportOpen(true)}>
+                {t(lang, "cfg_distance_import")}
+              </Button>
+            )}
           </div>
           <DataTable
             data={visibleDistances}
@@ -474,14 +467,6 @@ export default function Config({
             className="min-h-0 flex-1"
           />
         </SectionCard>
-        {distanceSubsidiary === "Weber Italy" && (
-          <DistanceImport
-            lang={lang}
-            subsidiaryId={distanceSubsidiary}
-            onImported={refreshTables}
-          />
-        )}
-        </>
       )}
 
       {section === "kits" && (
@@ -520,55 +505,6 @@ export default function Config({
                         variant="danger"
                         onClick={async () => {
                           await deleteKit(k.model).catch((e) => setError(String(e)));
-                          await refreshTables();
-                        }}
-                        icon={<DeleteIcon />}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </SectionCard>
-      )}
-
-      {section === "machines" && (
-        <SectionCard title={t(lang, "cfg_machines")}>
-          <Button
-            size="sm"
-            className="mb-2"
-            onClick={() => setEditing({ kind: "machine", model: "", price: "", inspections: "4", isNew: true })}
-          >
-            {t(lang, "cfg_add")}
-          </Button>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-weber-blue text-white text-left">
-                <th className="px-3 py-1.5">Model</th>
-                <th className="px-3 py-1.5 text-right">€/year</th>
-                <th className="px-3 py-1.5 text-right">insp/year</th>
-                <th className="px-3 py-1.5" />
-              </tr>
-            </thead>
-            <tbody>
-              {machines.map((m) => (
-                <tr key={m.model} className="border-b">
-                  <td className="px-3 py-1.5 font-mono">{m.model}</td>
-                  <td className="px-3 py-1.5 text-right font-mono">{m.annual_price}</td>
-                  <td className="px-3 py-1.5 text-right font-mono">{m.inspections_per_year}</td>
-                  <td className="px-3 py-1.5">
-                    <div className="flex justify-end gap-1">
-                      <IconButton
-                        label={t(lang, "cfg_edit")}
-                        onClick={() => setEditing({ kind: "machine", model: m.model, price: m.annual_price, inspections: String(m.inspections_per_year), isNew: false })}
-                        icon={<EditIcon />}
-                      />
-                      <IconButton
-                        label={t(lang, "cfg_delete")}
-                        variant="danger"
-                        onClick={async () => {
-                          await deleteMachinePrice(m.model).catch((e) => setError(String(e)));
                           await refreshTables();
                         }}
                         icon={<DeleteIcon />}
@@ -689,22 +625,6 @@ export default function Config({
                 </label>
               </>
             )}
-            {editing.kind === "machine" && (
-              <>
-                <label className="block text-xs">
-                  Model
-                  <input value={editing.model} disabled={!editing.isNew} onChange={(e) => setEditing({ ...editing, model: e.target.value })} className={`${input} w-full disabled:bg-gray-100`} />
-                </label>
-                <label className="block text-xs">
-                  €/year
-                  <input value={editing.price} onChange={(e) => setEditing({ ...editing, price: e.target.value })} className={`${input} w-full`} />
-                </label>
-                <label className="block text-xs">
-                  insp/year
-                  <input value={editing.inspections} onChange={(e) => setEditing({ ...editing, inspections: e.target.value })} className={`${input} w-full`} />
-                </label>
-              </>
-            )}
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="secondary" size="sm" onClick={() => setEditing(null)}>
                 {t(lang, "cfg_cancel")}
@@ -714,6 +634,20 @@ export default function Config({
               </Button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {importOpen && (
+        <Modal
+          title={t(lang, "cfg_distance_import")}
+          onClose={() => setImportOpen(false)}
+          widthClass="max-w-xl"
+        >
+          <DistanceImport
+            lang={lang}
+            subsidiaryId={distanceSubsidiary}
+            onImported={refreshTables}
+          />
         </Modal>
       )}
     </div>

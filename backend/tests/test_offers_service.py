@@ -53,16 +53,16 @@ def _offer_data(cid="0001012933", number="W-02-2026-0001"):
 
 def test_calculate_is_dry_run_with_fixed_totals():
     out = calculate_price(_pricing())
-    assert out.total == Decimal("1050.00")
-    assert out.total_end == Decimal("906.00")
+    assert out.total == Decimal("1005.00")
+    assert out.total_end == Decimal("861.00")
 
 
 def test_create_offer_persists_header_and_items_with_server_totals(db):
     _customer(db)
     offer = create_offer(db, _offer_data())
     assert offer.id_guardian_offer == "W-02-2026-0001"
-    assert offer.total == Decimal("1050.00")
-    assert offer.total_end == Decimal("906.00")
+    assert offer.total == Decimal("1005.00")
+    assert offer.total_end == Decimal("861.00")
     assert len(offer.items) == 2
     assert [i.row_no for i in offer.items] == [1, 2]
 
@@ -124,7 +124,7 @@ def test_summary_counts_and_ranking(db):
     create_offer(db, _offer_data(cid="0001052941", number="W-02-2026-0003"))
     summary = offers_summary(db)
     assert summary["total"] == 3
-    assert {"status": "Draft", "count": 3} in summary["by_status"]
+    assert {"status": "Pending response", "count": 3} in summary["by_status"]
     assert sum(m["count"] for m in summary["monthly"]) == 3
     top = summary["ranking"][0]
     assert top["customer_id"] == "0001012933" and top["count"] == 2
@@ -167,12 +167,12 @@ def test_update_offer_recomputes_and_replaces_lines(db):
     assert updated is not None
     assert updated.status == "Pending response"
     assert updated.language == "Portuguese"
-    assert updated.total == Decimal("1050.00")
+    assert updated.total == Decimal("1005.00")
     assert [i.row_no for i in updated.items] == [1]
     assert update_offer(
         db,
         offer.id,
-        OfferUpdate(status="Draft", pricing=_pricing(), items=[]),
+        OfferUpdate(status="Pending response", pricing=_pricing(), items=[]),
         subsidiary_id="NOPE",
     ) is None
 
@@ -198,7 +198,7 @@ def test_offer_date_is_editable_and_survives_edits(db):
     updated = update_offer(
         db,
         offer.id,
-        OfferUpdate(status="Draft", offer_date=edited_date, pricing=_pricing(), items=[]),
+        OfferUpdate(status="Pending response", offer_date=edited_date, pricing=_pricing(), items=[]),
     )
     assert updated is not None
     assert updated.offer_date == edited_date

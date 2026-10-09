@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { importDistanceRoutes, type DistanceImportReport } from "./api";
-import SectionCard from "./components/SectionCard";
 import type { Lang } from "./i18n";
 
+// Content of the distance-import modal (Config renders the Modal shell and the
+// title). It only reports; the routes live in the distances table.
 const STR = {
   es: {
-    title: "Importar rutas CSV",
     help: "Cabecera de tabla reconocida automáticamente. Simula antes de importar; las rutas omitidas no se borran.",
     file: "Elegir CSV",
     origin: "Origen",
@@ -20,7 +20,6 @@ const STR = {
     errors: "errores",
   },
   en: {
-    title: "Import route CSV",
     help: "The table header is detected automatically. Preview before importing; omitted routes are not deleted.",
     file: "Choose CSV",
     origin: "Origin",
@@ -35,7 +34,6 @@ const STR = {
     errors: "errors",
   },
   de: {
-    title: "Routen-CSV importieren",
     help: "Die Tabellenüberschrift wird automatisch erkannt. Vor dem Import simulieren; ausgelassene Routen werden nicht gelöscht.",
     file: "CSV auswählen",
     origin: "Ursprung",
@@ -50,7 +48,6 @@ const STR = {
     errors: "Fehler",
   },
   pt: {
-    title: "Importar rotas CSV",
     help: "O cabeçalho é detetado automaticamente. Simule antes de importar; as rotas omitidas não são eliminadas.",
     file: "Escolher CSV",
     origin: "Origem",
@@ -65,7 +62,6 @@ const STR = {
     errors: "erros",
   },
   it: {
-    title: "Importa rotte CSV",
     help: "L'intestazione viene rilevata automaticamente. Esegui un'anteprima prima dell'importazione; le rotte omesse non vengono eliminate.",
     file: "Scegli CSV",
     origin: "Origine",
@@ -131,8 +127,8 @@ export default function DistanceImport({
   }
 
   return (
-    <SectionCard title={text.title}>
-      <p className="mb-3 text-sm text-gray-600">{text.help}</p>
+    <div className="space-y-3">
+      <p className="text-sm text-gray-600">{text.help}</p>
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="block text-xs">
           {text.origin}
@@ -196,6 +192,6 @@ export default function DistanceImport({
           )}
         </div>
       )}
-    </SectionCard>
+    </div>
   );
 }

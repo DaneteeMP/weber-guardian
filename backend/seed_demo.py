@@ -53,34 +53,35 @@ EQUIPMENT = [
 ]
 
 # (customer_id, days_ago, status, hours, net_total, responsible)
-# Statuses are mixed on purpose so the donut has three slices: 8 Draft,
-# 9 Finished, 7 Pending response. Days spread over roughly five and a half
-# months so the monthly chart has more than one bar per month.
+# Statuses are mixed on purpose so the donut has slices for most lifecycle
+# states: Pending response, Accepted, In progress, Pending invoicing, Finished.
+# Days spread over roughly five and a half months so the monthly chart has
+# more than one bar per month.
 OFFER_PLAN = [
-    ("0099000001", 3, "Draft", Decimal("4.0"), Decimal("680.00"), "Demo Sales ES"),
+    ("0099000001", 3, "In progress", Decimal("4.0"), Decimal("680.00"), "Demo Sales ES"),
     ("0099000001", 41, "Finished", Decimal("6.5"), Decimal("1240.00"), "Demo Sales ES"),
     ("0099000001", 96, "Finished", Decimal("3.0"), Decimal("520.00"), "Demo Sales ES"),
     ("0099000002", 9, "Pending response", Decimal("5.0"), Decimal("910.00"), "Demo Sales ES"),
     ("0099000002", 58, "Finished", Decimal("7.5"), Decimal("1480.00"), "Demo Sales ES"),
-    ("0099000003", 16, "Draft", Decimal("8.0"), Decimal("1720.00"), "Demo Sales DE"),
+    ("0099000003", 16, "Accepted", Decimal("8.0"), Decimal("1720.00"), "Demo Sales DE"),
     ("0099000003", 74, "Finished", Decimal("4.0"), Decimal("860.00"), "Demo Sales DE"),
     ("0099000004", 23, "Pending response", Decimal("6.0"), Decimal("1180.00"), "Demo Sales NL"),
     ("0099000004", 101, "Finished", Decimal("2.5"), Decimal("430.00"), "Demo Sales NL"),
-    ("0099000005", 31, "Draft", Decimal("9.0"), Decimal("2050.00"), "Demo Sales FR"),
+    ("0099000005", 31, "Pending invoicing", Decimal("9.0"), Decimal("2050.00"), "Demo Sales FR"),
     ("0099000005", 88, "Pending response", Decimal("5.5"), Decimal("1040.00"), "Demo Sales FR"),
     ("0099000006", 37, "Finished", Decimal("4.5"), Decimal("870.00"), "Demo Sales IT"),
-    ("0099000006", 112, "Draft", Decimal("3.5"), Decimal("610.00"), "Demo Sales IT"),
+    ("0099000006", 112, "In progress", Decimal("3.5"), Decimal("610.00"), "Demo Sales IT"),
     ("0099000007", 44, "Pending response", Decimal("7.0"), Decimal("1310.00"), "Demo Sales LATAM"),
     ("0099000007", 119, "Finished", Decimal("5.0"), Decimal("940.00"), "Demo Sales LATAM"),
-    ("0099000008", 52, "Draft", Decimal("6.0"), Decimal("1120.00"), "Demo Sales NL"),
+    ("0099000008", 52, "Accepted", Decimal("6.0"), Decimal("1120.00"), "Demo Sales NL"),
     ("0099000008", 126, "Pending response", Decimal("4.0"), Decimal("780.00"), "Demo Sales NL"),
-    ("0099000002", 66, "Draft", Decimal("5.0"), Decimal("990.00"), "Demo Sales ES"),
+    ("0099000002", 66, "Pending invoicing", Decimal("5.0"), Decimal("990.00"), "Demo Sales ES"),
     ("0099000003", 133, "Pending response", Decimal("3.0"), Decimal("540.00"), "Demo Sales DE"),
     ("0099000004", 140, "Finished", Decimal("6.5"), Decimal("1250.00"), "Demo Sales NL"),
-    ("0099000001", 147, "Draft", Decimal("4.5"), Decimal("820.00"), "Demo Sales ES"),
+    ("0099000001", 147, "Pending Service", Decimal("4.5"), Decimal("820.00"), "Demo Sales ES"),
     ("0099000005", 154, "Pending response", Decimal("8.0"), Decimal("1560.00"), "Demo Sales FR"),
     ("0099000006", 161, "Finished", Decimal("5.5"), Decimal("1010.00"), "Demo Sales IT"),
-    ("0099000008", 168, "Draft", Decimal("7.5"), Decimal("1390.00"), "Demo Sales NL"),
+    ("0099000008", 168, "Pending Service", Decimal("7.5"), Decimal("1390.00"), "Demo Sales NL"),
 ]
 
 # Gross is the net plus a fixed 21% discount, so total and total_end differ the

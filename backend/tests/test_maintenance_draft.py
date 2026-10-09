@@ -12,6 +12,7 @@ from decimal import Decimal
 
 import pytest
 
+from app.modules.basic_kit.models import BasicKit
 from app.modules.component_names.models import ComponentName
 from app.modules.customers.models import Customer
 from app.modules.customers.service import CustomerNotFound
@@ -407,6 +408,23 @@ def test_gigi_machine_resolves_its_real_modules_and_never_a_slicer(db, italy_cus
     # 2.0 line + 1.0 KSG + 1.5 CCE + 1.5 CMB + 1.0 CCW + 0.5 CCU = 7.5 h.
     assert draft.total_workload == Decimal("7.5")
     assert draft.total_amount == Decimal("435.00")
+
+
+def test_basic_kit_aggregates_by_machine_type(db, italy_customer):
+    _confirmed_line(db)
+    kit = BasicKit(model="CCS602", workload_basic_kit=Decimal("4"), spare_parts=Decimal("500"))
+    db.add(kit)
+    db.commit()
+    _equipment(db, italy_customer.customer_id, "602-750 MCS")
+    # A second machine without a kit row must not pollute the aggregates.
+    _equipment(db, italy_customer.customer_id, "Mystery machine", machine_type="XXX999")
+
+    draft = maintenance_draft(db, italy_customer.customer_id, ["602-750 MCS", "Mystery machine"])
+
+    assert draft.basic_kit_hours == Decimal("4")
+    assert draft.basic_kit_price == Decimal("500")
+    # The kit is not a priced maintenance row: totals stay workload-only.
+    assert draft.total_workload == Decimal("3.0")
 
 
 def test_draft_row_exposes_the_module_edit_target(db, italy_customer):

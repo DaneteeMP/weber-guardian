@@ -97,6 +97,12 @@ class OfferCalculateIn(BaseModel):
     discount_rate: Decimal = Field(default=Decimal("0.15"), ge=Decimal("0"), le=Decimal("1"))
     bk_price: Decimal = Field(default=Decimal("0"), ge=Decimal("0"))
     currency: str = Field(default="EUR", min_length=1, max_length=8)
+    # Guardian contract discriminator. Campaign does not exist: removed.
+    # audit uses no basic kit but keeps the branch discount; off_guardian
+    # drops the branch discount; guardian may use the basic kit selector.
+    offer_type: Literal["guardian", "audit", "off_guardian"] = "audit"
+    num_trips: int = Field(default=1, ge=1)
+    basic_kit: bool = False
 
 
 class OfferCalculateOut(BaseModel):
@@ -163,7 +169,10 @@ class MaintenanceDraftOut(BaseModel):
 
     The rate and currency come from the customer's subsidiary price row, so
     every country prices its own hours. Rows arrive in machine order with the
-    line row first and its modules after it.
+    line row first and its modules after it. basic_kit_hours and
+    basic_kit_price are the sums from the basic_kit catalog for the selected
+    machines (zero when no machine has a kit): the offer turns them into the
+    bk_hours/bk_price pricing inputs when its Basic Kit selector is on.
     """
 
     customer_id: str
@@ -173,6 +182,8 @@ class MaintenanceDraftOut(BaseModel):
     rows: list[MaintenanceDraftRowOut]
     total_workload: Decimal
     total_amount: Decimal
+    basic_kit_hours: Decimal = Decimal("0")
+    basic_kit_price: Decimal = Decimal("0")
 
 
 class OfferStatusUpdate(BaseModel):
@@ -209,7 +220,7 @@ class OfferCreate(BaseModel):
 
     customer_id: str = Field(min_length=1, max_length=64)
     id_guardian_offer: str | None = Field(default=None, min_length=1, max_length=64)
-    status: str = Field(default="Draft", min_length=1, max_length=32)
+    status: str = Field(default="Pending response", min_length=1, max_length=32)
     responsible_person: str | None = Field(default=None, max_length=128)
     language: str | None = Field(default=None, max_length=32)
     inspection_frequency: str | None = Field(default=None, max_length=32)

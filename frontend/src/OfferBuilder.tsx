@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
   calculate,
@@ -48,7 +48,7 @@ const todayIso = () => {
 
 const GUARDIAN_TYPES = ["Basic Kit", "Audit", "Off-Guardian", "Campaign"];
 const FREQUENCIES = ["Annual", "Semi-annual", "Biennial"];
-const STATUSES = ["Draft", "Pending response", "Finished", "Cancelled", "Rejected"];
+const STATUSES = ["Pending response", "Accepted", "In progress", "Pending invoicing", "Finished", "Rejected", "Cancelled", "Pending Service"];
 const RESPONSIBLES = ["", "Xevi Mira", "David"];
 const GUARDIAN_SCOPE = [
   {
@@ -153,6 +153,7 @@ export default function OfferBuilder({
   const [dietFull, setDietFull] = useState("0");
   const [dietHalf, setDietHalf] = useState("0");
   const [hotelRate, setHotelRate] = useState("0");
+  const [discountRate, setDiscountRate] = useState("0");
   const [offerNumber, setOfferNumber] = useState("");
   const [offerDate, setOfferDate] = useState(todayIso());
   const [frequency, setFrequency] = useState("Annual");
@@ -198,7 +199,7 @@ export default function OfferBuilder({
         // The API always returns a date; fall back to today only if an old row
         // somehow has no business date at all.
         setOfferDate(o.offer_date || todayIso());
-        setStatus(o.status || "Draft");
+        setStatus(o.status || "Pending response");
         setFrequency(o.inspection_frequency || "Annual");
         setResponsible(o.responsible_person || "");
         setComments(o.general_comments || "");
@@ -226,7 +227,7 @@ export default function OfferBuilder({
         for (const item of o.items) {
           if (item.equipment) autoLines.current.add(lineKey(item.equipment, item.description ?? ""));
         }
-        setEditStatus(o.status || "Draft");
+        setEditStatus(o.status || "Pending response");
       })
       .catch((e) => setError(String(e)));
   }, [editingOfferId]);
@@ -477,6 +478,7 @@ export default function OfferBuilder({
         setDietFull(prices.diet_full_rate);
         setDietHalf(prices.diet_half_rate);
         setHotelRate(prices.hotel_rate);
+        setDiscountRate(prices.discount_rate);
       })
       .catch((e) => {
         if (active) setError(e instanceof Error ? e.message : String(e));
@@ -543,7 +545,7 @@ export default function OfferBuilder({
         diet_full_rate: num(dietFull, 0),
         diet_half_rate: num(dietHalf, 0),
         hotel_rate: num(hotelRate, 0),
-        discount_rate: 0.15,
+        discount_rate: num(discountRate, 0),
         bk_price: 0,
         currency: "EUR",
       })
@@ -551,7 +553,7 @@ export default function OfferBuilder({
         .catch((e) => setError(String(e)));
     }, 300);
     return () => clearTimeout(timer);
-  }, [workHours, reportHours, tripBase, km, kmRate, techRate, dietFull, dietHalf, hotelRate]);
+  }, [workHours, reportHours, tripBase, km, kmRate, techRate, dietFull, dietHalf, hotelRate, discountRate]);
 
   async function refreshOffers() {
     if (customerId) {
@@ -578,7 +580,7 @@ export default function OfferBuilder({
         diet_full_rate: num(dietFull, 0),
         diet_half_rate: num(dietHalf, 0),
         hotel_rate: num(hotelRate, 0),
-        discount_rate: 0.15,
+        discount_rate: num(discountRate, 0),
         bk_price: 0,
         currency: "EUR",
       };
@@ -661,7 +663,81 @@ export default function OfferBuilder({
     }
   }
 
-  const input = "border rounded px-2 py-1.5 text-sm w-full";
+  // UI-only state: sidebar tab / visibility and the offers search box.
+  const [sideTab, setSideTab] = useState<"offers" | "customers">(editingOfferId ? "offers" : "customers");
+  const [sideOpen, setSideOpen] = useState(true);
+  const [offerSearch, setOfferSearch] = useState("");
+
+  const filteredOffers = useMemo(() => {
+    const q = offerSearch.trim().toLowerCase();
+    if (!q) return offerList;
+    return offerList.filter(
+      (o) =>
+        (o.id_guardian_offer ?? "").toLowerCase().includes(q) ||
+        (customerNames[o.customer_id] ?? o.customer_id).toLowerCase().includes(q),
+    );
+  }, [offerList, offerSearch, customerNames]);
+
+  // The "saved" banner is a toast: it disappears on its own.
+  useEffect(() => {
+    if (!saved) return;
+    const id = setTimeout(() => setSaved(null), 3000);
+    return () => clearTimeout(id);
+  }, [saved]);
+
+  // Ctrl/Cmd+S saves. The ref keeps the listener registered once while always
+  // calling the latest handleSave (it closes over the current form state).
+  const saveRef = useRef(handleSave);
+  saveRef.current = handleSave;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void saveRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Shared dense styles.
+  const ctl =
+    "h-7 w-full rounded border border-slate-300 bg-white px-1.5 text-xs focus:border-weber-blue focus:outline-none focus:ring-1 focus:ring-weber-blue";
+  const btn =
+    "inline-flex h-7 items-center gap-1.5 rounded border px-2.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+  const btnSoft = `${btn} border-slate-300 bg-white text-slate-700 hover:bg-slate-50`;
+  const btnPrimary = `${btn} border-weber-blue bg-weber-blue text-white hover:opacity-90`;
+  const btnDanger = `${btn} border-red-200 bg-white text-red-700 hover:bg-red-50`;
+
+  const statusTone = (s: string | null | undefined) => {
+    switch (s) {
+      case "Finished":
+        return "bg-green-100 text-green-800";
+      case "Pending response":
+        return "bg-amber-100 text-amber-800";
+      case "Accepted":
+      case "In progress":
+        return "bg-blue-100 text-blue-800";
+      case "Pending invoicing":
+        return "bg-violet-100 text-violet-800";
+      case "Pending Service":
+        return "bg-cyan-100 text-cyan-800";
+      case "Cancelled":
+      case "Rejected":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-slate-100 text-slate-600";
+    }
+  };
+
+  // Plain function (not a component) so inputs are not remounted on each render.
+  const field = (label: string, control: ReactNode, span = "") => (
+    <div className={`flex min-w-0 flex-col gap-0.5 ${span}`}>
+      <span className="truncate text-[11px] font-medium text-slate-500">{label}</span>
+      {control}
+    </div>
+  );
+
   const eur = (v: string | number | null | undefined) =>
     `${Number(v ?? 0).toLocaleString("en-GB", { minimumFractionDigits: 2 })} €`;
 
@@ -673,6 +749,8 @@ export default function OfferBuilder({
     amount: num(item.import_amount, 0),
     catalogWarning: item.catalogWarning,
   }));
+  const linesTotal = moduleRows.reduce((sum, r) => sum + r.amount, 0);
+  const warningCount = moduleRows.filter((r) => r.catalogWarning).length;
 
   const moduleColumns = useMemo<ColumnDef<OfferTableRow>[]>(
     () => [
@@ -712,427 +790,495 @@ export default function OfferBuilder({
     [lang],
   );
 
+  const customerAddress = customerDetail?.sites.length
+    ? customerDetail.sites
+        .map((site) =>
+          [
+            site.physical_street,
+            [site.physical_postal_code, site.physical_city].filter(Boolean).join(" "),
+            site.physical_province,
+            site.physical_country,
+          ]
+            .filter(Boolean)
+            .join(", "),
+        )
+        .join(" · ")
+    : [customer?.city, customer?.province, customer?.country].filter(Boolean).join(", ") || "—";
+
+  const scopeCount = GUARDIAN_SCOPE.filter((module) => guardianSelections.includes(module.id)).length;
+
   return (
-    <div className="flex h-full min-h-0 flex-col bg-slate-100 text-slate-800">
-      <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-2 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-weber-blue text-white grid place-items-center font-bold">W</div>
-          <h1 className="text-lg font-bold tracking-tight text-slate-900">Guardian Offers</h1>
+    <div className="flex h-full min-h-0 flex-col bg-slate-100 text-xs text-slate-800">
+      {/* ── Top bar: identity, live total and actions ─────────────────────── */}
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 py-1.5 shadow-sm">
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSideOpen((v) => !v)}
+            aria-label="Toggle sidebar"
+            aria-pressed={sideOpen}
+            className="hidden h-7 w-7 items-center justify-center rounded border border-slate-300 text-slate-600 hover:bg-slate-50 lg:inline-flex"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4" aria-hidden="true">
+              <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
+            </svg>
+          </button>
+          <h1 className="truncate text-base font-bold tracking-tight text-slate-900">Guardian Offers</h1>
           {editingOfferId && (
-            <span className="text-sm text-slate-500">
-              {t(lang, "ob_editing")} {offerNumber}
+            <span className="truncate text-slate-500">
+              {t(lang, "ob_editing")} <span className="font-mono font-semibold text-slate-700">{offerNumber}</span>
             </span>
           )}
+          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold ${statusTone(status)}`}>{status}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handlePrint}
-            disabled={!savedOffer}
-            title={t(lang, "ob_print")}
-            aria-label={t(lang, "ob_print")}
-            className="px-3 py-1.5 border border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100 rounded text-xs font-semibold disabled:opacity-40 inline-flex items-center justify-center gap-1.5"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-4 h-4" aria-hidden="true">
+
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="mr-2 text-right leading-tight">
+            <div className="text-[11px] text-slate-500">{t(lang, "ob_total_amount")}</div>
+            <div className="font-mono text-sm font-bold text-blue-700">{calc ? eur(calc.total_end) : "—"}</div>
+          </div>
+          <button onClick={handlePrint} disabled={!savedOffer} title={t(lang, "ob_print")} aria-label={t(lang, "ob_print")} className={btnSoft}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4" aria-hidden="true">
               <path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M7 14h10v7H7z" strokeLinejoin="round" />
               <path d="M17 11h.01" strokeLinecap="round" />
             </svg>
             {t(lang, "ob_print")}
           </button>
-          <button
-            onClick={handleSave}
-            disabled={!customerId}
-            className="px-3 py-1.5 border border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100 rounded text-xs font-semibold disabled:opacity-40"
-          >
-            {editingOfferId ? t(lang, "ob_update") : t(lang, "ob_save")}
-          </button>
-          <button onClick={handleDelete} disabled={!savedOffer} className="px-3 py-1.5 border border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100 rounded text-xs font-semibold disabled:opacity-40">
-            {t(lang, "ob_delete_offer")}
-          </button>
-          <button onClick={handleClose} disabled={!savedOffer} className="px-3 py-1.5 border border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100 rounded text-xs font-semibold disabled:opacity-40">
+          <button onClick={handleClose} disabled={!savedOffer} className={btnSoft}>
             {t(lang, "ob_close_offer")}
           </button>
-          <button onClick={onDone} className="px-3 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 rounded text-xs font-semibold">
+          <button
+            onClick={() => {
+              if (window.confirm(`${t(lang, "ob_delete_offer")}: ${offerNumber}?`)) void handleDelete();
+            }}
+            disabled={!savedOffer}
+            className={btnDanger}
+          >
+            {t(lang, "ob_delete_offer")}
+          </button>
+          <button onClick={handleSave} disabled={!customerId} title="Ctrl+S" className={btnPrimary}>
+            {editingOfferId ? t(lang, "ob_update") : t(lang, "ob_save")}
+          </button>
+          <button onClick={onDone} className={btnSoft}>
             {t(lang, "ob_back")}
           </button>
         </div>
+      </header>
+
+      {/* ── Toasts: overlay, so they never push the layout around ─────────── */}
+      <div className="pointer-events-none fixed bottom-3 right-3 z-50 flex max-w-sm flex-col gap-2">
+        {error && (
+          <div role="alert" className="pointer-events-auto flex items-start gap-2 rounded-lg border border-red-200 bg-white p-3 text-sm text-red-700 shadow-lg">
+            <span className="min-w-0 flex-1 break-words">{error}</span>
+            <button type="button" onClick={() => setError(null)} aria-label="Close" className="text-red-400 hover:text-red-700">✕</button>
+          </div>
+        )}
+        {saved && (
+          <div role="status" className="pointer-events-auto rounded-lg border border-green-200 bg-white p-3 text-sm text-green-700 shadow-lg">
+            {saved}
+          </div>
+        )}
       </div>
 
       <div className="flex min-h-0 flex-1 gap-2 p-2">
-        <aside className="hidden min-h-0 w-[280px] shrink-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm lg:flex">
-          <div className="flex min-h-0 flex-1 flex-col border-b border-slate-200">
-            <div className="shrink-0 p-3 pb-2">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-bold text-slate-800">{t(lang, "home_list")}</h2>
-                <span className="text-xs text-slate-500">{offerList.length}</span>
-              </div>
-              <select
-                value={offerStatusFilter}
-                onChange={(e) => setOfferStatusFilter(e.target.value)}
-                className={`${input} border-slate-300`}
-              >
-                <option value="">{t(lang, "home_filter_all")}</option>
-                {offerStatuses.map((s) => (
-                  <option key={s.status} value={s.status}>
-                    {s.status} ({s.count})
-                  </option>
-                ))}
-              </select>
+        {/* ── Sidebar: one list at a time, each gets the full height ──────── */}
+        {sideOpen && (
+          <aside className="hidden min-h-0 w-[250px] shrink-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm lg:flex">
+            <div className="flex shrink-0 border-b border-slate-200 text-xs font-semibold">
+              {(
+                [
+                  ["offers", t(lang, "home_list"), offerList.length],
+                  ["customers", t(lang, "nav_customers"), customers.length],
+                ] as const
+              ).map(([id, label, count]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setSideTab(id)}
+                  className={`flex-1 border-b-2 px-2 py-2 transition-colors ${
+                    sideTab === id
+                      ? "border-weber-blue text-weber-blue"
+                      : "border-transparent text-slate-500 hover:bg-slate-50"
+                  }`}
+                >
+                  {label} <span className="font-normal text-slate-400">{count}</span>
+                </button>
+              ))}
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-              {offerListLoading ? (
-                <p className="px-2 py-5 text-center text-xs text-slate-400">{t(lang, "dash_loading")}</p>
-              ) : offerList.length === 0 ? (
-                <p className="px-2 py-5 text-center text-xs text-slate-400">{t(lang, "home_no_results")}</p>
-              ) : (
-                offerList.map((o) => {
-                  const selected = o.id === editingOfferId;
-                  return (
-                    <button
-                      key={o.id}
-                      type="button"
-                      onClick={() => onEdit?.(o.id)}
-                      className={`w-full text-left rounded-md border-l-[3px] px-2.5 py-2 mb-1 transition-colors ${
-                        selected
-                          ? "border-weber-blue bg-blue-50 text-slate-900"
-                          : "border-transparent hover:bg-slate-50 text-slate-700"
-                      }`}
-                    >
-                      <span className="flex items-center justify-between gap-1">
-                        <span className="block truncate font-mono text-xs font-semibold">
-                          {o.id_guardian_offer}
-                        </span>
-                        <span className="shrink-0 rounded bg-slate-100 px-1 py-0.5 text-[10px] text-slate-600">
-                          {o.status || "Draft"}
-                        </span>
-                      </span>
-                      <span className="mt-0.5 block truncate text-[11px] text-slate-500">
-                        {customerNames[o.customer_id] ?? o.customer_id}
-                      </span>
-                      <span className="mt-0.5 flex items-center justify-between gap-1 text-[10px] text-slate-400">
-                        <span>{day(o.offer_date) || day(o.created_at)}</span>
-                        <span className="font-mono">
-                          {money(o.total_end)} {o.currency ?? "EUR"}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
 
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="shrink-0 p-3 pb-2">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-bold text-slate-800">{t(lang, "nav_customers")}</h2>
-                <span className="text-xs text-slate-500">{customers.length}</span>
-              </div>
-              <input
-                value={clientSearch}
-                onChange={(e) => setClientSearch(e.target.value)}
-                placeholder={t(lang, "cust_search_ph")}
-                className={`${input} border-slate-300`}
-              />
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3">
-              {filteredCustomers.map((c) => {
-                const selected = c.customer_id === customerId;
-                return (
-                  <button
-                    key={c.customer_id}
-                    type="button"
-                    onClick={() => selectCustomer(c.customer_id)}
-                    className={`w-full text-left rounded-md border-l-[3px] px-2.5 py-2 mb-1 transition-colors ${
-                      selected
-                        ? "border-weber-blue bg-blue-50 text-slate-900"
-                        : "border-transparent hover:bg-slate-50 text-slate-700"
-                    }`}
+            {sideTab === "offers" ? (
+              <>
+                <div className="flex shrink-0 flex-col gap-1 p-2">
+                  <select
+                    value={offerStatusFilter}
+                    onChange={(e) => setOfferStatusFilter(e.target.value)}
+                    className={ctl}
                   >
-                    <span className="block text-xs font-semibold truncate">{c.account_name}</span>
-                    <span className="block text-[11px] text-slate-500 truncate">
-                      {[c.city, c.province, c.country].filter(Boolean).join(", ") || c.customer_id}
-                    </span>
-                    {selected && offers.length > 0 && (
-                      <span className="mt-1 inline-block rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-900">
-                        {offers.length} {t(lang, "ob_client_offers")}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-              {filteredCustomers.length === 0 && (
-                <p className="px-2 py-5 text-center text-xs text-slate-400">{t(lang, "home_no_results")}</p>
-              )}
-            </div>
-          </div>
-        </aside>
-
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
-        {error && <p className="text-sm text-red-600 bg-white rounded-lg shadow p-3">{error}</p>}
-        {saved && <p className="text-sm text-green-700 bg-white rounded-lg shadow p-3">{saved}</p>}
-
-        <div className="shrink-0 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-          <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-5 border-r border-slate-200 pr-4">
-              <div className="text-xs font-bold text-weber-blue uppercase mb-2">{t(lang, "ob_customer_data")}</div>
-              <select
-                value={customerId}
-                onChange={(e) => selectCustomer(e.target.value)}
-                className={`${input} mb-2 lg:hidden bg-blue-50`}
-              >
-                <option value="">{t(lang, "ob_select_client")}</option>
-                {customers.map((c) => (
-                  <option key={c.customer_id} value={c.customer_id}>
-                    {c.customer_id} {c.account_name}
-                  </option>
-                ))}
-              </select>
-              {customer ? (
-                <div className="rounded border border-slate-200 bg-white p-2.5 text-sm min-h-[84px]">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-xs">{customer.customer_id}</span>
-                    <span className="font-bold">{customer.account_name}</span>
-                  </div>
-                  <div className="text-slate-700">
-                    {customerDetail?.sites.length ? (
-                      customerDetail.sites.map((site) => (
-                        <div key={site.id}>
-                          {[
-                            site.physical_street,
-                            [site.physical_postal_code, site.physical_city].filter(Boolean).join(" "),
-                            site.physical_province,
-                            site.physical_country,
-                          ].filter(Boolean).join(", ")}
-                        </div>
-                      ))
-                    ) : (
-                      [customer.city, customer.province, customer.country].filter(Boolean).join(", ") || "—"
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded border border-dashed border-slate-300 p-3 text-sm text-slate-400 min-h-[84px]">
-                  {t(lang, "ob_select_client")}
-                </div>
-              )}
-            </div>
-
-            <div className="col-span-4 border-r border-slate-200 pr-4">
-              <div className="space-y-1.5 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-500 w-28">{t(lang, "ob_offer_no")}</span>
-                  <span className="font-mono font-bold">{offerNumber || savedOffer?.id.slice(0, 8) || "-"}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-500 w-28">{t(lang, "ob_offer_date")}</span>
-                  <input
-                    type="date"
-                    value={offerDate}
-                    onChange={(e) => setOfferDate(e.target.value)}
-                    className="border rounded px-1 py-0.5 text-sm font-mono"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-500 w-28">{t(lang, "ob_guardian_type")}</span>
-                  <select value={guardianType} onChange={(e) => setGuardianType(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
-                    {GUARDIAN_TYPES.map((g) => (
-                      <option key={g}>{g}</option>
+                    <option value="">{t(lang, "home_filter_all")}</option>
+                    {offerStatuses.map((s) => (
+                      <option key={s.status} value={s.status}>
+                        {s.status} ({s.count})
+                      </option>
                     ))}
                   </select>
+                  <input
+                    value={offerSearch}
+                    onChange={(e) => setOfferSearch(e.target.value)}
+                    placeholder={t(lang, "cust_search_ph")}
+                    className={ctl}
+                  />
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-500 w-28">{t(lang, "ob_offer_no_save")}</span>
+                <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+                  {offerListLoading ? (
+                    <p className="px-2 py-5 text-center text-slate-400">{t(lang, "dash_loading")}</p>
+                  ) : filteredOffers.length === 0 ? (
+                    <p className="px-2 py-5 text-center text-slate-400">{t(lang, "home_no_results")}</p>
+                  ) : (
+                    filteredOffers.map((o) => {
+                      const selected = o.id === editingOfferId;
+                      return (
+                        <button
+                          key={o.id}
+                          type="button"
+                          onClick={() => onEdit?.(o.id)}
+                          title={`${day(o.offer_date) || day(o.created_at)}`}
+                          className={`mb-0.5 w-full rounded-md border-l-[3px] px-2 py-1.5 text-left transition-colors ${
+                            selected
+                              ? "border-weber-blue bg-blue-50 text-slate-900"
+                              : "border-transparent text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          <span className="flex items-center justify-between gap-1">
+                            <span className="truncate font-mono text-xs font-semibold">{o.id_guardian_offer}</span>
+                            <span className={`shrink-0 rounded px-1 py-0.5 text-[10px] font-semibold ${statusTone(o.status)}`}>
+                              {o.status || "Pending response"}
+                            </span>
+                          </span>
+                          <span className="flex items-center justify-between gap-1 text-[11px] text-slate-500">
+                            <span className="truncate">{customerNames[o.customer_id] ?? o.customer_id}</span>
+                            <span className="shrink-0 font-mono text-slate-600">{money(o.total_end)}</span>
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="shrink-0 p-2">
+                  <input
+                    value={clientSearch}
+                    onChange={(e) => setClientSearch(e.target.value)}
+                    placeholder={t(lang, "cust_search_ph")}
+                    className={ctl}
+                  />
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+                  {filteredCustomers.map((c) => {
+                    const selected = c.customer_id === customerId;
+                    return (
+                      <button
+                        key={c.customer_id}
+                        type="button"
+                        onClick={() => selectCustomer(c.customer_id)}
+                        className={`mb-0.5 w-full rounded-md border-l-[3px] px-2 py-1.5 text-left transition-colors ${
+                          selected
+                            ? "border-weber-blue bg-blue-50 text-slate-900"
+                            : "border-transparent text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span className="block truncate text-xs font-semibold">{c.account_name}</span>
+                        <span className="block truncate text-[11px] text-slate-500">
+                          {[c.city, c.province, c.country].filter(Boolean).join(", ") || c.customer_id}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {filteredCustomers.length === 0 && (
+                    <p className="px-2 py-5 text-center text-slate-400">{t(lang, "home_no_results")}</p>
+                  )}
+                </div>
+              </>
+            )}
+          </aside>
+        )}
+
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
+          {/* ── Header card: customer + offer fields in two compact rows ─── */}
+          <div className="shrink-0 rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+            <div className="grid grid-cols-[minmax(220px,1fr)_minmax(0,2.4fr)] gap-3">
+              <div className="flex min-w-0 flex-col gap-1">
+                <select
+                  value={customerId}
+                  onChange={(e) => selectCustomer(e.target.value)}
+                  className={`${ctl} bg-blue-50 lg:hidden`}
+                >
+                  <option value="">{t(lang, "ob_select_client")}</option>
+                  {customers.map((c) => (
+                    <option key={c.customer_id} value={c.customer_id}>
+                      {c.customer_id} {c.account_name}
+                    </option>
+                  ))}
+                </select>
+                {customer ? (
+                  <div className="flex-1 rounded border border-slate-200 bg-slate-50 px-2 py-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="shrink-0 rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[11px]">
+                        {customer.customer_id}
+                      </span>
+                      <span className="truncate text-sm font-bold">{customer.account_name}</span>
+                      {offers.length > 0 && (
+                        <span className="ml-auto shrink-0 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-900">
+                          {offers.length} {t(lang, "ob_client_offers")}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 line-clamp-2 text-slate-600" title={customerAddress}>
+                      {customerAddress}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex min-h-[56px] flex-1 items-center justify-center rounded border border-dashed border-slate-300 px-2 text-center text-slate-400">
+                    {t(lang, "ob_select_client")}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-4 content-start gap-x-2 gap-y-1.5">
+                {field(
+                  t(lang, "ob_offer_no_save"),
                   <input
                     value={offerNumber}
                     onChange={(e) => setOfferNumber(e.target.value)}
                     placeholder="W-02-2026-0001"
                     readOnly={!!editingOfferId}
-                    className={`border rounded px-1 py-0.5 text-sm font-mono ${editingOfferId ? "bg-gray-100 text-gray-500" : ""}`}
-                  />
-                </div>
+                    className={`${ctl} font-mono ${editingOfferId ? "bg-slate-100 text-slate-500" : ""}`}
+                  />,
+                )}
+                {field(
+                  t(lang, "ob_offer_date"),
+                  <input type="date" value={offerDate} onChange={(e) => setOfferDate(e.target.value)} className={`${ctl} font-mono`} />,
+                )}
+                {field(
+                  t(lang, "ob_guardian_type"),
+                  <select value={guardianType} onChange={(e) => setGuardianType(e.target.value)} className={ctl}>
+                    {GUARDIAN_TYPES.map((g) => (
+                      <option key={g}>{g}</option>
+                    ))}
+                  </select>,
+                )}
+                {field(
+                  t(lang, "ob_frequency"),
+                  <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className={ctl}>
+                    {FREQUENCIES.map((f) => (
+                      <option key={f}>{f}</option>
+                    ))}
+                  </select>,
+                )}
+                {field(
+                  t(lang, "ob_status"),
+                  <select value={status} onChange={(e) => setStatus(e.target.value)} className={ctl}>
+                    {STATUSES.map((s) => (
+                      <option key={s}>{s}</option>
+                    ))}
+                  </select>,
+                )}
+                {field(
+                  t(lang, "ob_responsible"),
+                  <select value={responsible} onChange={(e) => setResponsible(e.target.value)} className={ctl}>
+                    {RESPONSIBLES.map((r) => (
+                      <option key={r} value={r}>
+                        {r || "-"}
+                      </option>
+                    ))}
+                  </select>,
+                )}
+                {/* Contract scope opens as a floating panel: zero layout height. */}
+                {field(
+                  t(lang, "ob_contract_scope"),
+                  <details className="relative">
+                    <summary
+                      className={`${ctl} flex cursor-pointer list-none items-center justify-between font-medium [&::-webkit-details-marker]:hidden`}
+                    >
+                      <span>
+                        {scopeCount}/{GUARDIAN_SCOPE.length}
+                        {guardianSelections.length - scopeCount > 0 && (
+                          <span className="ml-1 text-slate-400">(+{guardianSelections.length - scopeCount})</span>
+                        )}
+                      </span>
+                      <span aria-hidden="true" className="text-slate-400">▾</span>
+                    </summary>
+                    <div className="absolute right-0 top-full z-30 mt-1 w-[640px] max-w-[80vw] rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
+                      <p className="mb-2 text-[11px] leading-snug text-slate-500">{t(lang, "ob_scope_help")}</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {GUARDIAN_SCOPE.map((module) => {
+                          const moduleSelected = guardianSelections.includes(module.id);
+                          return (
+                            <fieldset
+                              key={module.id}
+                              className={`rounded border p-1.5 ${moduleSelected ? "border-blue-200 bg-blue-50/40" : "border-slate-200 bg-white"}`}
+                            >
+                              <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold text-slate-800">
+                                <input
+                                  type="checkbox"
+                                  checked={moduleSelected}
+                                  onChange={() => toggleGuardianModule(module.id, module.options.map(([id]) => id))}
+                                  className="accent-blue-700"
+                                />
+                                {module.label}
+                              </label>
+                              {moduleSelected && (
+                                <div className="ml-5 mt-1 space-y-0.5">
+                                  {module.options.map(([optionId, optionLabel]) => (
+                                    <label key={optionId} className="flex cursor-pointer items-center gap-1.5 text-[11px] text-slate-600">
+                                      <input
+                                        type="checkbox"
+                                        checked={guardianSelections.includes(optionId)}
+                                        onChange={() => toggleGuardianOption(module.id, optionId)}
+                                        className="accent-blue-700"
+                                      />
+                                      {optionLabel}
+                                    </label>
+                                  ))}
+                                </div>
+                              )}
+                            </fieldset>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </details>,
+                  "col-span-2",
+                )}
                 {editingOfferId && (
-                  <p className="text-[11px] text-gray-500 leading-snug">{t(lang, "ob_pricing_note")}</p>
+                  <p className="col-span-4 text-[11px] leading-snug text-slate-500">{t(lang, "ob_pricing_note")}</p>
                 )}
               </div>
             </div>
+          </div>
 
-            <div className="col-span-3 space-y-1.5 text-sm">
-              <div className="text-xs font-bold text-weber-blue uppercase mb-2">{t(lang, "ob_options")}</div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">{t(lang, "ob_frequency")}</span>
-                <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
-                  {FREQUENCIES.map((f) => (
-                    <option key={f}>{f}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">{t(lang, "ob_status")}</span>
-                <select value={status} onChange={(e) => setStatus(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
-                  {STATUSES.map((s) => (
-                    <option key={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">{t(lang, "ob_responsible")}</span>
-                <select value={responsible} onChange={(e) => setResponsible(e.target.value)} className="border rounded px-1 py-0.5 text-sm bg-blue-50">
-                  {RESPONSIBLES.map((r) => (
-                    <option key={r} value={r}>
-                      {r || "-"}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <details className="mt-2 rounded border border-slate-200 bg-slate-50 p-2">
-                <summary className="cursor-pointer text-xs font-semibold text-slate-700">
-                  {t(lang, "ob_contract_scope")} ({GUARDIAN_SCOPE.filter((module) => guardianSelections.includes(module.id)).length}/6)
-                </summary>
-                <p className="mt-1 text-[10px] leading-snug text-slate-500">{t(lang, "ob_scope_help")}</p>
-                <div className="mt-2 max-h-44 space-y-2 overflow-y-auto pr-1">
-                  {GUARDIAN_SCOPE.map((module) => {
-                    const moduleSelected = guardianSelections.includes(module.id);
-                    return (
-                      <fieldset key={module.id} className="rounded border border-slate-200 bg-white p-1.5">
-                        <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold text-slate-800">
-                          <input
-                            type="checkbox"
-                            checked={moduleSelected}
-                            onChange={() => toggleGuardianModule(module.id, module.options.map(([id]) => id))}
-                            className="accent-blue-700"
-                          />
-                          {module.label}
-                        </label>
-                        {moduleSelected && (
-                          <div className="ml-5 mt-1 space-y-1">
-                            {module.options.map(([optionId, optionLabel]) => (
-                              <label key={optionId} className="flex cursor-pointer items-center gap-1.5 text-[10px] text-slate-600">
-                                <input
-                                  type="checkbox"
-                                  checked={guardianSelections.includes(optionId)}
-                                  onChange={() => toggleGuardianOption(module.id, optionId)}
-                                  className="accent-blue-700"
-                                />
-                                {optionLabel}
-                              </label>
-                            ))}
-                          </div>
-                        )}
-                      </fieldset>
-                    );
-                  })}
+          {/* ── Work area: machines | lines table | costs + totals + notes ── */}
+          <div className="grid min-h-0 flex-1 grid-cols-[180px_minmax(0,1fr)_270px] gap-2">
+            <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+              <div className="flex shrink-0 items-center justify-between gap-1 border-b border-slate-200 px-2 py-1.5">
+                <span className="font-semibold text-slate-700">
+                  {t(lang, "ob_machines")} ({selectedEquip.length}/{equipmentCodes.length})
+                </span>
+                <div className="flex gap-2 text-[11px]">
+                  <button type="button" onClick={() => setSelectedEquip(equipmentCodes)} className="text-blue-700 hover:underline">
+                    {t(lang, "ob_all")}
+                  </button>
+                  <button type="button" onClick={() => setSelectedEquip([])} className="text-slate-600 hover:underline">
+                    {t(lang, "ob_none")}
+                  </button>
                 </div>
-              </details>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {equipmentLoading ? (
+                  <p className="p-3 text-slate-500">{t(lang, "dash_loading")}</p>
+                ) : equipmentCodes.length === 0 ? (
+                  <p className="p-3 text-slate-400">{t(lang, "ob_empty_modules")}</p>
+                ) : (
+                  equipmentCodes.map((code) => {
+                    const checked = selectedEquip.includes(code);
+                    return (
+                      <label
+                        key={code}
+                        className={`flex cursor-pointer items-center gap-2 border-b border-slate-100 px-2 py-1 last:border-0 hover:bg-blue-50 ${
+                          checked ? "bg-blue-50/60" : ""
+                        }`}
+                      >
+                        <input type="checkbox" checked={checked} onChange={() => toggleEquip(code)} className="shrink-0 accent-blue-700" />
+                        <span className="min-w-0 flex-1 break-words font-medium">{code}</span>
+                        <span className="shrink-0 rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500">
+                          {componentCounts.get(code) ?? 0}
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </section>
+
+            <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 px-3 py-1.5">
+                <span className="font-semibold text-slate-700">
+                  {t(lang, "ob_col_module")} <span className="font-normal text-slate-400">{moduleRows.length}</span>
+                  {warningCount > 0 && (
+                    <span
+                      title={t(lang, "workload_title")}
+                      className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
+                    >
+                      ⚠ {warningCount}
+                    </span>
+                  )}
+                </span>
+                <span className="font-mono font-semibold text-slate-700">{eur(linesTotal)}</span>
+              </div>
+              <DataTable
+                data={moduleRows}
+                columns={moduleColumns}
+                loading={equipmentLoading}
+                loadingText={t(lang, "dash_loading")}
+                emptyText={t(lang, "ob_empty_modules")}
+                getRowId={(row) => row.id}
+                className="min-h-0 flex-1 border-0"
+                tableClassName=""
+              />
+              <div className="shrink-0 border-t border-blue-200 bg-blue-50 px-3 py-2 text-base">
+                <div className="flex justify-between py-0.5">
+                  <span className="text-slate-600">{t(lang, "ob_total")}</span>
+                  <span className="font-mono font-semibold">{calc ? eur(calc.total) : "—"}</span>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-slate-600">{t(lang, "ob_spare")}</span>
+                  <span className="font-mono">{calc ? eur(calc.bk_price) : "—"}</span>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-slate-600">{t(lang, "ob_discount")}</span>
+                  <span className="font-mono text-red-600">{calc ? eur(calc.discount) : "—"}</span>
+                </div>
+                <div className="mt-1 flex items-baseline justify-between border-t border-blue-200 pt-1">
+                  <span className="font-bold">{t(lang, "ob_total_amount")}</span>
+                  <span className="font-mono text-lg font-bold text-blue-700">{calc ? eur(calc.total_end) : "—"}</span>
+                </div>
+              </div>
+            </section>
+
+            <div className="flex min-h-0 flex-col gap-2 overflow-y-auto">
+              <section className="shrink-0 rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm">
+                <div className="mb-1 font-semibold text-slate-700">{t(lang, "ob_estimated_costs")}</div>
+                <div className="space-y-0.5">
+                  <FieldRow label={t(lang, "ob_f_trip")}>€{calc?.trip_cost ?? "—"}</FieldRow>
+                  <FieldRow label={t(lang, "ob_f_diets")}>€{calc?.diets ?? "—"}</FieldRow>
+                  <FieldRow label={t(lang, "ob_f_hotels")}>€{calc?.hotel_nights_cost ?? "—"}</FieldRow>
+                  <FieldRow label={t(lang, "ob_f_trip_hours")}>{calc?.trip_hours ?? "—"}</FieldRow>
+                  <FieldRow label={t(lang, "ob_f_work")}>
+                    {calc ? (Number(calc.work_hours) + Number(calc.bk_hours)).toFixed(1) : "—"}
+                  </FieldRow>
+                  <FieldRow label={t(lang, "ob_f_report")}>{calc?.report_hours ?? "—"}</FieldRow>
+                  <FieldRow label={t(lang, "ob_f_bk")}>{calc?.bk_hours ?? "—"}</FieldRow>
+                  <FieldRow label={t(lang, "ob_f_total_hours")}>{calc?.total_hours ?? "—"}</FieldRow>
+                  <FieldRow label={t(lang, "ob_f_guard_hours")}>{calc?.total_hours ?? "—"}</FieldRow>
+                  <FieldRow label={t(lang, "ob_f_hours_import")}>€{calc?.hours_import ?? "—"}</FieldRow>
+                  <FieldRow label={t(lang, "ob_f_expenses")}>€{calc?.expenses ?? "—"}</FieldRow>
+                </div>
+              </section>
+
+              <section className="flex min-h-[72px] flex-1 flex-col rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+                <div className="mb-1 font-semibold text-slate-700">{t(lang, "ob_comments")}</div>
+                <textarea
+                  value={comments}
+                  onChange={(e) => setComments(e.target.value)}
+                  placeholder={t(lang, "ob_comments_ph")}
+                  className="w-full flex-1 resize-none rounded border border-slate-300 p-1.5 text-sm focus:border-weber-blue focus:outline-none focus:ring-1 focus:ring-weber-blue"
+                />
+              </section>
             </div>
           </div>
-        </div>
-
-        <div className="grid min-h-0 flex-1 grid-cols-12 gap-2">
-          <section className="col-span-2 flex min-h-0 flex-col rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
-            <div className="mb-2 flex shrink-0 items-center justify-between gap-1">
-              <span className="text-xs font-bold uppercase text-slate-700">
-                {t(lang, "ob_machines")} ({selectedEquip.length}/{equipmentCodes.length})
-              </span>
-              <div className="flex gap-2 text-[10px]">
-                <button type="button" onClick={() => setSelectedEquip(equipmentCodes)} className="text-blue-700 hover:underline">{t(lang, "ob_all")}</button>
-                <button type="button" onClick={() => setSelectedEquip([])} className="text-slate-600 hover:underline">{t(lang, "ob_none")}</button>
-              </div>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto rounded border border-slate-200">
-              {equipmentLoading ? (
-                <p className="p-3 text-xs text-slate-500">{t(lang, "dash_loading")}</p>
-              ) : equipmentCodes.length === 0 ? (
-                <p className="p-3 text-xs text-slate-400">{t(lang, "ob_empty_modules")}</p>
-              ) : equipmentCodes.map((code) => (
-                <label key={code} className="flex cursor-pointer items-start gap-2 border-b px-2 py-2 text-xs last:border-0 hover:bg-blue-50">
-                  <input
-                    type="checkbox"
-                    checked={selectedEquip.includes(code)}
-                    onChange={() => toggleEquip(code)}
-                    className="mt-0.5 shrink-0 accent-blue-700"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block break-words font-medium">{code}</span>
-                    <span className="text-[10px] text-slate-500">{componentCounts.get(code) ?? 0}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </section>
-
-          <section className="col-span-7 flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <DataTable
-              data={moduleRows}
-              columns={moduleColumns}
-              loading={equipmentLoading}
-              loadingText={t(lang, "dash_loading")}
-              emptyText={t(lang, "ob_empty_modules")}
-              getRowId={(row) => row.id}
-              className="min-h-0 flex-1 border-0"
-            />
-          </section>
-
-          <section className="col-span-3 min-h-0 overflow-y-auto rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-            <div className="text-sm font-bold text-slate-900 pb-2">{t(lang, "ob_estimated_costs")}</div>
-            <div className="space-y-1 text-xs">
-              <FieldRow label={t(lang, "ob_f_trip")}>€{calc?.trip_cost ?? "—"}</FieldRow>
-              <FieldRow label={t(lang, "ob_f_diets")}>€{calc?.diets ?? "—"}</FieldRow>
-              <FieldRow label={t(lang, "ob_f_hotels")}>€{calc?.hotel_nights_cost ?? "—"}</FieldRow>
-              <FieldRow label={t(lang, "ob_f_trip_hours")}>{calc?.trip_hours ?? "—"}</FieldRow>
-              <FieldRow label={t(lang, "ob_f_work")}>{calc ? (Number(calc.work_hours) + Number(calc.bk_hours)).toFixed(1) : "—"}</FieldRow>
-              <FieldRow label={t(lang, "ob_f_report")}>{calc?.report_hours ?? "—"}</FieldRow>
-              <FieldRow label={t(lang, "ob_f_bk")}>{calc?.bk_hours ?? "—"}</FieldRow>
-              <div className="flex justify-between border-t pt-1 font-bold">
-                <span>{t(lang, "ob_f_total_hours")}</span>
-                <span className="font-mono">{calc?.total_hours ?? "—"}</span>
-              </div>
-              <div className="flex justify-between text-red-600 font-bold">
-                <span>{t(lang, "ob_f_guard_hours")}</span>
-                <span className="font-mono">{calc?.total_hours ?? "—"}</span>
-              </div>
-              <div className="flex justify-between border-t pt-1 font-bold">
-                <span>{t(lang, "ob_f_hours_import")}</span>
-                <span className="font-mono">€{calc?.hours_import ?? "—"}</span>
-              </div>
-              <div className="flex justify-between font-bold">
-                <span>{t(lang, "ob_f_expenses")}</span>
-                <span className="font-mono">€{calc?.expenses ?? "—"}</span>
-              </div>
-            </div>
-          </section>
-        </div>
-
-        <div className="grid shrink-0 grid-cols-12 items-stretch gap-2">
-          <div className="col-span-8 flex">
-            <div className="flex w-full flex-col rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
-              <div className="text-xs font-bold text-gray-500 uppercase mb-1">{t(lang, "ob_comments")}</div>
-              <textarea value={comments} onChange={(e) => setComments(e.target.value)} className="w-full min-h-[48px] flex-1 resize-none rounded border p-2 text-sm" placeholder={t(lang, "ob_comments_ph")} />
-            </div>
-          </div>
-          <div className="col-span-4 flex">
-            <div className="flex w-full flex-col space-y-2 rounded-lg border border-slate-200 bg-white p-3 text-sm shadow-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">{t(lang, "ob_total")}</span>
-                <span className="font-mono font-bold">{calc ? eur(calc.total) : "—"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">{t(lang, "ob_spare")}</span>
-                <span className="font-mono">{calc ? eur(calc.bk_price) : "—"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">{t(lang, "ob_discount")}</span>
-                <span className="font-mono text-red-600">{calc ? eur(calc.discount) : "—"}</span>
-              </div>
-              <div className="flex justify-between border-t pt-2 text-lg font-bold">
-                <span>{t(lang, "ob_total_amount")}</span>
-                <span className="font-mono text-blue-700">{calc ? eur(calc.total_end) : "—"}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </main>
+        </main>
       </div>
     </div>
   );

@@ -39,17 +39,17 @@ CUSTOMERS = [
 
 PRICES = [
     {"subsidiary_id": "Weber Iberica", "currency": "EUR", "km_rate": Decimal("0.5"), "tech_rate": Decimal("60"),
-     "diet_full_rate": Decimal("40"), "diet_half_rate": Decimal("20"), "hotel_rate": Decimal("80")},
+     "diet_full_rate": Decimal("40"), "diet_half_rate": Decimal("20"), "hotel_rate": Decimal("80"), "discount_rate": Decimal("0.15")},
     {"subsidiary_id": "Weber Germany", "currency": "EUR", "km_rate": Decimal("0.5"), "tech_rate": Decimal("60"),
-     "diet_full_rate": Decimal("40"), "diet_half_rate": Decimal("20"), "hotel_rate": Decimal("80")},
+     "diet_full_rate": Decimal("40"), "diet_half_rate": Decimal("20"), "hotel_rate": Decimal("80"), "discount_rate": Decimal("0.15")},
     {"subsidiary_id": "Weber Benelux", "currency": "EUR", "km_rate": Decimal("0.55"), "tech_rate": Decimal("65"),
-     "diet_full_rate": Decimal("42"), "diet_half_rate": Decimal("21"), "hotel_rate": Decimal("90")},
+     "diet_full_rate": Decimal("42"), "diet_half_rate": Decimal("21"), "hotel_rate": Decimal("90"), "discount_rate": Decimal("0.15")},
     {"subsidiary_id": "Weber France", "currency": "EUR", "km_rate": Decimal("0.6"), "tech_rate": Decimal("62"),
-     "diet_full_rate": Decimal("38"), "diet_half_rate": Decimal("19"), "hotel_rate": Decimal("85")},
+     "diet_full_rate": Decimal("38"), "diet_half_rate": Decimal("19"), "hotel_rate": Decimal("85"), "discount_rate": Decimal("0.15")},
     {"subsidiary_id": "Weber Italy", "currency": "EUR", "km_rate": Decimal("0.5"), "tech_rate": Decimal("58"),
-     "diet_full_rate": Decimal("35"), "diet_half_rate": Decimal("18"), "hotel_rate": Decimal("78")},
+     "diet_full_rate": Decimal("35"), "diet_half_rate": Decimal("18"), "hotel_rate": Decimal("78"), "discount_rate": Decimal("0.15")},
     {"subsidiary_id": "Weber Latina", "currency": "EUR", "km_rate": Decimal("0.45"), "tech_rate": Decimal("45"),
-     "diet_full_rate": Decimal("30"), "diet_half_rate": Decimal("15"), "hotel_rate": Decimal("65")},
+     "diet_full_rate": Decimal("30"), "diet_half_rate": Decimal("15"), "hotel_rate": Decimal("65"), "discount_rate": Decimal("0.15")},
 ]
 
 DISTANCES = [

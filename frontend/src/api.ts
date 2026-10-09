@@ -686,6 +686,8 @@ export type MaintenanceDraft = {
   rows: MaintenanceDraftRow[];
   total_workload: string;
   total_amount: string;
+  basic_kit_hours: string;
+  basic_kit_price: string;
 };
 
 /** Priced draft rows for the selected machines.
@@ -737,6 +739,7 @@ export type Prices = {
   diet_full_rate: string;
   diet_half_rate: string;
   hotel_rate: string;
+  discount_rate: string;
 };
 
 export function getPrices(subsidiary_id: string): Promise<Prices> {
@@ -754,6 +757,7 @@ export function updatePrices(
     diet_full_rate: string;
     diet_half_rate: string;
     hotel_rate: string;
+    discount_rate: string;
   }
 ): Promise<Prices> {
   return fetch(`${BASE}/prices/${encodeURIComponent(subsidiary_id)}`, {

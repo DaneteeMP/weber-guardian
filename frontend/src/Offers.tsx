@@ -200,7 +200,7 @@ export default function OffersHome({
                   <td className="px-2 py-1 font-mono text-gray-600 whitespace-nowrap">{o.customer_id}</td>
                   <td className="px-2 py-1">
                     <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 whitespace-nowrap">
-                      {o.status || "Draft"}
+                      {o.status || "Pending response"}
                     </span>
                   </td>
                   <td className="px-2 py-1 text-gray-700">{o.responsible_person ?? ""}</td>
@@ -234,7 +234,7 @@ export default function OffersHome({
                       </button>
                       {o.status === "Finished" ? (
                         <button
-                          onClick={() => run(setOfferStatus(o.id, "Draft"), t(lang, "home_updated"))}
+                          onClick={() => run(setOfferStatus(o.id, "Pending response"), t(lang, "home_updated"))}
                           className="px-1.5 py-0.5 rounded border border-gray-300 text-[11px] hover:bg-gray-100"
                         >
                           {t(lang, "home_reopen")}
