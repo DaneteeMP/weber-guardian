@@ -58,5 +58,9 @@ def delete_endpoint(
     db: Session = Depends(get_db),
     current: CurrentUser = Depends(require_role("admin")),
 ):
-    if not service.delete_entry(db, entry_id):
+    try:
+        found = service.delete_entry(db, entry_id)
+    except service.EquipmentCatalogInUse as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    if not found:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Catalog entry not found")

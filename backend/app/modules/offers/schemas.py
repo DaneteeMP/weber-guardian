@@ -132,9 +132,11 @@ class MaintenanceDraftIn(BaseModel):
 class MaintenanceDraftRowOut(BaseModel):
     """One draft row, priced server-side as workload × branch tech rate.
 
-    workload is None exactly when needs_review is True: the amount stays 0.00
-    and the operator must type the hours (the amount then recomputes on save)
-    or fix the data the row is missing.
+    workload is None when nobody has set hours yet: the amount stays 0.00
+    and the row is flagged for review until an editor fixes the data in the
+    Workload Catalog. offers never edit workloads or prices themselves.
+    needs_review is also True when the hours exist but are unverified (the
+    linked workload carries needs_review).
     """
 
     machine: str
@@ -142,10 +144,11 @@ class MaintenanceDraftRowOut(BaseModel):
     description: str | None
     material_no: str | None = None
     type_code: str | None = None
-    # Where the hours are edited from: the machine line (equipment_catalog,
-    # keyed by machine_type), the legacy module table (type_code) or the
-    # product catalog (component_workloads, slicer models).
-    workload_kind: Literal["line", "module", "product"] | None = None
+    # Which catalog row priced this line: the machine line (equipment_catalog,
+    # keyed by machine_type) or the global workload (workload_rules, by id).
+    # Traceability only; hours are edited in the Workload Catalog.
+    # workload_id is None for a module whose material has no workload yet.
+    workload_kind: Literal["line", "module"] | None = None
     workload_id: uuid.UUID | None = None
     line_code: str | None = None
     component_type: str | None = None

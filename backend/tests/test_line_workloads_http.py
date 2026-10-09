@@ -17,6 +17,7 @@ from app.main import app as api_app
 import app.modules.equipment_catalog.models  # noqa: F401
 import app.modules.subsidiaries.models  # noqa: F401
 import app.modules.users.models  # noqa: F401
+from app.modules.equipment.models import Equipment
 from app.modules.users.models import User
 
 ADMIN = {"X-Dev-User": "oid-admin"}
@@ -45,6 +46,11 @@ def client(monkeypatch):
         [
             User(external_id="oid-admin", role="admin"),
             User(external_id="oid-viewer", role="viewer", subsidiary_id="Weber Italy"),
+            # CCS302 is installed at a customer, so that line cannot be deleted.
+            Equipment(
+                customer_id="0001017849", equipment_name="WLN04051-23050",
+                machine_type="CCS302", row_hash="seed-line-ccs302",
+            ),
         ]
     )
     seed.commit()
@@ -95,3 +101,43 @@ def test_line_workload_update_changes_an_existing_code(client):
     assert changed.status_code == 200, changed.text
     assert Decimal(changed.json()["workload"]) == Decimal("3.50")
     assert len(client.get("/api/v1/line-workloads", headers=ADMIN).json()) == 1
+
+
+def test_line_delete_requires_authentication_and_roles(client):
+    created = client.put(
+        "/api/v1/line-workloads/CCS302", json={"workload": "2.00"}, headers=ADMIN
+    )
+    entry_id = created.json()["id"]
+
+    anonymous = client.delete(f"/api/v1/line-workloads/{entry_id}")
+    viewer = client.delete(f"/api/v1/line-workloads/{entry_id}", headers=VIEWER)
+
+    assert anonymous.status_code == 401
+    assert viewer.status_code == 403
+
+
+def test_line_delete_is_blocked_while_a_customer_has_that_machine(client):
+    # The fixture installs a machine with machine_type CCS302 at a customer.
+    created = client.put(
+        "/api/v1/line-workloads/CCS302", json={"workload": "2.00"}, headers=ADMIN
+    )
+
+    blocked = client.delete(f"/api/v1/line-workloads/{created.json()['id']}", headers=ADMIN)
+
+    assert blocked.status_code == 409
+    assert "1 customer(s)" in blocked.json()["detail"]
+    assert len(client.get("/api/v1/line-workloads", headers=ADMIN).json()) == 1
+
+
+def test_line_delete_removes_a_family_nobody_owns(client):
+    created = client.put(
+        "/api/v1/line-workloads/CCS9999", json={"workload": "4.00"}, headers=ADMIN
+    )
+    entry_id = created.json()["id"]
+
+    deleted = client.delete(f"/api/v1/line-workloads/{entry_id}", headers=ADMIN)
+    again = client.delete(f"/api/v1/line-workloads/{entry_id}", headers=ADMIN)
+
+    assert deleted.status_code == 204
+    assert again.status_code == 404
+    assert client.get("/api/v1/line-workloads", headers=ADMIN).json() == []

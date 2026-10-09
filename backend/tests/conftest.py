@@ -15,6 +15,7 @@ import app.modules.offers.models  # noqa: F401
 import app.modules.prices.models  # noqa: F401
 import app.modules.subsidiaries.models  # noqa: F401
 import app.modules.users.models  # noqa: F401
+import app.modules.workload_rules.models  # noqa: F401
 
 
 @pytest.fixture

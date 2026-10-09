@@ -1,849 +1,114 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
+// Workload Catalog: every workload of the company, the only place hours are edited.
+//
+// Four views over one model:
+//   * Workloads: each global workload with its real name, hours and materials;
+//   * Lines: the machine-line families (30x, 40x...) priced by equipment_catalog;
+//   * Material: how one material number resolves, and moving it to another workload;
+//   * Unresolved: installed materials that are not priced, for a human decision.
+// The screen only shows and sends; the backend decides every resolution.
+import { useCallback, useState } from "react";
 
-import {
-  createComponentWorkload,
-  deleteComponentWorkload,
-  importWorkloadCsv,
-  listComponentWorkloads,
-  listModuleWorkloads,
-  updateComponentWorkload,
-  updateModuleWorkload,
-  type ComponentWorkload,
-  type ModuleWorkload,
-  type WorkloadImportReport,
-} from "./api";
-import DataTable from "./components/DataTable";
-import IconButton from "./components/IconButton";
-import Modal from "./components/Modal";
+import type { WorkloadRule } from "./api";
 import SectionCard from "./components/SectionCard";
 import { t, type Lang } from "./i18n";
+import LineWorkloadsPanel from "./workloads/LineWorkloadsPanel";
+import MaterialLookup from "./workloads/MaterialLookup";
+import RuleModal from "./workloads/RuleModal";
+import RulesPanel from "./workloads/RulesPanel";
+import UnresolvedPanel from "./workloads/UnresolvedPanel";
 
-const LOAD_LIMIT = 200;
+type CatalogTab = "rules" | "lines" | "material" | "unresolved";
 
-type WorkloadDraft = {
-  id?: string;
-  name: string;
-  component_type: string;
-  workload: string;
-  needs_review: boolean;
-};
+type ModalState = { ruleId: string | null } | null;
 
-type ModuleDraft = {
-  type_code: string;
-  label: string;
-  workload: string;
-  needs_review: boolean;
-};
+export default function WorkloadCatalog({ lang, canEdit }: { lang: Lang; canEdit: boolean }) {
+  const [tab, setTab] = useState<CatalogTab>("rules");
+  // Bumped after any change so the other panels reload their data.
+  const [revision, setRevision] = useState(0);
+  const [modal, setModal] = useState<ModalState>(null);
+  const [materialFocus, setMaterialFocus] = useState<string | null>(null);
 
-type CatalogView = "products" | "modules";
+  const bump = useCallback(() => setRevision((value) => value + 1), []);
 
-function EditIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path d="M12 20h9" />
-      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" />
-    </svg>
-  );
-}
+  const openMaterial = useCallback((materialNo: string) => {
+    setMaterialFocus(materialNo);
+    setTab("material");
+  }, []);
 
-function DeleteIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path d="M3 6h18" />
-      <path d="M8 6V4h8v2" />
-      <path d="M19 6l-1 14H6L5 6" />
-      <path d="M10 11v5" />
-      <path d="M14 11v5" />
-    </svg>
-  );
-}
-
-export default function WorkloadCatalog({
-  lang,
-  canEdit,
-}: {
-  lang: Lang;
-  canEdit: boolean;
-}) {
-  const [rows, setRows] = useState<ComponentWorkload[]>([]);
-  const [total, setTotal] = useState(0);
-
-  const [search, setSearch] = useState("");
-  const [needsReviewOnly, setNeedsReviewOnly] = useState(false);
-
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-
-  const [error, setError] = useState<string | null>(null);
-
-  const [draft, setDraft] = useState<WorkloadDraft | null>(null);
-
-  const [importOpen, setImportOpen] = useState(false);
-  const [report, setReport] = useState<WorkloadImportReport | null>(null);
-
-  const [view, setView] = useState<CatalogView>("products");
-  const [moduleRows, setModuleRows] = useState<ModuleWorkload[]>([]);
-  const [moduleTotal, setModuleTotal] = useState(0);
-  const [moduleDraft, setModuleDraft] = useState<ModuleDraft | null>(null);
-
-  async function load() {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await listComponentWorkloads({
-        search: search.trim() || undefined,
-        needs_review: needsReviewOnly ? true : undefined,
-        limit: LOAD_LIMIT,
-        offset: 0,
-      });
-
-      setRows(result.rows);
-      setTotal(result.total);
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Could not load workloads",
-      );
-    } finally {
-      setLoading(false);
-    }
+  function openRule(rule: WorkloadRule) {
+    setModal({ ruleId: rule.id });
   }
 
-  useEffect(() => {
-    if (view !== "products") return;
-
-    const timer = setTimeout(() => {
-      void load();
-    }, 200);
-
-    return () => clearTimeout(timer);
-
-    // load intentionally follows the current filters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, search, needsReviewOnly]);
-
-  async function loadModules() {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await listModuleWorkloads({
-        search: search.trim() || undefined,
-        needs_review: needsReviewOnly ? true : undefined,
-        limit: LOAD_LIMIT,
-        offset: 0,
-      });
-
-      setModuleRows(result.rows);
-      setModuleTotal(result.total);
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Could not load module workloads",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (view !== "modules") return;
-
-    const timer = setTimeout(() => {
-      void loadModules();
-    }, 200);
-
-    return () => clearTimeout(timer);
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, search, needsReviewOnly]);
-
-  function startEditModule(row: ModuleWorkload) {
-    setModuleDraft({
-      type_code: row.type_code,
-      label: row.label,
-      workload: row.workload ?? "",
-      needs_review: row.needs_review,
-    });
-  }
-
-  async function saveModuleDraft(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!moduleDraft) return;
-
-    const workload = moduleDraft.workload.trim() || null;
-
-    if (!moduleDraft.needs_review && workload === null) {
-      setError(t(lang, "workload_hours_required"));
-      return;
-    }
-
-    setBusy(true);
-    setError(null);
-
-    try {
-      await updateModuleWorkload(moduleDraft.type_code, {
-        workload,
-        needs_review: moduleDraft.needs_review,
-      });
-
-      setModuleDraft(null);
-      await loadModules();
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Could not save module workload",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function startCreate() {
-    setDraft({
-      name: "",
-      component_type: "",
-      workload: "",
-      needs_review: true,
-    });
-  }
-
-  function startEdit(row: ComponentWorkload) {
-    setDraft({
-      id: row.id,
-      name: row.name,
-      component_type: row.component_type,
-      workload: row.workload ?? "",
-      needs_review: row.needs_review,
-    });
-  }
-
-  async function saveDraft(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!draft) return;
-
-    const workload = draft.workload.trim() || null;
-
-    if (!draft.needs_review && workload === null) {
-      setError(t(lang, "workload_hours_required"));
-      return;
-    }
-
-    setBusy(true);
-    setError(null);
-
-    try {
-      if (draft.id) {
-        await updateComponentWorkload(draft.id, {
-          name: draft.name.trim(),
-          workload,
-          needs_review: draft.needs_review,
-        });
-      } else {
-        await createComponentWorkload({
-          name: draft.name.trim(),
-          component_type: draft.component_type.trim(),
-          workload,
-          needs_review: draft.needs_review,
-        });
-      }
-
-      setDraft(null);
-      await load();
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Could not save workload",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleImport(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const input = event.currentTarget.elements.namedItem(
-      "sap-csv",
-    ) as HTMLInputElement;
-
-    const file = input.files?.[0];
-
-    if (!file) {
-      setError("Please select a CSV file.");
-      return;
-    }
-
-    setBusy(true);
-    setError(null);
-
-    try {
-      const result = await importWorkloadCsv(file);
-
-      setReport(result);
-      setImportOpen(false);
-
-      input.value = "";
-
-      await load();
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Could not import SAP CSV",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove(row: ComponentWorkload) {
-    const confirmation = t(lang, "workload_delete_confirm").replace(
-      "{name}",
-      row.name,
-    );
-
-    if (!window.confirm(confirmation)) return;
-
-    setError(null);
-
-    try {
-      await deleteComponentWorkload(row.id);
-      await load();
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Could not delete workload",
-      );
-    }
-  }
-
-  const columns = useMemo<ColumnDef<ComponentWorkload>[]>(
-    () => [
-      {
-        accessorKey: "name",
-        header: t(lang, "workload_name"),
-        enableSorting: true,
-        cell: ({ row }) => (
-          <span className="font-medium">{row.original.name}</span>
-        ),
-      },
-      {
-        accessorKey: "component_type",
-        header: t(lang, "workload_component_type"),
-        enableSorting: true,
-        cell: ({ row }) => (
-          <span className="text-gray-600">
-            {row.original.component_type || "—"}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "workload",
-        header: t(lang, "eq_workload"),
-        enableSorting: true,
-        sortingFn: (rowA, rowB, columnId) => {
-          const a = rowA.getValue<number | null>(columnId);
-          const b = rowB.getValue<number | null>(columnId);
-
-          if (a === null && b === null) return 0;
-          if (a === null) return 1;
-          if (b === null) return -1;
-
-          return Number(a) - Number(b);
-        },
-        cell: ({ row }) => (
-          <span className="font-mono">
-            {row.original.workload === null
-              ? "—"
-              : `${row.original.workload} h`}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "needs_review",
-        header: t(lang, "workload_needs_review"),
-        enableSorting: true,
-        cell: ({ row }) =>
-          row.original.needs_review ? (
-            <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
-              {t(lang, "workload_needs_review")}
-            </span>
-          ) : (
-            <span className="text-gray-400">—</span>
-          ),
-      },
-      {
-        id: "actions",
-        header: "",
-        enableSorting: false,
-        cell: ({ row }) =>
-          canEdit ? (
-            <div className="flex justify-end gap-1">
-              <IconButton
-                label={t(lang, "cfg_edit")}
-                onClick={() => startEdit(row.original)}
-                icon={<EditIcon />}
-              />
-
-              <IconButton
-                label={t(lang, "cfg_delete")}
-                variant="danger"
-                onClick={() => void remove(row.original)}
-                icon={<DeleteIcon />}
-              />
-            </div>
-          ) : null,
-      },
-    ],
-    [lang, canEdit],
-  );
-
-  const moduleColumns = useMemo<ColumnDef<ModuleWorkload>[]>(
-    () => [
-      {
-        accessorKey: "type_code",
-        header: t(lang, "workload_type_code"),
-        enableSorting: true,
-        cell: ({ row }) => (
-          <span className="font-mono font-medium">{row.original.type_code}</span>
-        ),
-      },
-      {
-        accessorKey: "label",
-        header: t(lang, "workload_name"),
-        enableSorting: true,
-        cell: ({ row }) => (
-          <span className="text-gray-700">{row.original.label}</span>
-        ),
-      },
-      {
-        accessorKey: "workload",
-        header: t(lang, "eq_workload"),
-        enableSorting: true,
-        cell: ({ row }) => (
-          <span className="font-mono">
-            {row.original.workload === null
-              ? "—"
-              : `${row.original.workload} h`}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "needs_review",
-        header: t(lang, "workload_needs_review"),
-        enableSorting: true,
-        cell: ({ row }) =>
-          row.original.needs_review ? (
-            <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
-              {t(lang, "workload_needs_review")}
-            </span>
-          ) : (
-            <span className="text-gray-400">—</span>
-          ),
-      },
-      {
-        id: "actions",
-        header: "",
-        enableSorting: false,
-        cell: ({ row }) =>
-          canEdit ? (
-            <div className="flex justify-end">
-              <IconButton
-                label={t(lang, "cfg_edit")}
-                onClick={() => startEditModule(row.original)}
-                icon={<EditIcon />}
-              />
-            </div>
-          ) : null,
-      },
-    ],
-    [lang, canEdit],
-  );
-
-  const inputClass = "w-full rounded border px-2 py-1.5 text-sm";
+  const tabs: { key: CatalogTab; label: string }[] = [
+    { key: "rules", label: t(lang, "workload_tab_rules") },
+    { key: "lines", label: t(lang, "workload_tab_lines") },
+    { key: "material", label: t(lang, "workload_tab_material") },
+    { key: "unresolved", label: t(lang, "workload_tab_unresolved") },
+  ];
 
   return (
     <main className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-hidden p-4">
         <div className="flex h-full min-h-0 flex-col">
-          {/* Page title */}
-          <h1 className="mb-3 shrink-0 text-2xl font-bold text-gray-900">
-            {t(lang, "workload_title")}
-          </h1>
+          <h1 className="mb-3 shrink-0 text-2xl font-bold text-gray-900">{t(lang, "workload_title")}</h1>
 
-          {/* Error */}
-          {error && (
-            <div className="mb-3 shrink-0 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
-            </div>
-          )}
-
-          {/* Import report */}
-          {report && (
-            <div className="mb-3 flex shrink-0 items-center justify-between gap-3 rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-950">
-              <div className="flex flex-wrap gap-x-4 gap-y-1">
-                <span className="font-semibold">
-                  {t(lang, "workload_import_report")}
-                </span>
-
-                <span>
-                  {t(lang, "workload_source_rows")}:{" "}
-                  {report.rows_read.toLocaleString()}
-                </span>
-
-                <span>
-                  {t(lang, "workload_products")}:{" "}
-                  {report.products_discovered.toLocaleString()}
-                </span>
-
-                <span>
-                  {t(lang, "workload_created")}:{" "}
-                  {report.workloads_created.toLocaleString()}
-                </span>
-
-                <span>
-                  {t(lang, "workload_preserved")}:{" "}
-                  {report.workloads_preserved.toLocaleString()}
-                </span>
-
-                <span>
-                  {t(lang, "workload_review_created")}:{" "}
-                  {report.workloads_needing_review_created.toLocaleString()}
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setReport(null)}
-                className="shrink-0 text-gray-500 hover:text-gray-900"
-                aria-label="Close import report"
-              >
-                ×
-              </button>
-            </div>
-          )}
-
-          {/* Content */}
           <SectionCard className="flex min-h-0 flex-1 flex-col">
-            {/* Toolbar */}
-            <div className="mb-2 flex shrink-0 items-center gap-2">
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={t(lang, "workload_search")}
-                className="min-w-0 flex-1 rounded border px-3 py-1.5 text-sm"
-              />
-
-              <div className="flex shrink-0 overflow-hidden rounded border text-sm">
+            <div className="mb-3 flex shrink-0 overflow-hidden rounded border text-sm">
+              {tabs.map((item) => (
                 <button
+                  key={item.key}
                   type="button"
-                  onClick={() => setView("products")}
+                  onClick={() => setTab(item.key)}
                   className={`px-3 py-1.5 ${
-                    view === "products"
-                      ? "bg-weber-blue font-semibold text-white"
-                      : "bg-white hover:bg-gray-50"
+                    tab === item.key ? "bg-weber-blue font-semibold text-white" : "bg-white hover:bg-gray-50"
                   }`}
                 >
-                  {t(lang, "workload_view_products")}
+                  {item.label}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setView("modules")}
-                  className={`px-3 py-1.5 ${
-                    view === "modules"
-                      ? "bg-weber-blue font-semibold text-white"
-                      : "bg-white hover:bg-gray-50"
-                  }`}
-                >
-                  {t(lang, "workload_view_modules")}
-                </button>
-              </div>
+              ))}
+            </div>
 
-              <span className="shrink-0 text-sm text-gray-500">
-                {(view === "products" ? total : moduleTotal).toLocaleString()} entries
-              </span>
-
-              <label className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm">
-                <input
-                  type="checkbox"
-                  checked={needsReviewOnly}
-                  onChange={(event) =>
-                    setNeedsReviewOnly(event.target.checked)
-                  }
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              {tab === "rules" && (
+                <RulesPanel
+                  lang={lang}
+                  canEdit={canEdit}
+                  revision={revision}
+                  onOpen={openRule}
+                  onCreate={() => setModal({ ruleId: null })}
                 />
+              )}
 
-                {t(lang, "workload_review_only")}
-              </label>
+              {tab === "lines" && <LineWorkloadsPanel lang={lang} canEdit={canEdit} />}
 
-              {canEdit && view === "products" && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setImportOpen(true)}
-                    className="shrink-0 rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
-                  >
-                    {t(lang, "workload_import")}
-                  </button>
+              {tab === "material" && (
+                <div className="min-h-0 flex-1 overflow-auto">
+                  <MaterialLookup
+                    lang={lang}
+                    canEdit={canEdit}
+                    initialMaterial={materialFocus}
+                    onChanged={bump}
+                  />
+                </div>
+              )}
 
-                  <button
-                    type="button"
-                    onClick={startCreate}
-                    className="shrink-0 rounded bg-weber-blue px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
-                  >
-                    + {t(lang, "cfg_add")}
-                  </button>
-                </>
+              {tab === "unresolved" && (
+                <UnresolvedPanel lang={lang} revision={revision} onOpen={openMaterial} />
               )}
             </div>
-
-            {/* Table */}
-            {view === "products" ? (
-              <DataTable
-                data={rows}
-                columns={columns}
-                loading={loading}
-                loadingText={t(lang, "dash_loading")}
-                emptyText={t(lang, "workload_no_results")}
-                getRowId={(row) => row.id}
-              />
-            ) : (
-              <DataTable
-                data={moduleRows}
-                columns={moduleColumns}
-                loading={loading}
-                loadingText={t(lang, "dash_loading")}
-                emptyText={t(lang, "workload_no_results")}
-                getRowId={(row) => row.type_code}
-              />
-            )}
           </SectionCard>
         </div>
       </div>
 
-      {/* Create / edit modal */}
-      {draft && (
-        <Modal
-          title={draft.id ? t(lang, "cfg_edit") : t(lang, "cfg_add")}
-          onClose={() => setDraft(null)}
-        >
-          <form
-            onSubmit={(event) => void saveDraft(event)}
-            className="space-y-3"
-          >
-            <label className="block text-xs">
-              {t(lang, "workload_name")}
-
-              <input
-                required
-                maxLength={256}
-                value={draft.name}
-                onChange={(event) =>
-                  setDraft({
-                    ...draft,
-                    name: event.target.value,
-                  })
-                }
-                className={`${inputClass} mt-1`}
-              />
-            </label>
-
-            <label className="block text-xs">
-              {t(lang, "workload_component_type")}
-
-              <input
-                required
-                maxLength={128}
-                value={draft.component_type}
-                disabled={Boolean(draft.id)}
-                onChange={(event) =>
-                  setDraft({
-                    ...draft,
-                    component_type: event.target.value,
-                  })
-                }
-                className={`${inputClass} mt-1 disabled:bg-gray-100`}
-              />
-            </label>
-
-            <label className="block text-xs">
-              {t(lang, "eq_workload")}
-
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={draft.workload}
-                onChange={(event) =>
-                  setDraft({
-                    ...draft,
-                    workload: event.target.value,
-                  })
-                }
-                className={`${inputClass} mt-1`}
-              />
-            </label>
-
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={draft.needs_review}
-                onChange={(event) =>
-                  setDraft({
-                    ...draft,
-                    needs_review: event.target.checked,
-                  })
-                }
-              />
-
-              {t(lang, "workload_needs_review")}
-            </label>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                className="rounded border px-3 py-1.5 text-sm"
-                onClick={() => setDraft(null)}
-              >
-                {t(lang, "cfg_cancel")}
-              </button>
-
-              <button
-                type="submit"
-                disabled={busy}
-                className="rounded bg-weber-blue px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {busy
-                  ? t(lang, "dash_loading")
-                  : t(lang, "cfg_save")}
-              </button>
-            </div>
-          </form>
-        </Modal>
+      {modal && (
+        <RuleModal
+          lang={lang}
+          canEdit={canEdit}
+          ruleId={modal.ruleId}
+          onClose={() => setModal(null)}
+          onChanged={bump}
+        />
       )}
-
-      {/* Import CSV modal */}
-      {canEdit && importOpen && (
-        <Modal
-          title={t(lang, "workload_import")}
-          onClose={() => setImportOpen(false)}
-        >
-          <form
-            onSubmit={(event) => void handleImport(event)}
-            className="space-y-3"
-          >
-            <input
-              className={inputClass}
-              type="file"
-              name="sap-csv"
-              accept=".csv,text/csv"
-            />
-
-            <p className="text-xs text-gray-600">
-              {t(lang, "workload_import_help")}
-            </p>
-
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setImportOpen(false)}
-                className="rounded border px-3 py-1.5 text-sm"
-              >
-                {t(lang, "cfg_cancel")}
-              </button>
-
-              <button
-                type="submit"
-                disabled={busy}
-                className="rounded bg-weber-blue px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {busy
-                  ? t(lang, "workload_importing")
-                  : t(lang, "workload_import")}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* Module workload edit modal */}
-      {moduleDraft && (
-        <Modal
-          title={t(lang, "cfg_edit")}
-          onClose={() => setModuleDraft(null)}
-        >
-          <form
-            onSubmit={(event) => void saveModuleDraft(event)}
-            className="space-y-3"
-          >
-            <div className="text-xs text-gray-500">
-              {moduleDraft.type_code} · {moduleDraft.label}
-            </div>
-
-            <label className="block text-xs">
-              {t(lang, "eq_workload")}
-
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                autoFocus
-                value={moduleDraft.workload}
-                onChange={(event) =>
-                  setModuleDraft({
-                    ...moduleDraft,
-                    workload: event.target.value,
-                  })
-                }
-                className={`${inputClass} mt-1`}
-              />
-            </label>
-
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={moduleDraft.needs_review}
-                onChange={(event) =>
-                  setModuleDraft({
-                    ...moduleDraft,
-                    needs_review: event.target.checked,
-                  })
-                }
-              />
-
-              {t(lang, "workload_needs_review")}
-            </label>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                className="rounded border px-3 py-1.5 text-sm"
-                onClick={() => setModuleDraft(null)}
-              >
-                {t(lang, "cfg_cancel")}
-              </button>
-
-              <button
-                type="submit"
-                disabled={busy}
-                className="rounded bg-weber-blue px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {busy ? t(lang, "dash_loading") : t(lang, "cfg_save")}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
     </main>
   );
 }

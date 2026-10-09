@@ -52,6 +52,32 @@ contraseña compartida y **no** es una postura de produccion.
    `seed_demo.py` se niega a ejecutarse si la tabla `offers` ya tiene filas, de
    modo que la base de desarrollo con datos reales no se puede contaminar.
 
+5. Catalogo editable y diccionario. Las migraciones siembran el baseline legacy
+   (reglas de trabajo y lineas), pero lo que edites despues en local (reglas
+   nuevas como "Folding Station CFV", horas de lineas, enlaces de materiales) no
+   esta en ninguna migracion: solo existe en la base donde lo hiciste. Para
+   llevarlo a la instancia desplegada sin rehacerlo a mano:
+
+   1) **Diccionario primero** (los enlaces apuntan a sus `material_no`, asi que
+      tiene que existir antes). Desde el frontend de la instancia desplegada, en
+      Importar, sube el `names_dictionary.csv`; o por HTTP:
+      ```
+      curl -F "file=@names_dictionary.csv" -H "X-Dev-User: dev-admin" \
+        https://<api>/api/v1/component-names/import
+      ```
+   2) **Catalogo** (reglas + enlaces + lineas en un solo JSON). Exporta en local
+      y reimporta en prod:
+      ```
+      curl -H "X-Dev-User: dev-admin" https://<api-local>/api/v1/catalog/export > catalog.json
+      curl -X POST -H "Content-Type: application/json" -H "X-Dev-User: dev-admin" \
+        --data @catalog.json https://<api>/api/v1/catalog/import
+      ```
+      El import es **idempotente y no destructivo**: subirlo dos veces no
+      duplica nada, nunca borra, y devuelve un informe (creados/actualizados/
+      movidos) mas los materiales que se omitieron por no estar en el
+      diccionario. Reimportar el propio export es un no-op; sirve para comprobar
+      que el entorno de destino tiene exactamente el mismo catalogo.
+
 ### Si la red local no llega a Supabase
 
 En algunas redes (sobre todo detras de VPN o con DNS filtrado) el host de

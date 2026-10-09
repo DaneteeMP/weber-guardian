@@ -1,10 +1,12 @@
 """HTTP API for machine-line workloads (equipment_catalog, kind="line").
 
 The line is the machine itself, priced by family (e.g. "40x" for the 402/404/405
-slicers). The Offers tab edits it from the "Workload not configured" badge, the
-same way it edits modules and slicer products.
+slicers). The Workload Catalog edits it from the Líneas tab; offers never edit
+workloads or prices.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -40,3 +42,19 @@ def update_endpoint(
         )
     except service.EquipmentCatalogConflict as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_endpoint(
+    entry_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current: CurrentUser = Depends(require_role("admin", "sales")),
+):
+    """Delete a line no customer's equipment resolves to; 409 while in use."""
+    try:
+        found = service.delete_entry(db, entry_id)
+    except service.EquipmentCatalogInUse as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    if not found:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="line not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -269,129 +269,154 @@ export function getCustomerDetail(customerId: string): Promise<CustomerDetail> {
   );
 }
 
-export type ComponentWorkload = {
+// Global module workload rules (workload_rules). A rule holds the hours; a
+// dictionary material is linked to at most one rule. Hours are global: every
+// future draft that uses a rule uses its current value.
+export type WorkloadRule = {
   id: string;
   name: string;
-  component_type: string;
   workload: string | null;
-  needs_review: boolean;
   legacy_type_code: string | null;
+  category: "legacy" | "carried_over" | "manual";
+  needs_review: boolean;
+  note: string | null;
+  linked_materials: number;
   created_at: string;
 };
 
-export type WorkloadImportReport = {
-  encoding: string;
-  rows_read: number;
-  rows_blank: number;
-  rows_without_material_no: number;
-  source_entries: number;
-  source_conflicts: number;
-  products_discovered: number;
-  workloads_created: number;
-  workloads_preserved: number;
-  workloads_needing_review_created: number;
-  rows_without_component_type: number;
+export type RuleMaterial = {
+  material_no: string;
+  name_en: string | null;
+  type_code: string | null;
+  component_type: string | null;
+  has_conflict: boolean;
+  customers: number;
 };
 
-export function listComponentWorkloads(opts?: {
+export type WorkloadRuleDetail = WorkloadRule & { materials: RuleMaterial[] };
+
+export type MaterialResolution = {
+  material_no: string;
+  state: "resolved" | "no_rule" | "not_in_dictionary" | "slicer";
+  dictionary_material_no: string | null;
+  name_en: string | null;
+  type_code: string | null;
+  component_type: string | null;
+  has_conflict: boolean;
+  rule: { id: string; name: string; workload: string | null; needs_review: boolean } | null;
+  customers: number;
+};
+
+export type UnresolvedMaterial = {
+  material_no: string;
+  name_en: string | null;
+  type_code: string | null;
+  component_type: string | null;
+  reason: "no_rule" | "no_hours" | "dictionary_conflict" | "not_in_dictionary";
+  customers: number;
+};
+
+export type MaterialLinkResult = {
+  material_no: string;
+  workload_rule_id: string;
+  previous_rule_id: string | null;
+  previous_rule_name: string | null;
+  changed: boolean;
+};
+
+export function listWorkloadRules(opts?: {
   search?: string;
-  component_type?: string;
   needs_review?: boolean;
+  category?: string;
   limit?: number;
   offset?: number;
-}): Promise<{ rows: ComponentWorkload[]; total: number }> {
+}): Promise<{ rows: WorkloadRule[]; total: number }> {
   const params = new URLSearchParams();
   if (opts?.search) params.set("search", opts.search);
-  if (opts?.component_type) params.set("component_type", opts.component_type);
   if (opts?.needs_review !== undefined) params.set("needs_review", String(opts.needs_review));
+  if (opts?.category) params.set("category", opts.category);
   params.set("limit", String(opts?.limit ?? 200));
   params.set("offset", String(opts?.offset ?? 0));
-  return fetch(`${BASE}/component-workloads?${params}`, { headers: headers() }).then(async (r) => {
-    const rows = (await checked(r, "GET component workloads")) as ComponentWorkload[];
+  return fetch(`${BASE}/workload-rules?${params}`, { headers: headers() }).then(async (r) => {
+    const rows = (await checked(r, "GET workload rules")) as WorkloadRule[];
     return { rows, total: Number(r.headers.get("X-Total-Count") ?? rows.length) };
   });
 }
 
-/** Import SAP CSV, refresh internal product mappings and add newly discovered
- * workload products without changing existing manual workload values. */
-export function importWorkloadCsv(file: File): Promise<WorkloadImportReport> {
-  const form = new FormData();
-  form.append("file", file);
-
-  return fetch(`${BASE}/component-workloads/import`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: form,
-  }).then((r) => checked(r, "POST workload catalog import"));
+export function getWorkloadRule(id: string): Promise<WorkloadRuleDetail> {
+  return fetch(`${BASE}/workload-rules/${encodeURIComponent(id)}`, { headers: headers() }).then((r) =>
+    checked(r, "GET workload rule"),
+  );
 }
 
-export function createComponentWorkload(payload: {
+export function createWorkloadRule(payload: {
   name: string;
-  component_type: string;
   workload: string | null;
+  legacy_type_code?: string | null;
   needs_review?: boolean;
-}): Promise<ComponentWorkload> {
-  return fetch(`${BASE}/component-workloads`, {
+}): Promise<WorkloadRule> {
+  return fetch(`${BASE}/workload-rules`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify(payload),
-  }).then((r) => checked(r, "POST component workload"));
+  }).then((r) => checked(r, "POST workload rule"));
 }
 
-export function updateComponentWorkload(
+export function updateWorkloadRule(
   id: string,
-  changes: { name?: string; workload?: string | null; needs_review?: boolean },
-): Promise<ComponentWorkload> {
-  return fetch(`${BASE}/component-workloads/${encodeURIComponent(id)}`, {
+  changes: { name?: string; workload?: string | null; legacy_type_code?: string | null; needs_review?: boolean },
+): Promise<WorkloadRule> {
+  return fetch(`${BASE}/workload-rules/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: headers(),
     body: JSON.stringify(changes),
-  }).then((r) => checked(r, "PATCH component workload"));
+  }).then((r) => checked(r, "PATCH workload rule"));
 }
 
-export async function deleteComponentWorkload(id: string): Promise<void> {
-  const response = await fetch(`${BASE}/component-workloads/${encodeURIComponent(id)}`, {
+/** Delete a rule no customer uses. 409 while its materials are installed. */
+export async function deleteWorkloadRule(id: string): Promise<void> {
+  const response = await fetch(`${BASE}/workload-rules/${encodeURIComponent(id)}`, {
     method: "DELETE",
     headers: authHeaders(),
   });
-  if (!response.ok) await checked(response, "DELETE component workload");
+  if (!response.ok) await checked(response, "DELETE workload rule");
 }
 
-// Legacy module workloads, keyed by type_code (the restored TblWorkLoad).
-// Ordinary maintenance modules price from here; slicers from component_workloads.
-export type ModuleWorkload = {
-  type_code: string;
-  label: string;
-  workload: string | null;
-  needs_review: boolean;
-};
-
-export function listModuleWorkloads(opts?: {
-  search?: string;
-  needs_review?: boolean;
-  limit?: number;
-  offset?: number;
-}): Promise<{ rows: ModuleWorkload[]; total: number }> {
-  const params = new URLSearchParams();
-  if (opts?.search) params.set("search", opts.search);
-  if (opts?.needs_review !== undefined) params.set("needs_review", String(opts.needs_review));
-  params.set("limit", String(opts?.limit ?? 200));
-  params.set("offset", String(opts?.offset ?? 0));
-  return fetch(`${BASE}/module-workloads?${params}`, { headers: headers() }).then(async (r) => {
-    const rows = (await checked(r, "GET module workloads")) as ModuleWorkload[];
-    return { rows, total: Number(r.headers.get("X-Total-Count") ?? rows.length) };
-  });
-}
-
-export function updateModuleWorkload(
-  typeCode: string,
-  changes: { workload: string | null; needs_review?: boolean; label?: string },
-): Promise<ModuleWorkload> {
-  return fetch(`${BASE}/module-workloads/${encodeURIComponent(typeCode)}`, {
+/** Link a material to a rule. A material that already has another rule is moved. */
+export function linkRuleMaterial(materialNo: string, workloadRuleId: string): Promise<MaterialLinkResult> {
+  return fetch(`${BASE}/workload-rules/materials/${encodeURIComponent(materialNo)}`, {
     method: "PUT",
     headers: headers(),
-    body: JSON.stringify(changes),
-  }).then((r) => checked(r, "PUT module workload"));
+    body: JSON.stringify({ workload_rule_id: workloadRuleId }),
+  }).then((r) => checked(r, "PUT rule material"));
+}
+
+export async function unlinkRuleMaterial(materialNo: string): Promise<void> {
+  const response = await fetch(`${BASE}/workload-rules/materials/${encodeURIComponent(materialNo)}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!response.ok) await checked(response, "DELETE rule material");
+}
+
+export function resolveMaterial(materialNo: string): Promise<MaterialResolution> {
+  const params = new URLSearchParams({ material_no: materialNo });
+  return fetch(`${BASE}/workload-rules/materials/resolve?${params}`, { headers: headers() }).then((r) =>
+    checked(r, "GET material resolution"),
+  );
+}
+
+export function listUnresolvedMaterials(opts?: {
+  limit?: number;
+  offset?: number;
+}): Promise<{ rows: UnresolvedMaterial[]; total: number }> {
+  const params = new URLSearchParams();
+  params.set("limit", String(opts?.limit ?? 200));
+  params.set("offset", String(opts?.offset ?? 0));
+  return fetch(`${BASE}/workload-rules/unresolved?${params}`, { headers: headers() }).then(async (r) => {
+    const rows = (await checked(r, "GET unresolved materials")) as UnresolvedMaterial[];
+    return { rows, total: Number(r.headers.get("X-Total-Count") ?? rows.length) };
+  });
 }
 
 // Machine-line workloads (equipment_catalog), keyed by machine_type. The line
@@ -414,6 +439,22 @@ export function updateLineWorkload(
     headers: headers(),
     body: JSON.stringify(changes),
   }).then((r) => checked(r, "PUT line workload"));
+}
+
+/** All machine-line families with their hours (the Workload Catalog lines tab). */
+export function listLineWorkloads(): Promise<LineWorkload[]> {
+  return fetch(`${BASE}/line-workloads`, { headers: headers() }).then((r) =>
+    checked(r, "GET line workloads")
+  );
+}
+
+/** Delete a line no customer's equipment resolves to. 409 while it is in use. */
+export async function deleteLineWorkload(entryId: string): Promise<void> {
+  const response = await fetch(`${BASE}/line-workloads/${encodeURIComponent(entryId)}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!response.ok) await checked(response, "DELETE line workload");
 }
 
 export function calculate(pricing: Pricing): Promise<Breakdown> {
@@ -627,7 +668,7 @@ export type MaintenanceDraftRow = {
   description: string | null;
   material_no: string | null;
   type_code: string | null;
-  workload_kind: "line" | "module" | "product" | null;
+  workload_kind: "line" | "module" | null;
   workload_id: string | null;
   line_code: string | null;
   component_type: string | null;

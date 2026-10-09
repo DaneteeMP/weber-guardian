@@ -8,9 +8,8 @@ from app.core.basic_auth import BasicAuthMiddleware
 from app.core.config import settings
 from app.core.db import engine
 from app.modules.basic_kit.router import router as basic_kit_router
-from app.modules.component_names.module_workload_router import router as module_workloads_router
+from app.modules.catalog_transfer.router import router as catalog_transfer_router
 from app.modules.component_names.router import router as component_names_router
-from app.modules.component_names.workload_router import router as component_workloads_router
 from app.modules.customers.router import router as customers_router
 from app.modules.distances.router import router as distances_router
 from app.modules.equipment_catalog.line_workload_router import router as line_workloads_router
@@ -20,6 +19,7 @@ from app.modules.offers.router import router as offers_router
 from app.modules.prices.router import router as prices_router
 from app.modules.subsidiaries.router import router as subsidiaries_router
 from app.modules.users.router import router as users_router
+from app.modules.workload_rules.router import router as workload_rules_router
 
 app = FastAPI(title="Guardian Contract Management API", version="0.1.0")
 
@@ -94,6 +94,6 @@ app.include_router(subsidiaries_router, prefix="/api/v1")
 app.include_router(distances_router, prefix="/api/v1")
 app.include_router(basic_kit_router, prefix="/api/v1")
 app.include_router(component_names_router, prefix="/api/v1")
-app.include_router(component_workloads_router, prefix="/api/v1")
-app.include_router(module_workloads_router, prefix="/api/v1")
+app.include_router(workload_rules_router, prefix="/api/v1")
 app.include_router(line_workloads_router, prefix="/api/v1")
+app.include_router(catalog_transfer_router, prefix="/api/v1")

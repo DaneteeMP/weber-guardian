@@ -2,16 +2,27 @@
 from decimal import Decimal
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from app.modules.equipment.models import Equipment
 from app.modules.equipment_catalog.models import EquipmentCatalogEntry, EquipmentCatalogMatch
 from app.modules.equipment_catalog.schemas import EquipmentCatalogEntryIn
 
 
 class EquipmentCatalogConflict(Exception):
     """Raised when a label or external equipment code is already assigned."""
+
+
+class EquipmentCatalogInUse(Exception):
+    """The line resolves equipment installed at real customers."""
+
+    def __init__(self, customers: int) -> None:
+        self.customers = customers
+        super().__init__(
+            f"{customers} customer(s) still have equipment of this line installed"
+        )
 
 
 def list_entries(db: Session) -> list[EquipmentCatalogEntry]:
@@ -87,10 +98,27 @@ def update_entry(
 
 
 def delete_entry(db: Session, entry_id: uuid.UUID) -> bool:
-    """Delete one entry and its associations. False when it does not exist."""
+    """Delete one entry and its code associations. False when it does not exist.
+
+    Raises EquipmentCatalogInUse while a customer's equipment resolves to one
+    of its codes: those machines price through this line today, so the line
+    has to stay. The guard mirrors workload_rules.delete_rule.
+    """
     row = get_entry(db, entry_id)
     if row is None:
         return False
+    codes = [
+        match.match_value
+        for match in row.matches
+        if match.match_field == "machine_type"
+    ]
+    customers = db.scalar(
+        select(func.count(func.distinct(Equipment.customer_id))).where(
+            Equipment.machine_type.in_(codes)
+        )
+    )
+    if customers:
+        raise EquipmentCatalogInUse(int(customers))
     db.delete(row)
     db.commit()
     return True
@@ -104,9 +132,9 @@ def upsert_line_workload(
 ) -> EquipmentCatalogEntry:
     """Set the hours of one machine line, creating the entry when it is new.
 
-    Used from the Offer badge when a line shows "Workload not configured":
-    the entry's machine_type match is confirmed at the same time, so a
-    configured line stops asking for review.
+    Used from the Workload Catalog when a line shows no hours: the entry's
+    machine_type match is confirmed at the same time, so a configured line
+    stops asking for review.
     """
     match = db.scalar(
         select(EquipmentCatalogMatch).where(

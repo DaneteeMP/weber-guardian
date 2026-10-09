@@ -3,7 +3,6 @@ import { type ColumnDef } from "@tanstack/react-table";
 import {
   calculate,
   closeOffer,
-  createComponentWorkload,
   createOffer,
   deleteOffer,
   downloadOfferPdf,
@@ -15,9 +14,6 @@ import {
   listAllOffers,
   listOffers,
   maintenanceDraft,
-  updateComponentWorkload,
-  updateLineWorkload,
-  updateModuleWorkload,
   updateOffer,
   type Breakdown,
   type Customer,
@@ -28,7 +24,6 @@ import {
 } from "./api";
 import FieldRow from "./components/FieldRow";
 import DataTable from "./components/DataTable";
-import Modal from "./components/Modal";
 import SectionCard from "./components/SectionCard";
 import { quoteLinesFromDraft, type CatalogQuoteLine } from "./catalogLines";
 import { t, type Lang } from "./i18n";
@@ -124,20 +119,6 @@ type OfferTableRow = {
   module: string;
   amount: number;
   catalogWarning?: CatalogQuoteLine["catalogWarning"];
-  workloadKind: CatalogQuoteLine["workloadKind"];
-  workloadId: string | null;
-  lineCode: string | null;
-  typeCode: string | null;
-  componentType: string | null;
-};
-
-type WorkloadEdit = {
-  description: string;
-  workloadKind: CatalogQuoteLine["workloadKind"];
-  workloadId: string | null;
-  lineCode: string | null;
-  typeCode: string | null;
-  componentType: string | null;
 };
 
 // Create or edit one offer. With editingOfferId the form is filled from the
@@ -188,9 +169,6 @@ export default function OfferBuilder({
   const [equipmentLoading, setEquipmentLoading] = useState(false);
   const [selectedEquip, setSelectedEquip] = useState<string[]>([]);
   const [editStatus, setEditStatus] = useState<string | null>(null);
-  const [editWorkload, setEditWorkload] = useState<WorkloadEdit | null>(null);
-  const [editHours, setEditHours] = useState("");
-  const [editBusy, setEditBusy] = useState(false);
   // Sidebar offers panel: every offer in scope, filterable by status. Selecting
   // one hands the id back to App, which reopens OfferBuilder in edit mode.
   const [offerList, setOfferList] = useState<OfferListItem[]>([]);
@@ -233,11 +211,6 @@ export default function OfferBuilder({
             description: i.description ?? "",
             import_amount: String(Number(i.import_amount ?? 0)),
             workload: String(Number(i.workload ?? 0)),
-            workloadKind: null,
-            workloadId: null,
-            lineCode: null,
-            typeCode: null,
-            componentType: null,
           }))
         );
         // Remember the offer's machines so the picker re-ticks them once the
@@ -587,74 +560,6 @@ export default function OfferBuilder({
     loadOfferList();
   }
 
-  // Rebuild every auto line from the server draft for the currently selected
-  // machines. Used after editing a workload so hours and amounts always come
-  // from the backend, never from React math.
-  async function reloadDraft() {
-    if (!customerId || selectedEquip.length === 0) return;
-    const draft = await maintenanceDraft(customerId, selectedEquip);
-    const lines = quoteLinesFromDraft(draft.rows).filter((line) =>
-      selectedEquip.includes(line.equipment)
-    );
-    autoLines.current = new Set(lines.map((line) => lineKey(line.equipment, line.description)));
-    prevSelected.current = [...selectedEquip];
-    setItems(lines);
-  }
-
-  function startEditWorkload(row: OfferTableRow) {
-    setError(null);
-    setEditHours("");
-    setEditWorkload({
-      description: row.module,
-      workloadKind: row.workloadKind,
-      workloadId: row.workloadId,
-      lineCode: row.lineCode,
-      typeCode: row.typeCode,
-      componentType: row.componentType,
-    });
-  }
-
-  async function saveWorkload() {
-    if (!editWorkload) return;
-    const hours = editHours.trim();
-    const workload = hours === "" ? null : hours;
-    setEditBusy(true);
-    setError(null);
-    try {
-      if (editWorkload.workloadKind === "line" && editWorkload.lineCode) {
-        await updateLineWorkload(editWorkload.lineCode, { workload });
-      } else if (editWorkload.workloadKind === "product") {
-        if (editWorkload.workloadId) {
-          await updateComponentWorkload(editWorkload.workloadId, {
-            workload,
-            needs_review: workload === null,
-          });
-        } else {
-          await createComponentWorkload({
-            name: editWorkload.description,
-            component_type: editWorkload.componentType ?? "Slicer",
-            workload,
-            needs_review: workload === null,
-          });
-        }
-      } else if (editWorkload.workloadKind === "module" && editWorkload.typeCode) {
-        await updateModuleWorkload(editWorkload.typeCode, {
-          workload,
-          needs_review: workload === null,
-          label: editWorkload.description || editWorkload.componentType || undefined,
-        });
-      } else {
-        throw new Error("This row has no configurable workload");
-      }
-      setEditWorkload(null);
-      await reloadDraft();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save workload");
-    } finally {
-      setEditBusy(false);
-    }
-  }
-
   async function handleSave() {
     setError(null);
     setSaved(null);
@@ -767,11 +672,6 @@ export default function OfferBuilder({
     module: item.description,
     amount: num(item.import_amount, 0),
     catalogWarning: item.catalogWarning,
-    workloadKind: item.workloadKind,
-    workloadId: item.workloadId,
-    lineCode: item.lineCode,
-    typeCode: item.typeCode,
-    componentType: item.componentType,
   }));
 
   const moduleColumns = useMemo<ColumnDef<OfferTableRow>[]>(
@@ -792,21 +692,14 @@ export default function OfferBuilder({
         cell: ({ row }) => (
           <span>
             {row.original.module}
-            {row.original.catalogWarning &&
-              (row.original.workloadKind ? (
-                <button
-                  type="button"
-                  onClick={() => startEditWorkload(row.original)}
-                  title={t(lang, "ob_workload_edit")}
-                  className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800 transition-colors hover:bg-amber-300 hover:text-amber-950"
-                >
-                  {t(lang, row.original.catalogWarning === "unconfirmed" ? "ob_unconfirmed" : "ob_unpriced")}
-                </button>
-              ) : (
-                <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800">
-                  {t(lang, row.original.catalogWarning === "unconfirmed" ? "ob_unconfirmed" : "ob_unpriced")}
-                </span>
-              ))}
+            {row.original.catalogWarning && (
+              <span
+                title={t(lang, "workload_title")}
+                className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800"
+              >
+                {t(lang, row.original.catalogWarning === "unconfirmed" ? "ob_unconfirmed" : "ob_unpriced")}
+              </span>
+            )}
           </span>
         ),
       },
@@ -1241,46 +1134,6 @@ export default function OfferBuilder({
 
       </main>
       </div>
-
-      {editWorkload && (
-        <Modal
-          title={t(lang, "ob_workload_edit")}
-          onClose={() => setEditWorkload(null)}
-        >
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-slate-700">{editWorkload.description}</p>
-            <label className="block text-xs">
-              {t(lang, "eq_workload")}
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                autoFocus
-                value={editHours}
-                onChange={(e) => setEditHours(e.target.value)}
-                className="mt-1 w-full rounded border px-2 py-1.5 text-sm"
-              />
-            </label>
-            <div className="flex justify-end gap-2 pt-1">
-              <button
-                type="button"
-                className="rounded border px-3 py-1.5 text-sm"
-                onClick={() => setEditWorkload(null)}
-              >
-                {t(lang, "cfg_cancel")}
-              </button>
-              <button
-                type="button"
-                disabled={editBusy}
-                className="rounded bg-weber-blue px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
-                onClick={() => void saveWorkload()}
-              >
-                {editBusy ? t(lang, "dash_loading") : t(lang, "cfg_save")}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }

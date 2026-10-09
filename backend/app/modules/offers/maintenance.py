@@ -8,13 +8,16 @@ Each selected machine produces:
 
 * one ``line`` row: the machine itself, priced by its family (the
   ``equipment_catalog`` line entry for its ``machine_type``, e.g. "40x");
-* one ``module`` row per attached component, priced by its ``type_code``
-  workload (``module_workloads``).
+* one ``module`` row per attached component, priced by the global workload
+  rule its material is linked to::
+
+      equipment.material_no -> component_names -> workload_rule_materials
+          -> workload_rules.workload
 
 The slicer component of a machine IS the machine line, so it is never repeated
 as a module: a compact "UB" slicer (no attachments) therefore yields its line
-row alone. Unknown workloads are never invented: they produce
-needs_review=True and amount=0.00 until an administrator configures them.
+row alone. A material with no rule is never invented: it produces
+needs_review=True and amount=0.00 until an administrator links it.
 """
 
 from decimal import Decimal, ROUND_HALF_UP
@@ -24,13 +27,15 @@ from sqlalchemy.orm import Session
 
 from app.modules.customers.models import Customer
 from app.modules.customers.service import CustomerNotFound
-from app.modules.component_names.models import ComponentName, ModuleWorkload
+from app.modules.component_names.models import ComponentName
 from app.modules.component_names.service import legacy_base_material_no, normalize_material_no
-from app.modules.component_names.workloads import SLICER_TYPE_CODES
+from app.modules.component_names.slicers import SLICER_TYPE_CODES, is_line_part
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_catalog.service import resolve_line
 from app.modules.offers.schemas import MaintenanceDraftOut, MaintenanceDraftRowOut
 from app.modules.prices.models import PriceList
+from app.modules.workload_rules.models import WorkloadRule
+from app.modules.workload_rules.service import rules_by_material
 
 
 TWOPLACES = Decimal("0.01")
@@ -125,14 +130,16 @@ def _module_rows(
     rows: list[Equipment],
     rate: Decimal,
     names_by_key: dict[str, ComponentName],
-    legacy_by_code: dict[str, ModuleWorkload],
+    rule_by_material: dict[str, WorkloadRule],
 ) -> list[MaintenanceDraftRowOut]:
     """Build one maintenance row per attached component of a machine.
 
     The same material can appear multiple times in the imported equipment
     data. It is therefore collapsed to one row so its workload is not counted
-    repeatedly. The slicer component is skipped: it is the machine line, already
-    priced by the line row, and repeating it would double the machine.
+    repeatedly. Slicer codes are skipped: they are the machine line, already
+    priced by the line row, and repeating them would double the machine. The
+    same applies to every other material the dictionary marks as a line part
+    (is_line_part), unless an explicit rule has priced it.
     """
     # One row per distinct catalogue material; keep the raw material so a
     # dictionary imported before the model-aware normalization still resolves.
@@ -174,13 +181,22 @@ def _module_rows(
         if (type_code or "").strip().upper() in SLICER_TYPE_CODES:
             continue
 
-        legacy = legacy_by_code.get(type_code) if type_code else None
-        workload = legacy.workload if legacy is not None else None
+        # The rule is found by the dictionary material, never by type_code: two
+        # materials with the same legacy code may belong to different rules.
+        rule = rule_by_material.get(name.material_no)
+
+        # Line parts (WLZ accessories, "accessories slicing line" rows, Textor
+        # slicers...) are priced by the family line row of the machine, never
+        # as modules. An explicit rule wins: a linked material keeps its hours.
+        if rule is None and is_line_part(type_code, name.component_type, name.name_en):
+            continue
+
+        workload = rule.workload if rule is not None else None
         if workload is None:
             needs_review = True
             match_state = "unknown"
         else:
-            needs_review = legacy.needs_review
+            needs_review = rule.needs_review
             match_state = "confirmed" if not needs_review else "unconfirmed"
 
         output.append(
@@ -190,8 +206,10 @@ def _module_rows(
                 description=name.name_en,
                 material_no=material_no,
                 type_code=type_code,
-                workload_kind="module" if type_code else None,
-                workload_id=None,
+                # Traceability: the catalog row that priced this line.
+                # workload_id is None while the material is unlinked.
+                workload_kind="module",
+                workload_id=rule.id if rule is not None else None,
                 component_type=name.component_type,
                 workload=workload,
                 amount=_money(workload * rate) if workload is not None else Decimal("0.00"),
@@ -213,9 +231,9 @@ def maintenance_draft(
 
     The technician rate always comes from the customer's subsidiary.
 
-    Workloads are resolved from the global component workload master:
-    normal component types use their component type, while model-based types
-    such as Slicer use their canonical product/model.
+    Module hours are global: each module resolves to the workload rule its
+    dictionary material is linked to. Nothing is overridden per customer or per
+    machine, so a rule change applies to every future draft.
     """
     customer = db.scalar(
         select(Customer).where(
@@ -300,17 +318,14 @@ def maintenance_draft(
             names_by_key[name.material_no] = name
 
     # ---------------------------------------------------------------
-    # Global workload master
+    # Global workload rules
     #
-    # Ordinary module hours come from the legacy type_code table
-    # (module_workloads), loaded independently from the imported dictionary so
-    # a dictionary re-import cannot overwrite manually configured workloads.
+    # Module hours come from the rule each dictionary material is linked to
+    # (workload_rule_materials -> workload_rules). The link table is independent
+    # of the dictionary, so a dictionary re-import cannot change a rule.
     # ---------------------------------------------------------------
 
-    legacy_by_code = {
-        row.type_code: row
-        for row in db.scalars(select(ModuleWorkload))
-    }
+    rule_by_material = rules_by_material(db, set(names_by_key))
 
     # ---------------------------------------------------------------
     # Build draft
@@ -336,7 +351,7 @@ def maintenance_draft(
                 group,
                 rate,
                 names_by_key,
-                legacy_by_code,
+                rule_by_material,
             )
         )
 

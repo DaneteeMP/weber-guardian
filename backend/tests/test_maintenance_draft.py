@@ -3,13 +3,16 @@
 Every rule here protects one business invariant: the server computes the money
 with Decimal from verified hours, and anything it cannot verify arrives flagged
 for a human instead of silently priced at zero.
+
+Module hours come from the global workload rule a material is linked to. A
+rule change applies to the next draft of every customer that uses it.
 """
 from itertools import count
 from decimal import Decimal
 
 import pytest
 
-from app.modules.component_names.models import ComponentName, ModuleWorkload
+from app.modules.component_names.models import ComponentName
 from app.modules.customers.models import Customer
 from app.modules.customers.service import CustomerNotFound
 from app.modules.equipment.models import Equipment
@@ -17,6 +20,7 @@ from app.modules.equipment_catalog.schemas import EquipmentCatalogEntryIn
 from app.modules.equipment_catalog.service import create_entry
 from app.modules.offers.maintenance import RateNotConfigured, maintenance_draft
 from app.modules.prices.models import PriceList
+from app.modules.workload_rules.models import WorkloadRule, WorkloadRuleMaterial
 
 
 @pytest.fixture
@@ -83,23 +87,19 @@ def _dictionary(
     db.commit()
 
 
-def _module_workload(
-    db,
-    type_code: str,
-    workload: str | None,
-    *,
-    needs_review: bool = False,
-):
-    """Seed the legacy type_code workload (module_workloads)."""
-    db.add(
-        ModuleWorkload(
-            type_code=type_code,
-            label=type_code,
-            workload=Decimal(workload) if workload else None,
-            needs_review=needs_review or workload is None,
-        )
+def _rule_for(db, material_no: str, workload: str | None, *, needs_review: bool = False) -> WorkloadRule:
+    """Create a global rule and link one dictionary material to it."""
+    rule = WorkloadRule(
+        name=f"rule for {material_no}",
+        workload=Decimal(workload) if workload is not None else None,
+        category="legacy",
+        needs_review=needs_review or workload is None,
     )
+    db.add(rule)
     db.commit()
+    db.add(WorkloadRuleMaterial(workload_rule_id=rule.id, material_no=material_no))
+    db.commit()
+    return rule
 
 
 def test_line_amount_is_workload_times_the_subsidiary_rate(db, italy_customer):
@@ -121,7 +121,7 @@ def test_line_amount_is_workload_times_the_subsidiary_rate(db, italy_customer):
 def test_modules_resolve_through_the_dictionary_and_collapse_duplicates(db, italy_customer):
     _confirmed_line(db)
     _dictionary(db, "CCW05001", "CCW")
-    _module_workload(db, "CCW", "1.5")
+    _rule_for(db, "CCW05001", "1.5")
     # The same part installed twice on one machine must not be priced twice.
     _equipment(db, italy_customer.customer_id, "602-750 MCS", material_no="CCW05001", component_type="Checkweigher")
     _equipment(db, italy_customer.customer_id, "602-750 MCS", material_no="CCW05001", component_type="Checkweigher")
@@ -154,15 +154,9 @@ def test_material_the_dictionary_does_not_know_is_flagged_not_priced(db, italy_c
     assert draft.total_workload == Decimal("3.0")
 
 
-def test_code_without_a_seeded_workload_is_flagged_not_priced(db, italy_customer):
+def test_dictionary_material_without_a_rule_is_flagged_not_priced(db, italy_customer):
     _confirmed_line(db)
-    _dictionary(
-        db,
-        "CCW05001",
-        "CCW",
-        name="Checkweigher",
-        component_type="Checkweigher",
-    )  # dictionary knows the code, legacy workload missing
+    _dictionary(db, "CCW05001", "CCW")  # known material, not linked to any rule
     _equipment(db, italy_customer.customer_id, "602-750 MCS", material_no="CCW05001")
 
     draft = maintenance_draft(db, italy_customer.customer_id, ["602-750 MCS"])
@@ -170,6 +164,7 @@ def test_code_without_a_seeded_workload_is_flagged_not_priced(db, italy_customer
     module = draft.rows[1]
     assert module.type_code == "CCW"
     assert module.workload is None
+    assert module.workload_id is None
     assert module.needs_review is True
     assert module.amount == Decimal("0.00")
 
@@ -201,6 +196,39 @@ def test_slicer_component_is_the_line_and_is_not_repeated_as_a_module(db, italy_
     assert line.workload == Decimal("2.0")
     assert draft.total_workload == Decimal("2.0")
     assert draft.total_amount == Decimal("116.00")
+
+
+def test_line_parts_are_priced_by_the_family_line_not_as_modules(db, italy_customer):
+    """Accessories and slicing-line rows belong to the machine line.
+
+    Unlinked they never show up as flagged modules: the family line row prices
+    the whole line. An explicit rule with hours keeps a material as a priced
+    module, and a linked rule without hours stays visible as pending.
+    """
+    _confirmed_line(db, workload="3.0")
+    _dictionary(
+        db, "WLZ03051", "WLZ",
+        name="Weber Linien-Zubehör Einzelmodul", component_type="Line Accessories",
+    )
+    _dictionary(db, "CCL 404", "CCL", name="accessories slicing line", component_type=None)
+    _dictionary(
+        db, "CFV06002", "CFV",
+        name="folding device weSLICE 9500", component_type="Folding Bar",
+    )
+    _rule_for(db, "CCL 404", "5.00")
+    _rule_for(db, "CFV06002", None)
+    for material in ("WLZ03051", "CCL 404", "CFV06002"):
+        _equipment(db, italy_customer.customer_id, "602-750 MCS", material_no=material)
+
+    draft = maintenance_draft(db, italy_customer.customer_id, ["602-750 MCS"])
+
+    by_type = {row.type_code: row for row in draft.rows if row.kind == "module"}
+    assert "WLZ" not in by_type
+    assert by_type["CCL"].workload == Decimal("5.00")
+    assert by_type["CCL"].amount == Decimal("290.00")
+    assert by_type["CCL"].needs_review is False
+    assert by_type["CFV"].workload is None
+    assert by_type["CFV"].needs_review is True
 
 
 def test_line_row_exposes_the_line_edit_target(db, italy_customer):
@@ -266,7 +294,7 @@ def test_machine_without_catalog_match_gets_an_unknown_line_row(db, italy_custom
 def test_totals_sum_the_priced_rows_only(db, italy_customer):
     _confirmed_line(db, workload="3.0")
     _dictionary(db, "CCW05001", "CCW")
-    _module_workload(db, "CCW", "1.5")
+    _rule_for(db, "CCW05001", "1.5")
     _dictionary(db, "ZZZUNKNOWN", None)
     _equipment(db, italy_customer.customer_id, "602-750 MCS", material_no="CCW05001")
     _equipment(db, italy_customer.customer_id, "602-750 MCS", material_no="ZZZ-UNKNOWN")
@@ -277,6 +305,26 @@ def test_totals_sum_the_priced_rows_only(db, italy_customer):
     assert draft.total_amount == Decimal("261.00")
     assert draft.currency == "EUR"
     assert draft.tech_rate == Decimal("58.00")
+
+
+def test_changing_the_global_rule_changes_the_next_draft(db, italy_customer):
+    """Hours live in the global rule: editing it reprices every future draft."""
+    _confirmed_line(db)
+    _dictionary(db, "CCW05001", "CCW")
+    rule = _rule_for(db, "CCW05001", "1.5")
+    _equipment(db, italy_customer.customer_id, "602-750 MCS", material_no="CCW05001")
+
+    before = maintenance_draft(db, italy_customer.customer_id, ["602-750 MCS"])
+    module_before = next(row for row in before.rows if row.kind == "module")
+    assert module_before.amount == Decimal("87.00")
+
+    rule.workload = Decimal("2.00")
+    db.commit()
+
+    after = maintenance_draft(db, italy_customer.customer_id, ["602-750 MCS"])
+    module_after = next(row for row in after.rows if row.kind == "module")
+    assert module_after.workload == Decimal("2.00")
+    assert module_after.amount == Decimal("116.00")
 
 
 def test_scoped_caller_cannot_draft_another_filials_customer(db, italy_customer):
@@ -315,56 +363,57 @@ def test_selected_machines_come_out_in_the_requested_order(db, italy_customer):
     assert line_machines == ["902-2670 MCS", "602-750 MCS"]
 
 
-def test_legacy_type_code_hours_are_restored(db, italy_customer):
-    """The real business hours, keyed by type_code, survive the product merge.
+def test_gigi_machine_resolves_its_real_modules_and_never_a_slicer(db, italy_customer):
+    """Gigi WLN04051-23050 (customer 0001017849), with the data reconstructed by rule.
 
-    Regression for the Gigi machine (WLN04051-23050): KSG=1.0, CCE=1.5 and
-    CMB=1.5 were lost when 0020/0021 re-keyed the workload master by product,
-    and CCW stays deliberately unresolved (conflicting business values).
+    * CCS04051 is the slicer = the machine line, so it is never a module;
+    * KSG01001 sharpener, CCE03001, CCU04051, CCW01001 resolve to their rules;
+    * CMB01001 is linked but flagged (legacy conflict), so it is still priced at
+      its stored value and marked for review;
+    * WLZ04051 is a line accessory: priced by the family line row of the
+      machine, so it never appears as an unpriced module.
     """
     _confirmed_line(db, label="40x", machine_type="WLN04051", workload="2.0")
-    _module_workload(db, "KSG", "1.0")
-    _module_workload(db, "CCE", "1.5")
-    _module_workload(db, "CMB", "1.5")
-    _module_workload(db, "CCW", None)
     _dictionary(db, "KSG01001", "KSG", name="Sharpener", component_type="Sharpener")
+    _rule_for(db, "KSG01001", "1.00")
     _dictionary(db, "CCE03001", "CCE", name="transport conveyor LC", component_type="Transport Conveyor")
+    _rule_for(db, "CCE03001", "1.50")
     _dictionary(db, "CMB01001", "CMB", name="Marking Conveyor", component_type="Transport Conveyor")
+    _rule_for(db, "CMB01001", "1.50", needs_review=True)
     _dictionary(db, "CCW01001", "CCW", name="Checkweigher CCW 100", component_type="Checkweigher")
-    _equipment(
-        db, italy_customer.customer_id, "WLN04051-23050",
-        machine_type="WLN04051", material_no="KSG01001", component_type="Sharpener",
-    )
-    _equipment(
-        db, italy_customer.customer_id, "WLN04051-23050",
-        machine_type="WLN04051", material_no="CCE03001", component_type="Transport Conveyor",
-    )
-    _equipment(
-        db, italy_customer.customer_id, "WLN04051-23050",
-        machine_type="WLN04051", material_no="CMB01001", component_type="Transport Conveyor",
-    )
-    _equipment(
-        db, italy_customer.customer_id, "WLN04051-23050",
-        machine_type="WLN04051", material_no="CCW01001", component_type="Checkweigher",
-    )
+    _rule_for(db, "CCW01001", "1.00")
+    _dictionary(db, "CCU04051", "CCU", name="portioning unit 405-Extended", component_type="Portioning Conveyor")
+    _rule_for(db, "CCU04051", "0.50")
+    _dictionary(db, "CCS04051", "CCS", name="Slicer 405-Extended", component_type="Slicer")
+    _dictionary(db, "WLZ04051", "WLZ", name="Accessories Slicer 405-1", component_type="Line Accessories")
+    for material in ("KSG01001", "CCE03001", "CMB01001", "CCW01001", "CCU04051", "CCS04051", "WLZ04051"):
+        _equipment(
+            db, italy_customer.customer_id, "WLN04051-23050",
+            machine_type="WLN04051", material_no=material,
+        )
 
     draft = maintenance_draft(db, italy_customer.customer_id, ["WLN04051-23050"])
 
-    by_type = {row.type_code: row for row in draft.rows if row.kind == "module"}
-    assert by_type["KSG"].workload == Decimal("1.0")
-    assert by_type["CCE"].workload == Decimal("1.5")
-    assert by_type["CMB"].workload == Decimal("1.5")
-    assert by_type["CCW"].workload is None
-    assert by_type["CCW"].needs_review is True
-    # 2.0 line + 1.0 KSG + 1.5 CCE + 1.5 CMB = 6.0 h, CCW adds nothing.
-    assert draft.total_workload == Decimal("6.0")
+    modules = {row.material_no: row for row in draft.rows if row.kind == "module"}
+    assert "CCS04051" not in modules
+    assert modules["KSG01001"].workload == Decimal("1.00")
+    assert modules["CCE03001"].workload == Decimal("1.50")
+    assert modules["CMB01001"].workload == Decimal("1.50")
+    assert modules["CMB01001"].needs_review is True
+    assert modules["CCW01001"].workload == Decimal("1.00")
+    assert modules["CCW01001"].description == "Checkweigher CCW 100"
+    assert modules["CCU04051"].workload == Decimal("0.50")
+    assert "WLZ04051" not in modules
+    # 2.0 line + 1.0 KSG + 1.5 CCE + 1.5 CMB + 1.0 CCW + 0.5 CCU = 7.5 h.
+    assert draft.total_workload == Decimal("7.5")
+    assert draft.total_amount == Decimal("435.00")
 
 
 def test_draft_row_exposes_the_module_edit_target(db, italy_customer):
-    """A module row tells the UI to edit the legacy type_code workload."""
+    """A module row points at its global rule, so the offer edits that rule."""
     _confirmed_line(db)
-    _module_workload(db, "CCU", None)
     _dictionary(db, "CCU04051", "CCU", name="portioning unit", component_type="Portioning Conveyor")
+    rule = _rule_for(db, "CCU04051", None)
     _equipment(
         db, italy_customer.customer_id, "602-750 MCS",
         material_no="CCU04051", component_type="Portioning Conveyor",
@@ -375,5 +424,5 @@ def test_draft_row_exposes_the_module_edit_target(db, italy_customer):
     module = next(row for row in draft.rows if row.kind == "module")
     assert module.workload_kind == "module"
     assert module.type_code == "CCU"
-    assert module.workload_id is None
+    assert module.workload_id == rule.id
     assert module.component_type == "Portioning Conveyor"

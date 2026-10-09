@@ -30,11 +30,6 @@ describe("maintenance draft row adapter", () => {
         description: "Checkweigher",
         workload: "1.50",
         import_amount: "87.00",
-        workloadKind: "module",
-        workloadId: null,
-        lineCode: null,
-        typeCode: "CCW",
-        componentType: "Checkweigher",
       },
     ]);
   });
