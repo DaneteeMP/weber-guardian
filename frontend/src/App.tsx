@@ -19,7 +19,7 @@ import {
 } from "./api";
 import type { Lang } from "./i18n";
 
-// Shell: TopBar (brand, search, tabs, identity). No router lib, no i18n lib.
+// Shell: TopBar (brand, tabs, identity). No router lib, no i18n lib.
 // The dev-user dropdown is local-only; behind SharePoint/Entra it goes away.
 export default function App() {
   const [tab, setTab] = useState<Tab>("home");
@@ -28,7 +28,6 @@ export default function App() {
   const [dev] = useState<string>(() => ensureDevUser());
   const [scope, setScopeState] = useState<string | null>(() => getScopeSubsidiary());
   const [identity, setIdentity] = useState<Me | null>(null);
-  const [search, setSearch] = useState("");
   const [editingOffer, setEditingOffer] = useState<string | null>(null);
   const [gateBlocked, setGateBlocked] = useState(false);
   const [gateChecked, setGateChecked] = useState(false);
@@ -100,8 +99,6 @@ export default function App() {
           setTab={setTab}
           lang={lang}
           setLang={setLang}
-          search={search}
-          setSearch={setSearch}
           identity={identity}
           scope={scope}
           setScope={setScope}
@@ -146,7 +143,6 @@ export default function App() {
           <Customers
             key={contentKey}
             lang={lang}
-            externalSearch={search}
           />
         )}
       </div>

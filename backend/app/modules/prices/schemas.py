@@ -14,6 +14,7 @@ class PriceOut(BaseModel):
     diet_full_rate: Decimal
     diet_half_rate: Decimal
     hotel_rate: Decimal
+    discount_rate: Decimal
 
 
 class PriceUpdate(BaseModel):
@@ -25,3 +26,4 @@ class PriceUpdate(BaseModel):
     diet_full_rate: Decimal = Field(ge=Decimal("0"))
     diet_half_rate: Decimal = Field(ge=Decimal("0"))
     hotel_rate: Decimal = Field(ge=Decimal("0"))
+    discount_rate: Decimal = Field(ge=Decimal("0"), le=Decimal("1"))

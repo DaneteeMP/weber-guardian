@@ -148,7 +148,7 @@ export function createCustomer(payload: {
 
 export type Pricing = {
   work_hours: number;
-  bk_hours: number;
+  bk_hours?: number;
   report_hours: number;
   trip_hours_base: number;
   km: number;
@@ -158,8 +158,11 @@ export type Pricing = {
   diet_half_rate: number;
   hotel_rate: number;
   discount_rate: number;
-  bk_price: number;
+  bk_price?: number;
   currency: string;
+  offer_type: "guardian" | "audit" | "off_guardian";
+  num_trips?: number;
+  basic_kit?: boolean;
 };
 
 export type Breakdown = {
@@ -686,6 +689,8 @@ export type MaintenanceDraft = {
   rows: MaintenanceDraftRow[];
   total_workload: string;
   total_amount: string;
+  basic_kit_hours: string;
+  basic_kit_price: string;
 };
 
 /** Priced draft rows for the selected machines.
@@ -737,6 +742,7 @@ export type Prices = {
   diet_full_rate: string;
   diet_half_rate: string;
   hotel_rate: string;
+  discount_rate: string;
 };
 
 export function getPrices(subsidiary_id: string): Promise<Prices> {
@@ -754,6 +760,7 @@ export function updatePrices(
     diet_full_rate: string;
     diet_half_rate: string;
     hotel_rate: string;
+    discount_rate: string;
   }
 ): Promise<Prices> {
   return fetch(`${BASE}/prices/${encodeURIComponent(subsidiary_id)}`, {

@@ -31,7 +31,7 @@ def _doc(**overrides):
         "offer_id": uuid4(),
         "number": "W-02-2026-0001",
         "offer_date": date(2026, 9, 21),
-        "status": "Draft",
+        "status": "Pending response",
         "language": "Spanish",
         "inspection_frequency": "Annual",
         "responsible_person": None,

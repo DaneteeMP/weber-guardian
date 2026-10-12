@@ -30,6 +30,7 @@ from app.modules.customers.service import CustomerNotFound
 from app.modules.component_names.models import ComponentName
 from app.modules.component_names.service import legacy_base_material_no, normalize_material_no
 from app.modules.component_names.slicers import SLICER_TYPE_CODES, is_line_part
+from app.modules.basic_kit.models import BasicKit
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_catalog.service import resolve_line
 from app.modules.offers.schemas import MaintenanceDraftOut, MaintenanceDraftRowOut
@@ -369,6 +370,20 @@ def maintenance_draft(
         Decimal("0"),
     )
 
+    # Basic-kit aggregates for the selected machines: the offer fills its
+    # bk_hours/bk_price from these when the Basic Kit selector is on.
+    basic_kit_hours = Decimal("0")
+    basic_kit_price = Decimal("0")
+    for machine_type in machine_types:
+        if machine_type is None:
+            continue
+        kit = db.scalar(
+            select(BasicKit).where(BasicKit.model == machine_type)
+        )
+        if kit is not None:
+            basic_kit_hours += kit.workload_basic_kit
+            basic_kit_price += kit.spare_parts
+
     return MaintenanceDraftOut(
         customer_id=customer_id,
         subsidiary_id=customer.subsidiary_id,
@@ -377,4 +392,6 @@ def maintenance_draft(
         rows=draft_rows,
         total_workload=total_workload,
         total_amount=_money(total_amount),
+        basic_kit_hours=basic_kit_hours,
+        basic_kit_price=basic_kit_price,
     )

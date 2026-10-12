@@ -20,6 +20,7 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.modules.basic_kit.models import BasicKit
+from app.modules.basic_kit.service import canonical_model
 from app.modules.customers.models import Customer
 from app.modules.distances.models import Distance
 from app.modules.prices.models import PriceList
@@ -39,17 +40,17 @@ CUSTOMERS = [
 
 PRICES = [
     {"subsidiary_id": "Weber Iberica", "currency": "EUR", "km_rate": Decimal("0.5"), "tech_rate": Decimal("60"),
-     "diet_full_rate": Decimal("40"), "diet_half_rate": Decimal("20"), "hotel_rate": Decimal("80")},
+     "diet_full_rate": Decimal("40"), "diet_half_rate": Decimal("20"), "hotel_rate": Decimal("80"), "discount_rate": Decimal("0.15")},
     {"subsidiary_id": "Weber Germany", "currency": "EUR", "km_rate": Decimal("0.5"), "tech_rate": Decimal("60"),
-     "diet_full_rate": Decimal("40"), "diet_half_rate": Decimal("20"), "hotel_rate": Decimal("80")},
+     "diet_full_rate": Decimal("40"), "diet_half_rate": Decimal("20"), "hotel_rate": Decimal("80"), "discount_rate": Decimal("0.15")},
     {"subsidiary_id": "Weber Benelux", "currency": "EUR", "km_rate": Decimal("0.55"), "tech_rate": Decimal("65"),
-     "diet_full_rate": Decimal("42"), "diet_half_rate": Decimal("21"), "hotel_rate": Decimal("90")},
+     "diet_full_rate": Decimal("42"), "diet_half_rate": Decimal("21"), "hotel_rate": Decimal("90"), "discount_rate": Decimal("0.15")},
     {"subsidiary_id": "Weber France", "currency": "EUR", "km_rate": Decimal("0.6"), "tech_rate": Decimal("62"),
-     "diet_full_rate": Decimal("38"), "diet_half_rate": Decimal("19"), "hotel_rate": Decimal("85")},
+     "diet_full_rate": Decimal("38"), "diet_half_rate": Decimal("19"), "hotel_rate": Decimal("85"), "discount_rate": Decimal("0.15")},
     {"subsidiary_id": "Weber Italy", "currency": "EUR", "km_rate": Decimal("0.5"), "tech_rate": Decimal("58"),
-     "diet_full_rate": Decimal("35"), "diet_half_rate": Decimal("18"), "hotel_rate": Decimal("78")},
+     "diet_full_rate": Decimal("35"), "diet_half_rate": Decimal("18"), "hotel_rate": Decimal("78"), "discount_rate": Decimal("0.15")},
     {"subsidiary_id": "Weber Latina", "currency": "EUR", "km_rate": Decimal("0.45"), "tech_rate": Decimal("45"),
-     "diet_full_rate": Decimal("30"), "diet_half_rate": Decimal("15"), "hotel_rate": Decimal("65")},
+     "diet_full_rate": Decimal("30"), "diet_half_rate": Decimal("15"), "hotel_rate": Decimal("65"), "discount_rate": Decimal("0.15")},
 ]
 
 DISTANCES = [
@@ -57,8 +58,128 @@ DISTANCES = [
     {"subsidiary_id": "Weber Iberica", "province": "Barcelona", "service_center": None, "km": Decimal("120"), "trip_hours": Decimal("1.5")},
 ]
 
+# Basic kits in the same "Model  SpareParts  WorkloadBasicKit" shape of the
+# WeberAssistant reference table. Offered as (model, spare_parts, kit hours).
+#
+# The reference spells machine configurations as "Model Suffix" (e.g. "304
+# CCS"); equipment rows store the compact machine_type, suffix first ("CCS304"
+# = "CCS" + "304", matching the equipment_catalog candidates of migration
+# 0013). The keys are canonicalized with the same rule the basic-kit service
+# applies on writes, so the seed and the admin UI agree. The duplicate "304
+# UB" row of the reference is collapsed.
+BASIC_KIT_SOURCE = [
+    ("304 UB", Decimal("410"), Decimal("8")),
+    ("304 CCL", Decimal("475"), Decimal("8")),
+    ("304 CCS", Decimal("475"), Decimal("8")),
+    ("304 MLC", Decimal("615"), Decimal("12")),
+    ("305 CCL", Decimal("475"), Decimal("8")),
+    ("305 MLC", Decimal("615"), Decimal("12")),
+    ("305 SLC", Decimal("615"), Decimal("12")),
+    ("305 UB", Decimal("410"), Decimal("8")),
+    ("402 CCL", Decimal("475"), Decimal("8")),
+    ("402 CCS", Decimal("475"), Decimal("8")),
+    ("402 MLC", Decimal("615"), Decimal("12")),
+    ("402 SLC", Decimal("615"), Decimal("12")),
+    ("402 UB", Decimal("410"), Decimal("8")),
+    ("404 CCL", Decimal("475"), Decimal("8")),
+    ("404 MCS", Decimal("785"), Decimal("16")),
+    ("404 MLC", Decimal("615"), Decimal("12")),
+    ("404 SLC", Decimal("615"), Decimal("12")),
+    ("405 MCS", Decimal("785"), Decimal("16")),
+    ("405 MLC", Decimal("615"), Decimal("12")),
+    ("405 SLC", Decimal("615"), Decimal("12")),
+    ("5000 UB", Decimal("445"), Decimal("8")),
+    ("501 SLC", Decimal("615"), Decimal("12")),
+    ("602 CCL", Decimal("475"), Decimal("8")),
+    ("602 MCS", Decimal("785"), Decimal("16")),
+    ("602 MLC", Decimal("615"), Decimal("12")),
+    ("602 SLC", Decimal("615"), Decimal("12")),
+    ("602 UB", Decimal("410"), Decimal("8")),
+    ("604 MCS", Decimal("785"), Decimal("16")),
+    ("604 SLC", Decimal("615"), Decimal("12")),
+    ("7000 CCB", Decimal("475"), Decimal("8")),
+    ("7000 UB", Decimal("410"), Decimal("8")),
+    ("802 CCL", Decimal("475"), Decimal("8")),
+    ("804 MCS", Decimal("960"), Decimal("24")),
+    ("804 SLC", Decimal("615"), Decimal("12")),
+    ("9000 SLC", Decimal("615"), Decimal("12")),
+    ("901 MCS", Decimal("615"), Decimal("12")),
+    ("901 SLC", Decimal("615"), Decimal("12")),
+    ("902 CCL", Decimal("615"), Decimal("12")),
+    ("902 CCS", Decimal("615"), Decimal("12")),
+    ("902 MCS", Decimal("785"), Decimal("16")),
+    ("902 SLC", Decimal("615"), Decimal("12")),
+    ("902 UB", Decimal("410"), Decimal("8")),
+    ("903 MCS", Decimal("785"), Decimal("16")),
+    ("904 MCS", Decimal("785"), Decimal("16")),
+    ("904 RCS", Decimal("785"), Decimal("16")),
+    ("904 SLC", Decimal("615"), Decimal("12")),
+    ("905 MCS", Decimal("785"), Decimal("16")),
+    ("905 RCS", Decimal("785"), Decimal("16")),
+    ("906 SLC", Decimal("615"), Decimal("12")),
+    ("KSG", Decimal("265"), Decimal("3")),
+    ("KSG 470", Decimal("265"), Decimal("3")),
+    ("SHA", Decimal("420"), Decimal("6")),
+    ("SSG", Decimal("265"), Decimal("3")),
+    ("SSM", Decimal("265"), Decimal("3")),
+    ("TLN06001 MCS", Decimal("1295"), Decimal("16")),
+    ("WLN03051 CCL", Decimal("475"), Decimal("8")),
+    ("WLN03051 MLC", Decimal("615"), Decimal("12")),
+    ("WLN03051 SLC", Decimal("615"), Decimal("12")),
+    ("WLN03051 UB", Decimal("410"), Decimal("8")),
+    ("WLN04041 SLC", Decimal("615"), Decimal("12")),
+    ("WLN04051 CCL", Decimal("615"), Decimal("8")),
+    ("WLN04051 CCS", Decimal("615"), Decimal("8")),
+    ("WLN04051 MLC", Decimal("950"), Decimal("12")),
+    ("WLN04051 SLC", Decimal("950"), Decimal("12")),
+    ("WLN04051 UB", Decimal("410"), Decimal("8")),
+    ("WLN04052 MLC", Decimal("950"), Decimal("12")),
+    ("WLN04052 UB", Decimal("410"), Decimal("8")),
+    ("WLN06001 MCS", Decimal("1295"), Decimal("16")),
+    ("WLN06001 RCS", Decimal("1295"), Decimal("16")),
+    ("WLN06002 RCS", Decimal("1295"), Decimal("16")),
+    ("WLN06021 MCS", Decimal("1295"), Decimal("16")),
+    ("WLN06041 RCS", Decimal("1295"), Decimal("16")),
+    ("WLN06042 MCS", Decimal("1295"), Decimal("16")),
+    ("WLN06042 MLC", Decimal("1295"), Decimal("12")),
+    ("WLN06042 RCS", Decimal("1295"), Decimal("16")),
+    ("WLN06042 SLC", Decimal("1295"), Decimal("12")),
+    ("WLN07021 CCS", Decimal("1295"), Decimal("12")),
+    ("WLN08041 CCL", Decimal("950"), Decimal("12")),
+    ("WLN08041 MCS", Decimal("1295"), Decimal("16")),
+    ("WLN08041 RCS", Decimal("1295"), Decimal("16")),
+    ("WLN08041 SLC", Decimal("950"), Decimal("12")),
+    ("WLN09041 MCS", Decimal("1295"), Decimal("16")),
+    ("WLN09042 MCS", Decimal("950"), Decimal("16")),
+    ("WLN09042 RCS", Decimal("1295"), Decimal("16")),
+    ("WLN09051 MCS", Decimal("1295"), Decimal("16")),
+    ("WLN09051 RCS", Decimal("1295"), Decimal("16")),
+    ("WLN09051 SLC", Decimal("950"), Decimal("12")),
+    ("WLN09061", Decimal("950"), Decimal("16")),
+    ("WLN09061 MCS", Decimal("1295"), Decimal("16")),
+    ("WLN09061 WSS", Decimal("1295"), Decimal("16")),
+    ("WLN10001", Decimal("475"), Decimal("8")),
+    ("WLN10001 VPM", Decimal("785"), Decimal("16")),
+    ("WLN10002 UB", Decimal("410"), Decimal("8")),
+    ("WLN40001", Decimal("615"), Decimal("12")),
+    ("WLN40001 MLC", Decimal("950"), Decimal("12")),
+    ("WLN40001 RCS", Decimal("950"), Decimal("16")),
+    ("WLN40001 SLC", Decimal("950"), Decimal("12")),
+    ("WLN45001 MCS", Decimal("950"), Decimal("16")),
+    ("WLN50001 UB", Decimal("615"), Decimal("8")),
+    ("WSS", Decimal("785"), Decimal("16")),
+    ("Thera 450-650", Decimal("615"), Decimal("12")),
+    ("WLN75001 MCS", Decimal("1295"), Decimal("16")),
+    ("302 UB", Decimal("410"), Decimal("8")),
+]
+
 BASIC_KITS = [
-    {"model": "CCS304", "workload_basic_kit": Decimal("4"), "spare_parts": Decimal("500")},
+    {
+        "model": canonical_model(model),
+        "spare_parts": spare_parts,
+        "workload_basic_kit": workload,
+    }
+    for model, spare_parts, workload in BASIC_KIT_SOURCE
 ]
 
 

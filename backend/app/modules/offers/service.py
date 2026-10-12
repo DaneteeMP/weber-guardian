@@ -32,6 +32,9 @@ class OfferAlreadyExists(Exception):
 
 def calculate_price(data: OfferCalculateIn) -> OfferCalculateOut:
     """Dry-run: run the engine without touching the DB."""
+    # audit excludes the basic kit, off_guardian excludes the branch discount.
+    basic_kit = data.basic_kit and data.offer_type != "audit"
+    apply_discount = data.offer_type != "off_guardian"
     out = calculate(
         PricingInput(
             work_hours=data.work_hours,
@@ -45,6 +48,9 @@ def calculate_price(data: OfferCalculateIn) -> OfferCalculateOut:
             diet_half_rate=data.diet_half_rate,
             hotel_rate=data.hotel_rate,
             discount_rate=data.discount_rate,
+            num_trips=data.num_trips,
+            basic_kit=basic_kit,
+            apply_discount=apply_discount,
             currency=data.currency,
         ),
         bk_price=data.bk_price,
@@ -292,7 +298,16 @@ class BadStatus(Exception):
         self.status = status
 
 
-ALLOWED_STATUSES = ("Draft", "Pending response", "Finished", "Cancelled", "Rejected")
+ALLOWED_STATUSES = (
+    "Pending response",
+    "Accepted",
+    "In progress",
+    "Pending invoicing",
+    "Finished",
+    "Rejected",
+    "Cancelled",
+    "Pending Service",
+)
 
 
 def set_offer_status(

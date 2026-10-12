@@ -25,7 +25,7 @@ class Offer(Base):
     customer_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("customers.customer_id", ondelete="RESTRICT"), nullable=False, index=True
     )
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="Draft")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="Pending response")
     responsible_person: Mapped[str | None] = mapped_column(String(128), nullable=True)
     language: Mapped[str | None] = mapped_column(String(32), nullable=True)
     inspection_frequency: Mapped[str | None] = mapped_column(String(32), nullable=True)

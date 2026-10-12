@@ -18,18 +18,12 @@ import { t, type Lang } from "./i18n";
 
 const PAGE_SIZE = 50;
 
-export default function Customers({
-  lang,
-  externalSearch = "",
-}: {
-  lang: Lang;
-  externalSearch?: string;
-}) {
+export default function Customers({ lang }: { lang: Lang }) {
   const [rows, setRows] = useState<Customer[]>([]);
   const [total, setTotal] = useState(0);
 
   const [page, setPage] = useState(0);
-  const [search, setSearch] = useState(externalSearch);
+  const [search, setSearch] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
