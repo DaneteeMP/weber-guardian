@@ -148,7 +148,7 @@ export function createCustomer(payload: {
 
 export type Pricing = {
   work_hours: number;
-  bk_hours: number;
+  bk_hours?: number;
   report_hours: number;
   trip_hours_base: number;
   km: number;
@@ -158,8 +158,11 @@ export type Pricing = {
   diet_half_rate: number;
   hotel_rate: number;
   discount_rate: number;
-  bk_price: number;
+  bk_price?: number;
   currency: string;
+  offer_type: "guardian" | "audit" | "off_guardian";
+  num_trips?: number;
+  basic_kit?: boolean;
 };
 
 export type Breakdown = {

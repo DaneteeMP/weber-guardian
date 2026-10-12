@@ -64,35 +64,33 @@ export default function TopBar({
   // again by the API to admins and sales users.
   if (showWorkloadCatalog) tabs.push({ id: "workloads", label: t(lang, "nav_workloads") });
   if (showConfig) tabs.push({ id: "config", label: t(lang, "nav_config") });
-  // Import always sits after Settings.
-  tabs.push({ id: "import", label: t(lang, "nav_import") });
 
   return (
-    <header className="bg-white shadow">
-      <div className="flex items-center gap-3 px-4 py-2">
-        <img src="/guardian-logo.png" alt={APP_NAME} className="h-8 w-auto shrink-0" />
+    <header className="border-b-2 border-weber-blue bg-white">
+      <div className="flex min-h-0 items-stretch gap-3 px-4 pt-2">
+        <img src="/guardian-logo.png" alt={APP_NAME} className="h-8 w-auto shrink-0 self-center" />
         <span
-          className="max-w-[180px] shrink-0 truncate text-base font-bold text-gray-800"
+          className="max-w-[180px] shrink-0 truncate self-center text-base font-bold text-gray-800"
           title={currentScopeLabel}
         >
           {currentScopeLabel}
         </span>
-        <nav className="flex min-w-0 items-center gap-1 overflow-x-auto">
+        <nav className="flex min-h-0 min-w-0 items-stretch overflow-x-auto">
           {tabs.map((item) => (
             <button
               key={item.id}
               onClick={() => setTab(item.id)}
-              className={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium ${
+              className={`flex items-center whitespace-nowrap border-t-[3px] px-3 text-sm font-medium transition-colors ${
                 tab === item.id
-                  ? "bg-weber-blue text-white"
-                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                  ? "border-weber-blue bg-blue-100 font-semibold text-weber-blue"
+                  : "border-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900"
               }`}
             >
               {item.label}
             </button>
           ))}
         </nav>
-        <div className="ml-auto flex shrink-0 items-center gap-4 whitespace-nowrap">
+        <div className="ml-auto flex shrink-0 items-center gap-4 whitespace-nowrap py-2">
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-semibold text-gray-600">{t(lang, "scope_filial")}:</span>
             {isAdmin ? (

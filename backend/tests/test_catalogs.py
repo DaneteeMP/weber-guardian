@@ -168,6 +168,31 @@ def test_kit_upsert_creates_and_replaces(db):
     assert replaced.id == created.id
 
 
+def test_kit_create_canonicalizes_model_and_keeps_bare_keys(db):
+    """"Model Suffix" inputs store the compact machine_type key so the offer
+    lookup (BasicKit.model == equipment.machine_type) matches; keys that do
+    not follow the two-token pattern stay verbatim."""
+    created = create_kit(
+        db,
+        BasicKitCreate(model="304 CCL", workload_basic_kit=Decimal("8"), spare_parts=Decimal("475")),
+    )
+    assert created.model == "CCL304"
+    assert get_kit(db, "304 CCL") is None
+
+    bare = create_kit(
+        db,
+        BasicKitCreate(model="Thera 450-650", workload_basic_kit=Decimal("12"), spare_parts=Decimal("615")),
+    )
+    assert bare.model == "Thera 450-650"
+
+    upserted = upsert_kit(
+        db,
+        "402 MLC",
+        BasicKitUpsert(workload_basic_kit=Decimal("12"), spare_parts=Decimal("615")),
+    )
+    assert upserted.model == "MLC402"
+
+
 def test_distance_upsert_creates_and_replaces(db):
     _seed(db)
     created = upsert_distance(

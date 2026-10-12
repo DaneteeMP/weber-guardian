@@ -20,6 +20,10 @@ import { t, type Lang } from "./i18n";
 // below with the whole scope and row actions (close, reopen, PDF, delete).
 // Editing an existing offer happens in OfferBuilder, so we only pass the id.
 // The charts live in components/charts; this file only feeds them.
+//
+// Charts are hidden for now (they add visual noise on the home screen); the
+// JSX stays behind a flag so restoring them is flipping one constant.
+const SHOW_CHARTS = false;
 export default function OffersHome({
   lang,
   onNew,
@@ -131,33 +135,35 @@ export default function OffersHome({
       {error && <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-1.5">{error}</p>}
       {notice && <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-1.5">{notice}</p>}
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 items-stretch">
-        <div className="bg-white rounded-lg border border-gray-200 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-            {t(lang, "home_panel_donut")}
-          </p>
-          <StatusDonutChart rows={statuses} selected={statusFilter} onSelect={setStatusFilter} />
-        </div>
+      {SHOW_CHARTS && (
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 items-stretch">
+          <div className="bg-white rounded-lg border border-gray-200 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              {t(lang, "home_panel_donut")}
+            </p>
+            <StatusDonutChart rows={statuses} selected={statusFilter} onSelect={setStatusFilter} />
+          </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-            {t(lang, "home_panel_monthly")}
-          </p>
-          <MonthlyOffersChart rows={(summary?.monthly ?? []).slice(-24)} />
-        </div>
+          <div className="bg-white rounded-lg border border-gray-200 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              {t(lang, "home_panel_monthly")}
+            </p>
+            <MonthlyOffersChart rows={(summary?.monthly ?? []).slice(-24)} />
+          </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-            {t(lang, "home_panel_ranking")}
-          </p>
-          <CustomerRankingChart
-            rows={(summary?.ranking ?? []).slice(0, 8).map((r) => ({
-              label: names[r.customer_id] ?? r.customer_id,
-              count: r.count,
-            }))}
-          />
+          <div className="bg-white rounded-lg border border-gray-200 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              {t(lang, "home_panel_ranking")}
+            </p>
+            <CustomerRankingChart
+              rows={(summary?.ranking ?? []).slice(0, 8).map((r) => ({
+                label: names[r.customer_id] ?? r.customer_id,
+                count: r.count,
+              }))}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 430px)" }}>

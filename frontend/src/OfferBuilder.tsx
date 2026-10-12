@@ -46,7 +46,16 @@ const todayIso = () => {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 };
 
-const GUARDIAN_TYPES = ["Basic Kit", "Audit", "Off-Guardian", "Campaign"];
+// Guardian contract type. Campaign does not exist and was removed. Basic kit
+// is a pending feature (TO DO): it will become an option of Guardian itself,
+// not a separate selector. The backend already accepts basic_kit/num_trips
+// with defaults (false / 1) for when that lands.
+const OFFER_TYPES = ["Guardian", "Audit", "Off-Guardian"];
+const OFFER_TYPE_TO_API: Record<string, "guardian" | "audit" | "off_guardian"> = {
+  Guardian: "guardian",
+  Audit: "audit",
+  "Off-Guardian": "off_guardian",
+};
 const FREQUENCIES = ["Annual", "Semi-annual", "Biennial"];
 const STATUSES = ["Pending response", "Accepted", "In progress", "Pending invoicing", "Finished", "Rejected", "Cancelled", "Pending Service"];
 const RESPONSIBLES = ["", "Xevi Mira", "David"];
@@ -548,12 +557,13 @@ export default function OfferBuilder({
         discount_rate: num(discountRate, 0),
         bk_price: 0,
         currency: "EUR",
+        offer_type: OFFER_TYPE_TO_API[guardianType] ?? "audit",
       })
         .then(setCalc)
         .catch((e) => setError(String(e)));
     }, 300);
     return () => clearTimeout(timer);
-  }, [workHours, reportHours, tripBase, km, kmRate, techRate, dietFull, dietHalf, hotelRate, discountRate]);
+  }, [workHours, reportHours, tripBase, km, kmRate, techRate, dietFull, dietHalf, hotelRate, discountRate, guardianType]);
 
   async function refreshOffers() {
     if (customerId) {
@@ -583,6 +593,7 @@ export default function OfferBuilder({
         discount_rate: num(discountRate, 0),
         bk_price: 0,
         currency: "EUR",
+        offer_type: OFFER_TYPE_TO_API[guardianType] ?? "audit",
       };
       const lines = items.map((i) => ({
         equipment: i.equipment || undefined,
@@ -882,6 +893,7 @@ export default function OfferBuilder({
       </div>
 
       <div className="flex min-h-0 flex-1 gap-2 p-2">
+        <div className="flex min-h-0 min-w-0 flex-1 gap-2">
         {/* ── Sidebar: one list at a time, each gets the full height ──────── */}
         {sideOpen && (
           <aside className="hidden min-h-0 w-[250px] shrink-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm lg:flex">
@@ -1046,7 +1058,7 @@ export default function OfferBuilder({
                 )}
               </div>
 
-              <div className="grid grid-cols-4 content-start gap-x-2 gap-y-1.5">
+              <div className="grid grid-cols-3 content-start gap-x-2 gap-y-1.5">
                 {field(
                   t(lang, "ob_offer_no_save"),
                   <input
@@ -1058,22 +1070,10 @@ export default function OfferBuilder({
                   />,
                 )}
                 {field(
-                  t(lang, "ob_offer_date"),
-                  <input type="date" value={offerDate} onChange={(e) => setOfferDate(e.target.value)} className={`${ctl} font-mono`} />,
-                )}
-                {field(
                   t(lang, "ob_guardian_type"),
                   <select value={guardianType} onChange={(e) => setGuardianType(e.target.value)} className={ctl}>
-                    {GUARDIAN_TYPES.map((g) => (
+                    {OFFER_TYPES.map((g) => (
                       <option key={g}>{g}</option>
-                    ))}
-                  </select>,
-                )}
-                {field(
-                  t(lang, "ob_frequency"),
-                  <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className={ctl}>
-                    {FREQUENCIES.map((f) => (
-                      <option key={f}>{f}</option>
                     ))}
                   </select>,
                 )}
@@ -1082,6 +1082,18 @@ export default function OfferBuilder({
                   <select value={status} onChange={(e) => setStatus(e.target.value)} className={ctl}>
                     {STATUSES.map((s) => (
                       <option key={s}>{s}</option>
+                    ))}
+                  </select>,
+                )}
+                {field(
+                  t(lang, "ob_offer_date"),
+                  <input type="date" value={offerDate} onChange={(e) => setOfferDate(e.target.value)} className={`${ctl} font-mono`} />,
+                )}
+                {field(
+                  t(lang, "ob_frequency"),
+                  <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className={ctl}>
+                    {FREQUENCIES.map((f) => (
+                      <option key={f}>{f}</option>
                     ))}
                   </select>,
                 )}
@@ -1095,72 +1107,15 @@ export default function OfferBuilder({
                     ))}
                   </select>,
                 )}
-                {/* Contract scope opens as a floating panel: zero layout height. */}
-                {field(
-                  t(lang, "ob_contract_scope"),
-                  <details className="relative">
-                    <summary
-                      className={`${ctl} flex cursor-pointer list-none items-center justify-between font-medium [&::-webkit-details-marker]:hidden`}
-                    >
-                      <span>
-                        {scopeCount}/{GUARDIAN_SCOPE.length}
-                        {guardianSelections.length - scopeCount > 0 && (
-                          <span className="ml-1 text-slate-400">(+{guardianSelections.length - scopeCount})</span>
-                        )}
-                      </span>
-                      <span aria-hidden="true" className="text-slate-400">▾</span>
-                    </summary>
-                    <div className="absolute right-0 top-full z-30 mt-1 w-[640px] max-w-[80vw] rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
-                      <p className="mb-2 text-[11px] leading-snug text-slate-500">{t(lang, "ob_scope_help")}</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {GUARDIAN_SCOPE.map((module) => {
-                          const moduleSelected = guardianSelections.includes(module.id);
-                          return (
-                            <fieldset
-                              key={module.id}
-                              className={`rounded border p-1.5 ${moduleSelected ? "border-blue-200 bg-blue-50/40" : "border-slate-200 bg-white"}`}
-                            >
-                              <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold text-slate-800">
-                                <input
-                                  type="checkbox"
-                                  checked={moduleSelected}
-                                  onChange={() => toggleGuardianModule(module.id, module.options.map(([id]) => id))}
-                                  className="accent-blue-700"
-                                />
-                                {module.label}
-                              </label>
-                              {moduleSelected && (
-                                <div className="ml-5 mt-1 space-y-0.5">
-                                  {module.options.map(([optionId, optionLabel]) => (
-                                    <label key={optionId} className="flex cursor-pointer items-center gap-1.5 text-[11px] text-slate-600">
-                                      <input
-                                        type="checkbox"
-                                        checked={guardianSelections.includes(optionId)}
-                                        onChange={() => toggleGuardianOption(module.id, optionId)}
-                                        className="accent-blue-700"
-                                      />
-                                      {optionLabel}
-                                    </label>
-                                  ))}
-                                </div>
-                              )}
-                            </fieldset>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </details>,
-                  "col-span-2",
-                )}
                 {editingOfferId && (
-                  <p className="col-span-4 text-[11px] leading-snug text-slate-500">{t(lang, "ob_pricing_note")}</p>
+                  <p className="col-span-3 text-[11px] leading-snug text-slate-500">{t(lang, "ob_pricing_note")}</p>
                 )}
               </div>
             </div>
           </div>
 
-          {/* ── Work area: machines | lines table | costs + totals + notes ── */}
-          <div className="grid min-h-0 flex-1 grid-cols-[180px_minmax(0,1fr)_270px] gap-2">
+          {/* ── Work area: machines | lines table │ notes + totals below ─── */}
+          <div className="grid min-h-0 flex-1 grid-cols-[180px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] gap-2">
             <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
               <div className="flex shrink-0 items-center justify-between gap-1 border-b border-slate-200 px-2 py-1.5">
                 <span className="font-semibold text-slate-700">
@@ -1227,47 +1182,11 @@ export default function OfferBuilder({
                 className="min-h-0 flex-1 border-0"
                 tableClassName=""
               />
-              <div className="shrink-0 border-t border-blue-200 bg-blue-50 px-3 py-2 text-base">
-                <div className="flex justify-between py-0.5">
-                  <span className="text-slate-600">{t(lang, "ob_total")}</span>
-                  <span className="font-mono font-semibold">{calc ? eur(calc.total) : "—"}</span>
-                </div>
-                <div className="flex justify-between py-0.5">
-                  <span className="text-slate-600">{t(lang, "ob_spare")}</span>
-                  <span className="font-mono">{calc ? eur(calc.bk_price) : "—"}</span>
-                </div>
-                <div className="flex justify-between py-0.5">
-                  <span className="text-slate-600">{t(lang, "ob_discount")}</span>
-                  <span className="font-mono text-red-600">{calc ? eur(calc.discount) : "—"}</span>
-                </div>
-                <div className="mt-1 flex items-baseline justify-between border-t border-blue-200 pt-1">
-                  <span className="font-bold">{t(lang, "ob_total_amount")}</span>
-                  <span className="font-mono text-lg font-bold text-blue-700">{calc ? eur(calc.total_end) : "—"}</span>
-                </div>
-              </div>
             </section>
 
-            <div className="flex min-h-0 flex-col gap-2 overflow-y-auto">
-              <section className="shrink-0 rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm">
-                <div className="mb-1 font-semibold text-slate-700">{t(lang, "ob_estimated_costs")}</div>
-                <div className="space-y-0.5">
-                  <FieldRow label={t(lang, "ob_f_trip")}>€{calc?.trip_cost ?? "—"}</FieldRow>
-                  <FieldRow label={t(lang, "ob_f_diets")}>€{calc?.diets ?? "—"}</FieldRow>
-                  <FieldRow label={t(lang, "ob_f_hotels")}>€{calc?.hotel_nights_cost ?? "—"}</FieldRow>
-                  <FieldRow label={t(lang, "ob_f_trip_hours")}>{calc?.trip_hours ?? "—"}</FieldRow>
-                  <FieldRow label={t(lang, "ob_f_work")}>
-                    {calc ? (Number(calc.work_hours) + Number(calc.bk_hours)).toFixed(1) : "—"}
-                  </FieldRow>
-                  <FieldRow label={t(lang, "ob_f_report")}>{calc?.report_hours ?? "—"}</FieldRow>
-                  <FieldRow label={t(lang, "ob_f_bk")}>{calc?.bk_hours ?? "—"}</FieldRow>
-                  <FieldRow label={t(lang, "ob_f_total_hours")}>{calc?.total_hours ?? "—"}</FieldRow>
-                  <FieldRow label={t(lang, "ob_f_guard_hours")}>{calc?.total_hours ?? "—"}</FieldRow>
-                  <FieldRow label={t(lang, "ob_f_hours_import")}>€{calc?.hours_import ?? "—"}</FieldRow>
-                  <FieldRow label={t(lang, "ob_f_expenses")}>€{calc?.expenses ?? "—"}</FieldRow>
-                </div>
-              </section>
-
-              <section className="flex min-h-[72px] flex-1 flex-col rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+            <div className="col-span-2 flex min-h-0 gap-2">
+              {/* Wide comments take the row; compact totals sit on the right. */}
+              <section className="flex min-h-[72px] min-w-0 flex-1 flex-col rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
                 <div className="mb-1 font-semibold text-slate-700">{t(lang, "ob_comments")}</div>
                 <textarea
                   value={comments}
@@ -1276,9 +1195,100 @@ export default function OfferBuilder({
                   className="w-full flex-1 resize-none rounded border border-slate-300 p-1.5 text-sm focus:border-weber-blue focus:outline-none focus:ring-1 focus:ring-weber-blue"
                 />
               </section>
+
+              <section className="w-[260px] shrink-0 rounded-lg border border-blue-200 bg-blue-50/50 p-3 shadow-sm">
+                <div className="mb-1.5 text-sm font-bold text-slate-800">{t(lang, "ob_total_amount")}</div>
+                <div className="space-y-1 text-sm">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-slate-600">{t(lang, "ob_total")}</span>
+                    <span className="font-mono text-[15px] font-semibold">{calc ? eur(calc.total) : "—"}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-slate-600">{t(lang, "ob_spare")}</span>
+                    <span className="font-mono text-[15px]">{calc ? eur(calc.bk_price) : "—"}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-slate-600">{t(lang, "ob_discount")}</span>
+                    <span className="font-mono text-[15px] text-red-600">{calc ? eur(calc.discount) : "—"}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2 border-t-2 border-blue-200 pt-1.5">
+                    <span className="font-bold text-slate-800">{t(lang, "ob_total_amount")}</span>
+                    <span className="font-mono text-2xl font-extrabold text-blue-700">{calc ? eur(calc.total_end) : "—"}</span>
+                  </div>
+                </div>
+              </section>
             </div>
           </div>
         </main>
+        </div>
+
+        {/* ── Right rail: Guardian scope + estimated costs, full height ────── */}
+        <aside className="flex min-h-0 w-[280px] shrink-0 flex-col gap-2 overflow-y-auto">
+          <section className="flex min-h-0 flex-1 flex-col rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+            <div className="mb-0.5 font-semibold text-slate-700">
+              {t(lang, "ob_contract_scope")}{" "}
+              <span className="font-normal text-slate-400">
+                {scopeCount}/{GUARDIAN_SCOPE.length}
+              </span>
+            </div>
+            <p className="mb-1 shrink-0 text-[10px] leading-snug text-slate-500">{t(lang, "ob_scope_help")}</p>
+            <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-0.5">
+              {GUARDIAN_SCOPE.map((module) => {
+                const moduleSelected = guardianSelections.includes(module.id);
+                return (
+                  <fieldset
+                    key={module.id}
+                    className={`rounded border p-1 ${moduleSelected ? "border-blue-200 bg-blue-50/40" : "border-slate-200 bg-white"}`}
+                  >
+                    <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold text-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={moduleSelected}
+                        onChange={() => toggleGuardianModule(module.id, module.options.map(([id]) => id))}
+                        className="accent-blue-700"
+                      />
+                      {module.label}
+                    </label>
+                    {moduleSelected && (
+                      <div className="ml-4 mt-0.5 space-y-0.5">
+                        {module.options.map(([optionId, optionLabel]) => (
+                          <label key={optionId} className="flex cursor-pointer items-center gap-1.5 text-[10px] text-slate-600">
+                            <input
+                              type="checkbox"
+                              checked={guardianSelections.includes(optionId)}
+                              onChange={() => toggleGuardianOption(module.id, optionId)}
+                              className="accent-blue-700"
+                            />
+                            {optionLabel}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </fieldset>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="shrink-0 rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+            <div className="mb-0.5 font-semibold text-slate-700">{t(lang, "ob_estimated_costs")}</div>
+            <div className="space-y-0.5 text-[11px]">
+              <FieldRow label={t(lang, "ob_f_trip")}>€{calc?.trip_cost ?? "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_diets")}>€{calc?.diets ?? "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_hotels")}>€{calc?.hotel_nights_cost ?? "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_trip_hours")}>{calc?.trip_hours ?? "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_work")}>
+                {calc ? (Number(calc.work_hours) + Number(calc.bk_hours)).toFixed(1) : "—"}
+              </FieldRow>
+              <FieldRow label={t(lang, "ob_f_report")}>{calc?.report_hours ?? "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_bk")}>{calc?.bk_hours ?? "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_total_hours")}>{calc?.total_hours ?? "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_guard_hours")}>{calc?.total_hours ?? "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_hours_import")}>€{calc?.hours_import ?? "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_expenses")}>€{calc?.expenses ?? "—"}</FieldRow>
+            </div>
+          </section>
+        </aside>
       </div>
     </div>
   );

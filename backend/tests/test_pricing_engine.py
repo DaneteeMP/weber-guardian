@@ -86,7 +86,9 @@ def test_total_and_total_end_fixed():
 
 
 def test_basic_kit_splits_rounding_and_prices_spares():
-    out = calculate(_base(basic_kit=True, bk_hours=Decimal("2"), bk_price=Decimal("100")))
+    out = calculate(
+        _base(basic_kit=True, bk_hours=Decimal("2")), bk_price=Decimal("100")
+    )
     # raw = 3 + 10 + 2 + 2 = 17 -> 24h (3 days). Adjustment = 7: half to the
     # kit (3), the rest to work. Final work absorbs what is left.
     assert out.total_hours == Decimal("24.0")
@@ -103,7 +105,7 @@ def test_basic_kit_splits_rounding_and_prices_spares():
 
 
 def test_no_basic_kit_keeps_rounding_on_work():
-    out = calculate(_base(bk_hours=Decimal("2"), bk_price=Decimal("100")))
+    out = calculate(_base(bk_hours=Decimal("2")), bk_price=Decimal("100"))
     # Same raw numbers but the selector is off: no split, bk_hours stays raw.
     assert out.bk_hours == Decimal("2.0")
     # work = 24 - trip 3 - report 2 - bk 2 = 17.

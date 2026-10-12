@@ -2,18 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DistanceImport from "./DistanceImport";
 import {
-  createKit,
   deleteDistance,
-  deleteKit,
   listDistances,
-  listKits,
   getPrices,
   listSubsidiaries,
-  updateKit,
   updatePrices,
   upsertDistance,
   type Distance,
-  type Kit,
   type Subsidiary,
 } from "./api";
 import Button from "./components/Button";
@@ -44,7 +39,7 @@ function DeleteIcon() {
   );
 }
 
-type Section = "rates" | "distances" | "kits";
+type Section = "rates" | "distances";
 type Editing =
   | {
       kind: "distance";
@@ -62,7 +57,6 @@ type Editing =
       itinerary: string;
       route_date: string;
     }
-  | { kind: "kit"; model: string; hours: string; spares: string; isNew: boolean }
   | null;
 
 const EMPTY_RATES = { currency: "", km_rate: "", tech_rate: "", diet_full_rate: "", diet_half_rate: "", hotel_rate: "", discount_rate: "" };
@@ -88,12 +82,7 @@ function clockToDecimal(value: string): string | null {
   return fraction === undefined ? null : `${hours}.${fraction}`;
 }
 
-const num = (v: string, fallback: number) => {
-  const n = Number(v);
-  return Number.isFinite(n) && n >= 0 ? n : fallback;
-};
-
-// Admin-only per-subsidiary configuration: rates, distances, kits, machines.
+// Admin-only per-subsidiary configuration: rates and distances.
 // Rows edit in a modal; deletes stay on the row. Every write goes through
 // the admin-guarded endpoints; reads need identity.
 const GERMAN_SERVICE_CENTERS = ["Oldenburg", "Werther", "Frankfurt", "Wolfertschwenden"];
@@ -118,16 +107,13 @@ export default function Config({
 
   const [distances, setDistances] = useState<Distance[]>([]);
   const [distanceSubsidiary, setDistanceSubsidiary] = useState(scope ?? "");
-  const [kits, setKits] = useState<Kit[]>([]);
   const [importOpen, setImportOpen] = useState(false);
 
   const input = "border rounded px-2 py-1 text-sm";
 
   async function refreshTables() {
     try {
-      const [d, k] = await Promise.all([listDistances(), listKits()]);
-      setDistances(d);
-      setKits(k);
+      setDistances(await listDistances());
     } catch (e) {
       setError(String(e));
     }
@@ -229,12 +215,6 @@ export default function Config({
             route_data_date: editing.route_date || null,
           }
         );
-      } else if (editing.kind === "kit") {
-        if (editing.isNew) {
-          await createKit(editing.model, num(editing.hours, 0), num(editing.spares, 0));
-        } else {
-          await updateKit(editing.model, num(editing.hours, 0), num(editing.spares, 0));
-        }
       }
       setEditing(null);
       await refreshTables();
@@ -370,7 +350,7 @@ export default function Config({
   const tab = (active: boolean) =>
     `px-3 py-1 rounded text-sm font-medium ${active ? "bg-weber-blue text-white" : "bg-gray-200 hover:bg-gray-300"}`;
 
-  const modalTitle = editing?.kind === "kit" ? t(lang, "cfg_kits") : t(lang, "cfg_distances");
+  const modalTitle = t(lang, "cfg_distances");
   const visibleDistances = distanceSubsidiary
     ? distances.filter((distance) => distance.subsidiary_id === distanceSubsidiary)
     : distances;
@@ -379,9 +359,9 @@ export default function Config({
     <div className="flex h-full min-h-0 w-full flex-col gap-3 p-4">
       <h1 className="shrink-0 text-2xl font-bold text-gray-900">{t(lang, "cfg_title")}</h1>
       <div className="flex shrink-0 gap-2">
-        {(["rates", "distances", "kits"] as Section[]).map((s) => (
+        {(["rates", "distances"] as Section[]).map((s) => (
           <button key={s} onClick={() => setSection(s)} className={tab(section === s)}>
-            {t(lang, s === "rates" ? "cfg_rates" : s === "distances" ? "cfg_distances" : "cfg_kits")}
+            {t(lang, s === "rates" ? "cfg_rates" : "cfg_distances")}
           </button>
         ))}
       </div>
@@ -391,23 +371,7 @@ export default function Config({
       {section === "rates" && (
         <SectionCard title={t(lang, "cfg_rates")}>
           <div className="flex gap-2 items-center flex-wrap">
-            <select
-              value={sub}
-              onChange={(e) => {
-                setSub(e.target.value);
-                setRates(EMPTY_RATES);
-                setError(null);
-                setOk(null);
-              }}
-              className={input}
-            >
-              <option value="">{t(lang, "cfg_select_subsidiary")}</option>
-              {subsidiaries.map((subsidiary) => (
-                <option key={subsidiary.name} value={subsidiary.name}>
-                  {subsidiary.name}
-                </option>
-              ))}
-            </select>
+            <span className="text-sm font-medium text-gray-700">{sub}</span>
             <Button variant="secondary" size="sm" onClick={loadRates}>Load</Button>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
@@ -466,55 +430,6 @@ export default function Config({
             tableClassName="min-w-[1250px]"
             className="min-h-0 flex-1"
           />
-        </SectionCard>
-      )}
-
-      {section === "kits" && (
-        <SectionCard title={t(lang, "cfg_kits")}>
-          <Button
-            size="sm"
-            className="mb-2"
-            onClick={() => setEditing({ kind: "kit", model: "", hours: "", spares: "", isNew: true })}
-          >
-            {t(lang, "cfg_add")}
-          </Button>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-weber-blue text-white text-left">
-                <th className="px-3 py-1.5">Model</th>
-                <th className="px-3 py-1.5 text-right">hours</th>
-                <th className="px-3 py-1.5 text-right">spare €</th>
-                <th className="px-3 py-1.5" />
-              </tr>
-            </thead>
-            <tbody>
-              {kits.map((k) => (
-                <tr key={k.model} className="border-b">
-                  <td className="px-3 py-1.5 font-mono">{k.model}</td>
-                  <td className="px-3 py-1.5 text-right font-mono">{k.workload_basic_kit}</td>
-                  <td className="px-3 py-1.5 text-right font-mono">{k.spare_parts}</td>
-                  <td className="px-3 py-1.5">
-                    <div className="flex justify-end gap-1">
-                      <IconButton
-                        label={t(lang, "cfg_edit")}
-                        onClick={() => setEditing({ kind: "kit", model: k.model, hours: k.workload_basic_kit, spares: k.spare_parts, isNew: false })}
-                        icon={<EditIcon />}
-                      />
-                      <IconButton
-                        label={t(lang, "cfg_delete")}
-                        variant="danger"
-                        onClick={async () => {
-                          await deleteKit(k.model).catch((e) => setError(String(e)));
-                          await refreshTables();
-                        }}
-                        icon={<DeleteIcon />}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </SectionCard>
       )}
 
@@ -606,22 +521,6 @@ export default function Config({
                 <label className="block text-xs">
                   {t(lang, "cfg_route_date")}
                   <input type="date" value={editing.route_date} onChange={(e) => setEditing({ ...editing, route_date: e.target.value })} className={`${input} w-full`} />
-                </label>
-              </>
-            )}
-            {editing.kind === "kit" && (
-              <>
-                <label className="block text-xs">
-                  Model
-                  <input value={editing.model} disabled={!editing.isNew} onChange={(e) => setEditing({ ...editing, model: e.target.value })} className={`${input} w-full disabled:bg-gray-100`} />
-                </label>
-                <label className="block text-xs">
-                  hours
-                  <input value={editing.hours} onChange={(e) => setEditing({ ...editing, hours: e.target.value })} className={`${input} w-full`} />
-                </label>
-                <label className="block text-xs">
-                  spare €
-                  <input value={editing.spares} onChange={(e) => setEditing({ ...editing, spares: e.target.value })} className={`${input} w-full`} />
                 </label>
               </>
             )}

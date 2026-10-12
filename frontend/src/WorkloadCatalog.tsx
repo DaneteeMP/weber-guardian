@@ -1,8 +1,9 @@
 // Workload Catalog: every workload of the company, the only place hours are edited.
 //
-// Four views over one model:
+// Five views over one model:
 //   * Workloads: each global workload with its real name, hours and materials;
 //   * Lines: the machine-line families (30x, 40x...) priced by equipment_catalog;
+//   * Kits: basic-kit hours and spare-parts price per machine model;
 //   * Material: how one material number resolves, and moving it to another workload;
 //   * Unresolved: installed materials that are not priced, for a human decision.
 // The screen only shows and sends; the backend decides every resolution.
@@ -11,13 +12,14 @@ import { useCallback, useState } from "react";
 import type { WorkloadRule } from "./api";
 import SectionCard from "./components/SectionCard";
 import { t, type Lang } from "./i18n";
+import KitsPanel from "./workloads/KitsPanel";
 import LineWorkloadsPanel from "./workloads/LineWorkloadsPanel";
 import MaterialLookup from "./workloads/MaterialLookup";
 import RuleModal from "./workloads/RuleModal";
 import RulesPanel from "./workloads/RulesPanel";
 import UnresolvedPanel from "./workloads/UnresolvedPanel";
 
-type CatalogTab = "rules" | "lines" | "material" | "unresolved";
+type CatalogTab = "rules" | "lines" | "kits" | "material" | "unresolved";
 
 type ModalState = { ruleId: string | null } | null;
 
@@ -42,6 +44,7 @@ export default function WorkloadCatalog({ lang, canEdit }: { lang: Lang; canEdit
   const tabs: { key: CatalogTab; label: string }[] = [
     { key: "rules", label: t(lang, "workload_tab_rules") },
     { key: "lines", label: t(lang, "workload_tab_lines") },
+    { key: "kits", label: t(lang, "workload_tab_kits") },
     { key: "material", label: t(lang, "workload_tab_material") },
     { key: "unresolved", label: t(lang, "workload_tab_unresolved") },
   ];
@@ -80,6 +83,8 @@ export default function WorkloadCatalog({ lang, canEdit }: { lang: Lang; canEdit
               )}
 
               {tab === "lines" && <LineWorkloadsPanel lang={lang} canEdit={canEdit} />}
+
+              {tab === "kits" && <KitsPanel lang={lang} canEdit={canEdit} />}
 
               {tab === "material" && (
                 <div className="min-h-0 flex-1 overflow-auto">
