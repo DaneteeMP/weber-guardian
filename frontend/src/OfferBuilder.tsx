@@ -25,6 +25,7 @@ import {
 import FieldRow from "./components/FieldRow";
 import DataTable from "./components/DataTable";
 import SectionCard from "./components/SectionCard";
+import { statusTone } from "./statusTone";
 import { quoteLinesFromDraft, type CatalogQuoteLine } from "./catalogLines";
 import { t, type Lang } from "./i18n";
 
@@ -50,10 +51,10 @@ const todayIso = () => {
 // is a pending feature (TO DO): it will become an option of Guardian itself,
 // not a separate selector. The backend already accepts basic_kit/num_trips
 // with defaults (false / 1) for when that lands.
-const OFFER_TYPES = ["Guardian", "Audit", "Off-Guardian"];
+const OFFER_TYPES = ["Guardian", "Inspection", "Off-Guardian"];
 const OFFER_TYPE_TO_API: Record<string, "guardian" | "audit" | "off_guardian"> = {
   Guardian: "guardian",
-  Audit: "audit",
+  Inspection: "audit",
   "Off-Guardian": "off_guardian",
 };
 const FREQUENCIES = ["Annual", "Semi-annual", "Biennial"];
@@ -168,7 +169,7 @@ export default function OfferBuilder({
   const [frequency, setFrequency] = useState("Annual");
   const [status, setStatus] = useState("Pending response");
   const [responsible, setResponsible] = useState("");
-  const [guardianType, setGuardianType] = useState("Audit");
+  const [guardianType, setGuardianType] = useState("Inspection");
   const [guardianSelections, setGuardianSelections] = useState<string[]>([]);
   const [comments, setComments] = useState("");
   type QuoteLine = CatalogQuoteLine;
@@ -297,7 +298,7 @@ export default function OfferBuilder({
     setStatus("Pending response");
     setFrequency("Annual");
     setResponsible("");
-    setGuardianType("Audit");
+      setGuardianType("Inspection");
     setComments("");
     setGuardianSelections([]);
     setReportHours("0");
@@ -719,27 +720,6 @@ export default function OfferBuilder({
   const btnSoft = `${btn} border-slate-300 bg-white text-slate-700 hover:bg-slate-50`;
   const btnPrimary = `${btn} border-weber-blue bg-weber-blue text-white hover:opacity-90`;
   const btnDanger = `${btn} border-red-200 bg-white text-red-700 hover:bg-red-50`;
-
-  const statusTone = (s: string | null | undefined) => {
-    switch (s) {
-      case "Finished":
-        return "bg-green-100 text-green-800";
-      case "Pending response":
-        return "bg-amber-100 text-amber-800";
-      case "Accepted":
-      case "In progress":
-        return "bg-blue-100 text-blue-800";
-      case "Pending invoicing":
-        return "bg-violet-100 text-violet-800";
-      case "Pending Service":
-        return "bg-cyan-100 text-cyan-800";
-      case "Cancelled":
-      case "Rejected":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-slate-100 text-slate-600";
-    }
-  };
 
   // Plain function (not a component) so inputs are not remounted on each render.
   const field = (label: string, control: ReactNode, span = "") => (

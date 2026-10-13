@@ -14,6 +14,7 @@ import {
 import CustomerRankingChart from "./components/charts/CustomerRankingChart";
 import MonthlyOffersChart from "./components/charts/MonthlyOffersChart";
 import StatusDonutChart from "./components/charts/StatusDonutChart";
+import { statusTone } from "./statusTone";
 import { t, type Lang } from "./i18n";
 
 // Dense monitoring home: status/monthly/ranking panels on top, full offer table
@@ -205,7 +206,7 @@ export default function OffersHome({
                   <td className="px-2 py-1 text-gray-900">{names[o.customer_id] ?? o.customer_id}</td>
                   <td className="px-2 py-1 font-mono text-gray-600 whitespace-nowrap">{o.customer_id}</td>
                   <td className="px-2 py-1">
-                    <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 whitespace-nowrap">
+                    <span className={`px-1.5 py-0.5 rounded font-semibold whitespace-nowrap ${statusTone(o.status)}`}>
                       {o.status || "Pending response"}
                     </span>
                   </td>

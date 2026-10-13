@@ -23,7 +23,7 @@ import type { Lang } from "./i18n";
 // The dev-user dropdown is local-only; behind SharePoint/Entra it goes away.
 export default function App() {
   const [tab, setTab] = useState<Tab>("home");
-  const [lang, setLang] = useState<Lang>(() => (localStorage.getItem("lang") as Lang) || "es");
+  const [lang, setLang] = useState<Lang>(() => (localStorage.getItem("lang") as Lang) || "en");
   // Beta: one shared admin identity for everyone (see ensureDevUser).
   const [dev] = useState<string>(() => ensureDevUser());
   const [scope, setScopeState] = useState<string | null>(() => getScopeSubsidiary());

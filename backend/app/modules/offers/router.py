@@ -2,6 +2,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -57,6 +58,16 @@ def maintenance_draft_endpoint(
     except maintenance.RateNotConfigured as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+    except SQLAlchemyError as exc:
+        # A missing table/column (migrations not run on the deploy) or a lost
+        # connection must surface as a readable error with CORS headers, not
+        # as a bare 500 that browsers misreport as a CORS block. The raw DB
+        # message never leaves the server logs.
+        print(f"maintenance-draft database error: {exc!r}", flush=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="database unavailable: the schema may be behind, run alembic upgrade head",
         ) from exc
 
 
