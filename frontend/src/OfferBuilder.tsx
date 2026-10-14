@@ -190,6 +190,14 @@ export default function OfferBuilder({
   // in edit mode, so an existing offer reopens with the machines it was made
   // with instead of an empty selection.
   const restoreEquipRef = useRef<string[] | null>(null);
+  // True while an edit-restore is in flight (offer loaded, fleet not settled
+  // yet). The picker must not treat the intermediate empty selection as a
+  // deselection, or it wipes the restored lines and re-fetches them.
+  const restoringRef = useRef(false);
+  const customerIdRef = useRef(customerId);
+  customerIdRef.current = customerId;
+  const equipListRef = useRef(equipList);
+  equipListRef.current = equipList;
 
   // The selected component workloads are the authoritative work-hours input
   // for the existing offer pricing engine; no manual work-hours box is needed.
@@ -230,9 +238,21 @@ export default function OfferBuilder({
         const offerMachines = [
           ...new Set(o.items.map((i) => i.equipment).filter((name): name is string => !!name)),
         ];
-        restoreEquipRef.current = offerMachines;
-        prevSelected.current = offerMachines;
-        setSelectedEquip(offerMachines);
+        if (o.customer_id === customerIdRef.current && equipListRef.current.length > 0) {
+          // Same customer with the fleet already loaded (e.g. opening another
+          // offer from the sidebar): tick synchronously, no restore roundtrip.
+          const available = new Set(equipListRef.current.map((row) => row.equipment_name));
+          const availMachines = offerMachines.filter((name) => available.has(name));
+          restoreEquipRef.current = null;
+          prevSelected.current = availMachines;
+          setSelectedEquip(availMachines);
+          restoringRef.current = false;
+        } else {
+          restoreEquipRef.current = offerMachines;
+          prevSelected.current = offerMachines;
+          setSelectedEquip(offerMachines);
+          restoringRef.current = true;
+        }
         autoLines.current = new Set();
         for (const item of o.items) {
           if (item.equipment) autoLines.current.add(lineKey(item.equipment, item.description ?? ""));
@@ -308,6 +328,7 @@ export default function OfferBuilder({
     setEditStatus(null);
     setSavedOffer(null);
     restoreEquipRef.current = null;
+    restoringRef.current = false;
     autoLines.current = new Set();
     prevSelected.current = [];
   }
@@ -333,7 +354,9 @@ export default function OfferBuilder({
 
     // Remove automatically generated lines belonging to machines that
     // have just been deselected. Hand-entered lines are left untouched.
-    if (removed.length > 0) {
+    // Skipped while an edit-restore is in flight: the fleet effect clears
+    // the selection and re-ticks it, which is not a real deselection.
+    if (removed.length > 0 && !restoringRef.current) {
       const removedKeys = new Set<string>();
 
       for (const code of removed) {
@@ -416,6 +439,7 @@ export default function OfferBuilder({
       setEquipList([]);
       setSelectedEquip([]);
       setEquipmentLoading(false);
+      restoringRef.current = false;
       return () => {
         active = false;
       };
@@ -451,6 +475,7 @@ export default function OfferBuilder({
           prevSelected.current = restoredAvailable;
           setSelectedEquip(restoredAvailable);
           restoreEquipRef.current = null;
+          restoringRef.current = false;
         } else {
           setSelectedEquip([]);
         }
@@ -462,6 +487,7 @@ export default function OfferBuilder({
         setEquipList([]);
         setSelectedEquip([]);
         setEquipmentLoading(false);
+        restoringRef.current = false;
       });
     return () => {
       active = false;

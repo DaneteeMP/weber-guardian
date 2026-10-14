@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import {
   closeOffer,
   deleteOffer,
@@ -11,9 +11,11 @@ import {
   type OfferListItem,
   type OffersSummary,
 } from "./api";
-import CustomerRankingChart from "./components/charts/CustomerRankingChart";
-import MonthlyOffersChart from "./components/charts/MonthlyOffersChart";
-import StatusDonutChart from "./components/charts/StatusDonutChart";
+// Charts (and all of recharts) load on demand: they are hidden behind
+// SHOW_CHARTS and must not weigh down the first paint.
+const CustomerRankingChart = lazy(() => import("./components/charts/CustomerRankingChart"));
+const MonthlyOffersChart = lazy(() => import("./components/charts/MonthlyOffersChart"));
+const StatusDonutChart = lazy(() => import("./components/charts/StatusDonutChart"));
 import { statusTone } from "./statusTone";
 import { t, type Lang } from "./i18n";
 
@@ -137,6 +139,7 @@ export default function OffersHome({
       {notice && <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-1.5">{notice}</p>}
 
       {SHOW_CHARTS && (
+        <Suspense fallback={<p className="p-3 text-sm text-gray-500">{t(lang, "dash_loading")}</p>}>
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 items-stretch">
           <div className="bg-white rounded-lg border border-gray-200 p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -164,6 +167,7 @@ export default function OffersHome({
             />
           </div>
         </div>
+        </Suspense>
       )}
 
       <div className="bg-white rounded-lg border border-gray-200">

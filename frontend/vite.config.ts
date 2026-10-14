@@ -11,6 +11,10 @@ export default defineConfig({
     port: 5173,
   },
   build: {
+    // No <link rel="modulepreload"> for lazy chunks: the charts bundle is
+    // ~390 kB of dead code while SHOW_CHARTS is off, and Vite would otherwise
+    // prefetch it on first paint, defeating the React.lazy split above.
+    modulePreload: false,
     rollupOptions: {
       output: {
         // recharts is a large third-party dependency used only by the charts

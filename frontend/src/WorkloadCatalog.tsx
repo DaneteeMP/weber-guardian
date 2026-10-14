@@ -45,7 +45,7 @@ export default function WorkloadCatalog({ lang, canEdit }: { lang: Lang; canEdit
     { key: "rules", label: t(lang, "workload_tab_rules") },
     { key: "lines", label: t(lang, "workload_tab_lines") },
     { key: "kits", label: t(lang, "workload_tab_kits") },
-    { key: "material", label: t(lang, "workload_tab_material") },
+    { key: "material", label: t(lang, "workload_tab_search") },
     { key: "unresolved", label: t(lang, "workload_tab_unresolved") },
   ];
 
