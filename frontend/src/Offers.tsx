@@ -18,6 +18,8 @@ const MonthlyOffersChart = lazy(() => import("./components/charts/MonthlyOffersC
 const StatusDonutChart = lazy(() => import("./components/charts/StatusDonutChart"));
 import { statusTone } from "./statusTone";
 import { t, type Lang } from "./i18n";
+import DataTable from "./components/DataTable";
+import type { ColumnDef } from "@tanstack/react-table";
 
 // Dense monitoring home: status/monthly/ranking panels on top, full offer table
 // below with the whole scope and row actions (close, reopen, PDF, delete).
@@ -84,26 +86,177 @@ export default function OffersHome({
     Number(v ?? 0).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const day = (v: string | null | undefined) => (v ? v.slice(0, 10) : "");
 
-  async function run(action: Promise<unknown>, message: string) {
-    setError(null);
-    try {
-      await action;
-      setNotice(message);
-      load();
-    } catch (e) {
-      setError(String(e));
-    }
-  }
+  const run = useCallback(
+    async (action: Promise<unknown>, message: string) => {
+      setError(null);
+      try {
+        await action;
+        setNotice(message);
+        load();
+      } catch (e) {
+        setError(String(e));
+      }
+    },
+    [load]
+  );
 
-  function askDelete(offer: OfferListItem) {
-    const text = t(lang, "home_confirm_delete").replace("{n}", offer.id_guardian_offer);
-    if (window.confirm(text)) run(deleteOffer(offer.id), t(lang, "home_deleted"));
-  }
+  const askDelete = useCallback(
+    (offer: OfferListItem) => {
+      const text = t(lang, "home_confirm_delete").replace("{n}", offer.id_guardian_offer);
+      if (window.confirm(text)) run(deleteOffer(offer.id), t(lang, "home_deleted"));
+    },
+    [lang, run]
+  );
 
-  function askClose(offer: OfferListItem) {
-    const text = t(lang, "home_confirm_close").replace("{n}", offer.id_guardian_offer);
-    if (window.confirm(text)) run(closeOffer(offer.id), t(lang, "home_updated"));
-  }
+  const askClose = useCallback(
+    (offer: OfferListItem) => {
+      const text = t(lang, "home_confirm_close").replace("{n}", offer.id_guardian_offer);
+      if (window.confirm(text)) run(closeOffer(offer.id), t(lang, "home_updated"));
+    },
+    [lang, run]
+  );
+
+  // Same columns as the hand-rolled table, now sortable via the shared DataTable.
+  const columns = useMemo<ColumnDef<OfferListItem>[]>(
+    () => [
+      {
+        accessorKey: "id_guardian_offer",
+        header: t(lang, "home_col_number"),
+        cell: ({ row }) => (
+          <button
+            type="button"
+            onClick={() => onEdit(row.original.id)}
+            title={t(lang, "home_edit")}
+            className="font-mono font-semibold text-weber-blue hover:underline whitespace-nowrap"
+          >
+            {row.original.id_guardian_offer}
+          </button>
+        ),
+      },
+      {
+        id: "date",
+        accessorFn: (o) => day(o.offer_date) || day(o.created_at),
+        header: t(lang, "home_col_date"),
+        cell: ({ row }) => (
+          <span className="font-mono whitespace-nowrap text-gray-700">
+            {day(row.original.offer_date) || day(row.original.created_at)}
+          </span>
+        ),
+      },
+      {
+        id: "customer",
+        accessorFn: (o) => names[o.customer_id] ?? o.customer_id,
+        header: t(lang, "home_col_customer"),
+        cell: ({ row }) => (
+          <span className="text-gray-900">{names[row.original.customer_id] ?? row.original.customer_id}</span>
+        ),
+      },
+      {
+        accessorKey: "customer_id",
+        header: t(lang, "home_col_customer_id"),
+        cell: ({ row }) => (
+          <span className="font-mono text-gray-600 whitespace-nowrap">{row.original.customer_id}</span>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: t(lang, "home_col_status"),
+        cell: ({ row }) => (
+          <span className={`px-1.5 py-0.5 rounded font-semibold whitespace-nowrap ${statusTone(row.original.status)}`}>
+            {row.original.status || "Pending response"}
+          </span>
+        ),
+      },
+      {
+        id: "responsible",
+        accessorFn: (o) => o.responsible_person ?? "",
+        header: t(lang, "home_col_responsible"),
+        cell: ({ row }) => <span className="text-gray-700">{row.original.responsible_person ?? ""}</span>,
+      },
+      {
+        id: "language",
+        accessorFn: (o) => o.language ?? "",
+        header: t(lang, "home_col_language"),
+        cell: ({ row }) => <span className="text-gray-700">{row.original.language ?? ""}</span>,
+      },
+      {
+        id: "frequency",
+        accessorFn: (o) => o.inspection_frequency ?? "",
+        header: t(lang, "home_col_frequency"),
+        cell: ({ row }) => <span className="text-gray-700">{row.original.inspection_frequency ?? ""}</span>,
+      },
+      {
+        id: "hours",
+        accessorFn: (o) => Number(o.work_hours ?? 0),
+        header: () => <span className="block text-right">{t(lang, "home_col_hours")}</span>,
+        cell: ({ row }) => (
+          <span className="block text-right font-mono text-gray-700">{money(row.original.work_hours)}</span>
+        ),
+      },
+      {
+        id: "total",
+        accessorFn: (o) => Number(o.total_end ?? 0),
+        header: () => <span className="block text-right">{t(lang, "home_col_total")}</span>,
+        cell: ({ row }) => (
+          <span className="block text-right font-mono font-bold whitespace-nowrap">
+            {money(row.original.total_end)} {row.original.currency ?? "EUR"}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: () => <span className="block text-right">{t(lang, "home_col_actions")}</span>,
+        enableSorting: false,
+        cell: ({ row }) => {
+          const o = row.original;
+          return (
+            <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+              <button
+                onClick={() => run(downloadOfferPdf(o.id), t(lang, "common_download"))}
+                title={t(lang, "common_download")}
+                aria-label={t(lang, "common_download")}
+                className="px-1.5 py-0.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 inline-flex items-center justify-center"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5" aria-hidden="true">
+                  <path d="M12 3v12" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M7 10l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M4 19h16" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <button
+                onClick={() => onEdit(o.id)}
+                className="px-1.5 py-0.5 rounded border border-gray-300 text-[11px] hover:bg-gray-100"
+              >
+                {t(lang, "home_edit")}
+              </button>
+              {o.status === "Finished" ? (
+                <button
+                  onClick={() => run(setOfferStatus(o.id, "Pending response"), t(lang, "home_updated"))}
+                  className="px-1.5 py-0.5 rounded border border-gray-300 text-[11px] hover:bg-gray-100"
+                >
+                  {t(lang, "home_reopen")}
+                </button>
+              ) : (
+                <button
+                  onClick={() => askClose(o)}
+                  className="px-1.5 py-0.5 rounded border border-gray-300 text-[11px] hover:bg-gray-100"
+                >
+                  {t(lang, "home_close")}
+                </button>
+              )}
+              <button
+                onClick={() => askDelete(o)}
+                className="px-1.5 py-0.5 rounded border border-red-300 text-[11px] text-red-700 hover:bg-red-50"
+              >
+                {t(lang, "home_delete")}
+              </button>
+            </div>
+          );
+        },
+      },
+    ],
+    [lang, names, onEdit, run, askClose, askDelete]
+  );
 
   return (
     <div className="p-3 w-full space-y-3">
@@ -170,122 +323,16 @@ export default function OffersHome({
         </Suspense>
       )}
 
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 430px)" }}>
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 z-10">
-              <tr className="bg-weber-blue text-white text-left">
-                <th className="px-2 py-1.5 font-semibold">{t(lang, "home_col_number")}</th>
-                <th className="px-2 py-1.5 font-semibold">{t(lang, "home_col_date")}</th>
-                <th className="px-2 py-1.5 font-semibold">{t(lang, "home_col_customer")}</th>
-                <th className="px-2 py-1.5 font-semibold">{t(lang, "home_col_customer_id")}</th>
-                <th className="px-2 py-1.5 font-semibold">{t(lang, "home_col_status")}</th>
-                <th className="px-2 py-1.5 font-semibold">{t(lang, "home_col_responsible")}</th>
-                <th className="px-2 py-1.5 font-semibold">{t(lang, "home_col_language")}</th>
-                <th className="px-2 py-1.5 font-semibold">{t(lang, "home_col_frequency")}</th>
-                <th className="px-2 py-1.5 font-semibold">{t(lang, "home_col_hours")}</th>
-                <th className="px-2 py-1.5 text-right font-semibold">{t(lang, "home_col_total")}</th>
-                <th className="px-2 py-1.5 text-right font-semibold text-right">{t(lang, "home_col_actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((o, i) => (
-                <tr
-                  key={o.id}
-                  className={`border-b border-gray-100 ${i % 2 ? "bg-gray-50" : "bg-white"} hover:bg-blue-50`}
-                >
-                  <td className="px-2 py-1 whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => onEdit(o.id)}
-                      title={t(lang, "home_edit")}
-                      className="font-mono font-semibold text-weber-blue hover:underline"
-                    >
-                      {o.id_guardian_offer}
-                    </button>
-                  </td>
-                  <td className="px-2 py-1 font-mono whitespace-nowrap text-gray-700">
-                    {day(o.offer_date) || day(o.created_at)}
-                  </td>
-                  <td className="px-2 py-1 text-gray-900">{names[o.customer_id] ?? o.customer_id}</td>
-                  <td className="px-2 py-1 font-mono text-gray-600 whitespace-nowrap">{o.customer_id}</td>
-                  <td className="px-2 py-1">
-                    <span className={`px-1.5 py-0.5 rounded font-semibold whitespace-nowrap ${statusTone(o.status)}`}>
-                      {o.status || "Pending response"}
-                    </span>
-                  </td>
-                  <td className="px-2 py-1 text-gray-700">{o.responsible_person ?? ""}</td>
-                  <td className="px-2 py-1 text-gray-700">{o.language ?? ""}</td>
-                  <td className="px-2 py-1 text-gray-700">{o.inspection_frequency ?? ""}</td>
-                  <td className="px-2 py-1 text-right font-mono text-gray-700">
-                    {money(o.work_hours)}
-                  </td>
-                  <td className="px-2 py-1 text-right font-mono font-bold whitespace-nowrap">
-                    {money(o.total_end)} {o.currency ?? "EUR"}
-                  </td>
-                  <td className="px-2 py-1">
-                    <div className="flex items-center justify-end gap-1 whitespace-nowrap">
-                      <button
-                        onClick={() => run(downloadOfferPdf(o.id), t(lang, "common_download"))}
-                        title={t(lang, "common_download")}
-                        aria-label={t(lang, "common_download")}
-                        className="px-1.5 py-0.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 inline-flex items-center justify-center"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5" aria-hidden="true">
-                          <path d="M12 3v12" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M7 10l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M4 19h16" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => onEdit(o.id)}
-                        className="px-1.5 py-0.5 rounded border border-gray-300 text-[11px] hover:bg-gray-100"
-                      >
-                        {t(lang, "home_edit")}
-                      </button>
-                      {o.status === "Finished" ? (
-                        <button
-                          onClick={() => run(setOfferStatus(o.id, "Pending response"), t(lang, "home_updated"))}
-                          className="px-1.5 py-0.5 rounded border border-gray-300 text-[11px] hover:bg-gray-100"
-                        >
-                          {t(lang, "home_reopen")}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => askClose(o)}
-                          className="px-1.5 py-0.5 rounded border border-gray-300 text-[11px] hover:bg-gray-100"
-                        >
-                          {t(lang, "home_close")}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => askDelete(o)}
-                        className="px-1.5 py-0.5 rounded border border-red-300 text-[11px] text-red-700 hover:bg-red-50"
-                      >
-                        {t(lang, "home_delete")}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!loading && visible.length === 0 && (
-                <tr>
-                  <td colSpan={11} className="px-3 py-6 text-center text-gray-500">
-                    {t(lang, "home_no_results")}
-                  </td>
-                </tr>
-              )}
-              {loading && (
-                <tr>
-                  <td colSpan={11} className="px-3 py-6 text-center text-gray-500">
-                    {t(lang, "dash_loading")}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <DataTable
+        data={visible}
+        columns={columns}
+        loading={loading}
+        loadingText={t(lang, "dash_loading")}
+        emptyText={t(lang, "home_no_results")}
+        getRowId={(o) => o.id}
+        className="max-h-[calc(100vh-430px)] rounded-lg border-gray-200 bg-white"
+        tableClassName="min-w-[1250px]"
+      />
     </div>
   );
 }
