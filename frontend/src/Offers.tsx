@@ -17,6 +17,7 @@ const CustomerRankingChart = lazy(() => import("./components/charts/CustomerRank
 const MonthlyOffersChart = lazy(() => import("./components/charts/MonthlyOffersChart"));
 const StatusDonutChart = lazy(() => import("./components/charts/StatusDonutChart"));
 import { statusTone } from "./statusTone";
+import { ToastStack, useToasts } from "./components/Toasts";
 import { t, type Lang } from "./i18n";
 import DataTable from "./components/DataTable";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -46,6 +47,7 @@ export default function OffersHome({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const { toasts, push, dismiss } = useToasts();
 
   useEffect(() => {
     listAllCustomers()
@@ -209,7 +211,21 @@ export default function OffersHome({
         enableSorting: false,
         cell: ({ row }) => {
           const o = row.original;
-          return (
+  // Legacy banner states surface as overlay toasts, so call sites stay untouched.
+  useEffect(() => {
+    if (error) {
+      push("error", error);
+      setError(null);
+    }
+  }, [error, push]);
+  useEffect(() => {
+    if (notice) {
+      push("success", notice);
+      setNotice(null);
+    }
+  }, [notice, push]);
+
+  return (
             <div className="flex items-center justify-end gap-1 whitespace-nowrap">
               <button
                 onClick={() => run(downloadOfferPdf(o.id), t(lang, "common_download"))}
@@ -288,8 +304,7 @@ export default function OffersHome({
         </button>
       </div>
 
-      {error && <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-1.5">{error}</p>}
-      {notice && <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-1.5">{notice}</p>}
+      <ToastStack toasts={toasts} onClose={dismiss} />
 
       {SHOW_CHARTS && (
         <Suspense fallback={<p className="p-3 text-sm text-gray-500">{t(lang, "dash_loading")}</p>}>

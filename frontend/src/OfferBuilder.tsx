@@ -13,11 +13,14 @@ import {
   listAllCustomers,
   listAllOffers,
   listOffers,
+  listResponsibles,
+  lookupDistance,
   maintenanceDraft,
   updateOffer,
   type Breakdown,
   type Customer,
   type CustomerDetail,
+  type CustomerSite,
   type Equipment,
   type OfferListItem,
   type OffersSummary,
@@ -25,6 +28,7 @@ import {
 import FieldRow from "./components/FieldRow";
 import DataTable from "./components/DataTable";
 import SectionCard from "./components/SectionCard";
+import { ToastStack, useToasts } from "./components/Toasts";
 import { statusTone } from "./statusTone";
 import { quoteLinesFromDraft, type CatalogQuoteLine } from "./catalogLines";
 import { t, type Lang } from "./i18n";
@@ -47,19 +51,19 @@ const todayIso = () => {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 };
 
-// Guardian contract type. Campaign does not exist and was removed. Basic kit
-// is a pending feature (TO DO): it will become an option of Guardian itself,
-// not a separate selector. The backend already accepts basic_kit/num_trips
-// with defaults (false / 1) for when that lands.
-const OFFER_TYPES = ["Guardian", "Inspection", "Off-Guardian"];
+// Guardian contract type. Campaign does not exist and was removed. Basic Kit
+// is an option of Guardian itself, not a separate selector: it sends
+// offer_type "guardian" with basic_kit=true, and the bk_hours/bk_price
+// figures come from the maintenance draft aggregates (basic_kit catalog).
+const OFFER_TYPES = ["Guardian", "Inspection", "Off-Guardian", "Basic Kit"];
 const OFFER_TYPE_TO_API: Record<string, "guardian" | "audit" | "off_guardian"> = {
   Guardian: "guardian",
   Inspection: "audit",
   "Off-Guardian": "off_guardian",
+  "Basic Kit": "guardian",
 };
 const FREQUENCIES = ["Annual", "Semi-annual", "Biennial"];
 const STATUSES = ["Pending response", "Accepted", "In progress", "Pending invoicing", "Finished", "Rejected", "Cancelled", "Pending Service"];
-const RESPONSIBLES = ["", "Xevi Mira", "David"];
 const GUARDIAN_SCOPE = [
   {
     id: "maintenance_inspection",
@@ -151,13 +155,24 @@ export default function OfferBuilder({
   const [clientSearch, setClientSearch] = useState("");
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [customerDetail, setCustomerDetail] = useState<CustomerDetail | null>(null);
+  // Explicit trip site for the distance lookup. Null = automatic (first
+  // site carrying a province). Reset whenever the customer changes.
+  const [siteId, setSiteId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const { toasts, push, dismiss } = useToasts();
   const [calc, setCalc] = useState<Breakdown | null>(null);
+  // Basic-kit figures for the selected machines, from the maintenance draft
+  // aggregates. Only the Basic Kit type sends them on; other types price
+  // with zeroes.
+  const [kitHours, setKitHours] = useState("0");
+  const [kitPrice, setKitPrice] = useState("0");
 
   const [reportHours, setReportHours] = useState("0");
   const [tripBase, setTripBase] = useState("0");
-  const km = "0";
+  // Trip km used to come hardcoded as 0: it now resolves from the customer's
+  // location against the subsidiary distance catalog (see the effect below).
+  const [km, setKm] = useState("0");
   const [kmRate, setKmRate] = useState("0");
   const [techRate, setTechRate] = useState("0");
   const [dietFull, setDietFull] = useState("0");
@@ -169,6 +184,14 @@ export default function OfferBuilder({
   const [frequency, setFrequency] = useState("Annual");
   const [status, setStatus] = useState("Pending response");
   const [responsible, setResponsible] = useState("");
+  // Managed per-subsidiary responsibles for the dropdown (Config page).
+  const [responsibleOptions, setResponsibleOptions] = useState<string[]>([]);
+  const responsibleChoices = useMemo(() => {
+    // A saved offer may name someone no longer listed: keep showing the
+    // value instead of blanking the field.
+    const base = ["", ...responsibleOptions];
+    return responsible && !base.includes(responsible) ? [...base, responsible] : base;
+  }, [responsibleOptions, responsible]);
   const [guardianType, setGuardianType] = useState("Inspection");
   const [guardianSelections, setGuardianSelections] = useState<string[]>([]);
   const [comments, setComments] = useState("");
@@ -199,6 +222,33 @@ export default function OfferBuilder({
   const equipListRef = useRef(equipList);
   equipListRef.current = equipList;
 
+  // Basic-kit figures follow the selected machines while the Basic Kit type
+  // is on. A separate fetch (not the picker's per-batch draft) so removals
+  // are reflected too.
+  useEffect(() => {
+    if (guardianType !== "Basic Kit" || !customerId || selectedEquip.length === 0) {
+      setKitHours("0");
+      setKitPrice("0");
+      return;
+    }
+    let active = true;
+    maintenanceDraft(customerId, selectedEquip)
+      .then((draft) => {
+        if (!active) return;
+        setKitHours(String(draft.basic_kit_hours ?? "0"));
+        setKitPrice(String(draft.basic_kit_price ?? "0"));
+      })
+      .catch((e) => {
+        if (!active) return;
+        setKitHours("0");
+        setKitPrice("0");
+        setError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      active = false;
+    };
+  }, [guardianType, customerId, selectedEquip]);
+
   // The selected component workloads are the authoritative work-hours input
   // for the existing offer pricing engine; no manual work-hours box is needed.
   const workHours = useMemo(
@@ -224,6 +274,11 @@ export default function OfferBuilder({
         setGuardianSelections(o.guardian_selections || []);
         setReportHours(String(Number(o.report_hours ?? 0)));
         setTripBase(String(Number(o.trip_hours ?? 0)));
+        // The saved type label is not stored: nonzero kit figures mean this
+        // offer was priced as Basic Kit (other types always send zeroes).
+        if (Number(o.bk_hours ?? 0) > 0 || Number(o.bk_price ?? 0) > 0) {
+          setGuardianType("Basic Kit");
+        }
         setItems(
           o.items.map((i) => ({
             equipment: i.equipment ?? "",
@@ -309,6 +364,20 @@ export default function OfferBuilder({
   const lineKey = (equipment: string, description: string) =>
     `${equipment}||${description}`;
 
+  // Legacy banner states surface as overlay toasts, so call sites stay untouched.
+  useEffect(() => {
+    if (error) {
+      push("error", error);
+      setError(null);
+    }
+  }, [error, push]);
+  useEffect(() => {
+    if (saved) {
+      push("success", saved);
+      setSaved(null);
+    }
+  }, [saved, push]);
+
   // Blank the offer-specific fields so the next save creates a new offer. The
   // selected customer is deliberately kept: choosing a customer IS starting a
   // new offer, and its fleet/rates load from the customer effect.
@@ -323,6 +392,9 @@ export default function OfferBuilder({
     setGuardianSelections([]);
     setReportHours("0");
     setTripBase("0");
+    setKm("0");
+    setKitHours("0");
+    setKitPrice("0");
     setItems([]);
     setSelectedEquip([]);
     setEditStatus(null);
@@ -429,6 +501,7 @@ export default function OfferBuilder({
   useEffect(() => {
     let active = true;
     setSavedOffer(null);
+    setKm("0");
     setKmRate("0");
     setTechRate("0");
     setDietFull("0");
@@ -438,6 +511,7 @@ export default function OfferBuilder({
       setCustomerDetail(null);
       setEquipList([]);
       setSelectedEquip([]);
+      setSiteId(null);
       setEquipmentLoading(false);
       restoringRef.current = false;
       return () => {
@@ -448,6 +522,7 @@ export default function OfferBuilder({
     setCustomerDetail(null);
     setEquipList([]);
     setSelectedEquip([]);
+    setSiteId(null);
     getCustomerDetail(customerId)
       .then((detail) => {
         if (!active) return;
@@ -494,6 +569,41 @@ export default function OfferBuilder({
     };
   }, [customerId]);
 
+  // Trip distance from the customer's location: the explicitly chosen site,
+  // else the first site carrying a province, resolved server-side against
+  // the subsidiary distance catalog (name, code or alias). Feeds Trip € /
+  // Trip hours in estimated costs. On edit the restored trip hours win over
+  // the catalog value; an uncovered province keeps zeroes, never a guess.
+  const tripSite = (() => {
+    const sites = customerDetail?.sites ?? [];
+    if (siteId) return sites.find((s) => s.id === siteId) ?? null;
+    return sites.find((s) => (s.physical_province ?? "").trim()) ?? null;
+  })();
+  useEffect(() => {
+    if (!customerDetail) return;
+    const rawProvince = (tripSite?.physical_province ?? "").trim();
+    const subsidiary = customerDetail.customer.subsidiary_id;
+    if (!rawProvince || !subsidiary) {
+      setKm("0");
+      if (!editingOfferId) setTripBase("0");
+      return;
+    }
+    let active = true;
+    void (async () => {
+      try {
+        const match = await lookupDistance(subsidiary, rawProvince);
+        if (!active) return;
+        setKm(String(match?.km ?? "0"));
+        if (!editingOfferId) setTripBase(String(match?.trip_hours ?? "0"));
+      } catch (e) {
+        if (active) setError(e instanceof Error ? e.message : String(e));
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [customerDetail, siteId, editingOfferId]);
+
   // Customer identity, its offer history and the subsidiary rates. Re-runs when
   // the customer list arrives so the rates can be fetched once the filial is known.
   useEffect(() => {
@@ -504,7 +614,10 @@ export default function OfferBuilder({
       return;
     }
     listOffers(customerId).then(setOffers).catch(() => setOffers([]));
-    if (!selectedCustomer?.subsidiary_id) return;
+    if (!selectedCustomer?.subsidiary_id) {
+      setResponsibleOptions([]);
+      return;
+    }
     let active = true;
     getPrices(selectedCustomer.subsidiary_id)
       .then((prices) => {
@@ -518,6 +631,14 @@ export default function OfferBuilder({
       })
       .catch((e) => {
         if (active) setError(e instanceof Error ? e.message : String(e));
+      });
+    listResponsibles(selectedCustomer.subsidiary_id)
+      .then((rows) => {
+        if (!active) return;
+        setResponsibleOptions(rows.filter((r) => r.active).map((r) => r.name));
+      })
+      .catch(() => {
+        if (active) setResponsibleOptions([]);
       });
     return () => {
       active = false;
@@ -568,11 +689,12 @@ export default function OfferBuilder({
   useEffect(loadOfferList, [loadOfferList]);
 
   // Live preview: authoritative breakdown comes from the backend on every input change.
+  const isBasicKit = guardianType === "Basic Kit";
   useEffect(() => {
     const timer = setTimeout(() => {
       calculate({
         work_hours: num(workHours, 0),
-        bk_hours: 0,
+        bk_hours: isBasicKit ? num(kitHours, 0) : 0,
         report_hours: num(reportHours, 0),
         trip_hours_base: num(tripBase, 0),
         km: num(km, 0),
@@ -582,15 +704,16 @@ export default function OfferBuilder({
         diet_half_rate: num(dietHalf, 0),
         hotel_rate: num(hotelRate, 0),
         discount_rate: num(discountRate, 0),
-        bk_price: 0,
+        bk_price: isBasicKit ? num(kitPrice, 0) : 0,
         currency: "EUR",
         offer_type: OFFER_TYPE_TO_API[guardianType] ?? "audit",
+        basic_kit: isBasicKit,
       })
         .then(setCalc)
         .catch((e) => setError(String(e)));
     }, 300);
     return () => clearTimeout(timer);
-  }, [workHours, reportHours, tripBase, km, kmRate, techRate, dietFull, dietHalf, hotelRate, discountRate, guardianType]);
+  }, [workHours, reportHours, tripBase, km, kmRate, techRate, dietFull, dietHalf, hotelRate, discountRate, guardianType, kitHours, kitPrice]);
 
   async function refreshOffers() {
     if (customerId) {
@@ -608,7 +731,7 @@ export default function OfferBuilder({
       // must not block saving the whole offer.
       const pricing = {
         work_hours: num(workHours, 0),
-        bk_hours: 0,
+        bk_hours: isBasicKit ? num(kitHours, 0) : 0,
         report_hours: num(reportHours, 0),
         trip_hours_base: num(tripBase, 0),
         km: num(km, 0),
@@ -618,9 +741,10 @@ export default function OfferBuilder({
         diet_half_rate: num(dietHalf, 0),
         hotel_rate: num(hotelRate, 0),
         discount_rate: num(discountRate, 0),
-        bk_price: 0,
+        bk_price: isBasicKit ? num(kitPrice, 0) : 0,
         currency: "EUR",
         offer_type: OFFER_TYPE_TO_API[guardianType] ?? "audit",
+        basic_kit: isBasicKit,
       };
       const lines = items.map((i) => ({
         equipment: i.equipment || undefined,
@@ -822,6 +946,10 @@ export default function OfferBuilder({
         .join(" · ")
     : [customer?.city, customer?.province, customer?.country].filter(Boolean).join(", ") || "—";
 
+  const siteLabel = (site: CustomerSite) =>
+    [site.physical_street, site.physical_city, site.physical_province].filter((v) => (v ?? "").trim()).join(", ") ||
+    site.id;
+
   const scopeCount = GUARDIAN_SCOPE.filter((module) => guardianSelections.includes(module.id)).length;
 
   return (
@@ -884,19 +1012,7 @@ export default function OfferBuilder({
       </header>
 
       {/* ── Toasts: overlay, so they never push the layout around ─────────── */}
-      <div className="pointer-events-none fixed bottom-3 right-3 z-50 flex max-w-sm flex-col gap-2">
-        {error && (
-          <div role="alert" className="pointer-events-auto flex items-start gap-2 rounded-lg border border-red-200 bg-white p-3 text-sm text-red-700 shadow-lg">
-            <span className="min-w-0 flex-1 break-words">{error}</span>
-            <button type="button" onClick={() => setError(null)} aria-label="Close" className="text-red-400 hover:text-red-700">✕</button>
-          </div>
-        )}
-        {saved && (
-          <div role="status" className="pointer-events-auto rounded-lg border border-green-200 bg-white p-3 text-sm text-green-700 shadow-lg">
-            {saved}
-          </div>
-        )}
-      </div>
+      <ToastStack toasts={toasts} onClose={dismiss} />
 
       <div className="flex min-h-0 flex-1 gap-2 p-2">
         <div className="flex min-h-0 min-w-0 flex-1 gap-2">
@@ -1056,6 +1172,20 @@ export default function OfferBuilder({
                     <div className="mt-1 line-clamp-2 text-slate-600" title={customerAddress}>
                       {customerAddress}
                     </div>
+                    {(customerDetail?.sites.length ?? 0) > 1 && (
+                      <select
+                        value={tripSite?.id ?? ""}
+                        onChange={(e) => setSiteId(e.target.value || null)}
+                        className={`${ctl} mt-1`}
+                        title={tripSite ? siteLabel(tripSite) : undefined}
+                      >
+                        {(customerDetail?.sites ?? []).map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {siteLabel(s)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 ) : (
                   <div className="flex min-h-[56px] flex-1 items-center justify-center rounded border border-dashed border-slate-300 px-2 text-center text-slate-400">
@@ -1106,8 +1236,8 @@ export default function OfferBuilder({
                 {field(
                   t(lang, "ob_responsible"),
                   <select value={responsible} onChange={(e) => setResponsible(e.target.value)} className={ctl}>
-                    {RESPONSIBLES.map((r) => (
-                      <option key={r} value={r}>
+                    {responsibleChoices.map((r) => (
+                      <option key={r || "-"} value={r}>
                         {r || "-"}
                       </option>
                     ))}

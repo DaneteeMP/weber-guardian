@@ -83,6 +83,22 @@ async def import_endpoint(
     return report
 
 
+@router.get("/lookup", response_model=DistanceOut)
+def lookup_endpoint(
+    subsidiary_id: str = Query(min_length=1, max_length=64),
+    province: str = Query(min_length=1, max_length=128),
+    db: Session = Depends(get_db),
+    current: CurrentUser = Depends(get_current_user),
+):
+    """Resolve a free-text SAP province to its route (name, code or alias).
+    404 carries no route: the caller keeps zeroes instead of failing."""
+    target = _require_subsidiary(_target_subsidiary(current, subsidiary_id))
+    row = service.resolve_distance(db, target, province)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No route for province")
+    return row
+
+
 @router.get("/{province}", response_model=DistanceOut)
 def get_endpoint(
     province: str,

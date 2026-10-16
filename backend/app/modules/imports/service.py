@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.core.subsidiaries import normalize_subsidiary
 from app.modules.customers.models import Customer
 from app.modules.customers.service import normalize_customer_id
-from app.modules.equipment.models import CustomerSite, Equipment, row_hash_of, site_hash_of
+from app.modules.equipment.models import CustomerSite, Equipment, instance_hash_of, row_hash_of, site_hash_of
 from app.modules.imports.schemas import ImportReport, RowError
 from app.modules.subsidiaries.service import subsidiary_for_country, supervision_map
 
@@ -312,28 +312,61 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
     existing_site_hashes = _known_values(db, CustomerSite.site_hash, set(sites))
     new_sites = {site_hash: data for site_hash, data in sites.items() if site_hash not in existing_site_hashes}
 
-    new_equipment: list[dict] = []
-    site_updates: dict[str, tuple[str, str]] = {}
-    used_legacy_hashes: set[str] = set()
-    for item in pending_equipment:
-        row_hash = item["row_hash"]
-        if row_hash in existing_equipment:
-            continue
-        legacy_hash = item["legacy_row_hash"]
-        legacy_row = existing_equipment.get(legacy_hash)
-        site_hash = item["site_hash"]
-        if (
-            site_hash is not None
-            and legacy_row is not None
-            and legacy_row.site_id is None
-            and legacy_hash not in used_legacy_hashes
+    # Instance map for cross-run matching: same installed component under a
+    # new address (or with a corrected family) updates its row instead of
+    # cloning it. Newest data wins; a sited row beats a siteless twin.
+    # Within one file every miss still creates: two plants in the same
+    # snapshot are two instances, never an update.
+    instance_rows: dict[str, Equipment] = {}
+    touched_customers = sorted({item["customer_id"] for item in pending_equipment})
+    for i in range(0, len(touched_customers), 1000):
+        for row in db.scalars(
+            select(Equipment)
+            .where(Equipment.customer_id.in_(touched_customers[i : i + 1000]))
+            .order_by(Equipment.created_at.desc(), Equipment.id.desc())
         ):
-            # Enrich a previously imported location-less row instead of
-            # creating a second copy when the new export adds address columns.
-            site_updates[legacy_hash] = (row_hash, site_hash)
-            used_legacy_hashes.add(legacy_hash)
+            key = instance_hash_of(
+                row.customer_id,
+                row.equipment_name,
+                row.component_type,
+                row.material_no,
+                row.purchase_date,
+            )
+            prev = instance_rows.get(key)
+            if prev is None or (prev.site_id is None and row.site_id is not None):
+                instance_rows[key] = row
+
+    def instance_key_of(item: dict) -> str:
+        return instance_hash_of(
+            item["customer_id"],
+            item["equipment_name"],
+            item["component_type"],
+            item["material_no"],
+            item["purchase_date"],
+        )
+
+    # Pass 1: exact fingerprints claim their rows (idempotent re-imports).
+    claimed_ids: set = set()
+    remaining: list[dict] = []
+    for item in pending_equipment:
+        hit = existing_equipment.get(item["row_hash"])
+        if hit is not None:
+            claimed_ids.add(hit.id)
+        else:
+            remaining.append(item)
+
+    # Pass 2: same instance, corrected data. A claimed row means the old
+    # plant is still listed, so the newcomer is a genuine second instance.
+    new_equipment: list[dict] = []
+    row_updates: dict[str, tuple[Equipment, dict]] = {}
+    for item in remaining:
+        key = instance_key_of(item)
+        row = instance_rows.get(key)
+        if row is None or row.id in claimed_ids:
+            new_equipment.append(item)
             continue
-        new_equipment.append(item)
+        claimed_ids.add(row.id)
+        row_updates[key] = (row, item)
 
     report = ImportReport(
         dry_run=dry_run,
@@ -351,9 +384,9 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
     new_customers = {cid: data for cid, data in customers.items() if cid not in existing_customers}
     report.customers_skipped = len(customers) - len(new_customers)
     report.customers_created = len(new_customers)
-    report.equipment_updated = len(site_updates)
+    report.equipment_updated = len(row_updates)
     report.equipment_skipped = (
-        len(pending_equipment) - len(new_equipment) - len(site_updates) + file_dup_skipped + bare_skipped
+        len(pending_equipment) - len(new_equipment) - len(row_updates) + file_dup_skipped + bare_skipped
     )
     report.equipment_created = len(new_equipment)
 
@@ -367,9 +400,28 @@ def run_import(db: Session, content: bytes, subsidiary_id: str | None, dry_run: 
     db.flush()
 
     site_ids = _site_ids_by_hash(db, set(sites))
-    for legacy_hash, (new_hash, site_hash) in site_updates.items():
-        existing_equipment[legacy_hash].site_id = site_ids[site_hash]
-        existing_equipment[legacy_hash].row_hash = new_hash
+    for row, item in row_updates.values():
+        # A siteless re-export never wipes a known location: keep the site
+        # and fingerprint the row with it, so the next identical re-export
+        # still settles instead of updating forever.
+        if item["machine_type"] is not None:
+            row.machine_type = item["machine_type"]
+        kept_site_hash = item["site_hash"]
+        if kept_site_hash is None and row.site_id is not None:
+            kept_site_hash = db.scalar(
+                select(CustomerSite.site_hash).where(CustomerSite.id == row.site_id)
+            )
+        else:
+            row.site_id = site_ids.get(kept_site_hash)
+        row.row_hash = row_hash_of(
+            item["customer_id"],
+            item["equipment_name"],
+            row.machine_type,
+            item["component_type"],
+            item["material_no"],
+            item["purchase_date"],
+            kept_site_hash,
+        )
     for item in new_equipment:
         equipment_data = {
             key: value

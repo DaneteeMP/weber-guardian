@@ -13,10 +13,10 @@ const STR = {
   it: { title: "Importa CSV", pick: "Scegli file", subsidiary: "Filiale (facoltativa)", simulate: "Simula", import: "Importa", rows: "righe", created: "creati", skipped: "saltati", errors: "errori", customers: "Clienti", sites: "Sedi", equipment: "Impianti", updated: "aggiornati", need: "Scegli prima un file" },
 } as const;
 
-export default function ImportData({ lang }: { lang: Lang }) {
+export default function ImportData({ lang, scope }: { lang: Lang; scope?: string | null }) {
   const s = STR[lang];
   const [file, setFile] = useState<File | null>(null);
-  const [subsidiary, setSubsidiary] = useState("");
+  const [subsidiary, setSubsidiary] = useState(scope ?? "");
   const [subsidiaries, setSubsidiaries] = useState<Subsidiary[]>([]);
   const [report, setReport] = useState<ImportReport | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,8 +24,9 @@ export default function ImportData({ lang }: { lang: Lang }) {
   const input = "border rounded px-2 py-1 text-sm";
 
   useEffect(() => {
+    if (scope) return;
     listSubsidiaries().then(setSubsidiaries).catch(() => {});
-  }, []);
+  }, [scope]);
 
   async function run(dryRun: boolean) {
     setError(null);
@@ -36,7 +37,7 @@ export default function ImportData({ lang }: { lang: Lang }) {
     }
     setBusy(true);
     try {
-      setReport(await uploadCsv(file, dryRun, subsidiary || undefined));
+      setReport(await uploadCsv(file, dryRun, (scope ?? subsidiary) || undefined));
     } catch (e) {
       // 422 carries the report inside detail: surface row errors readably.
       const msg = e instanceof Error ? e.message : "Upload failed";
@@ -63,14 +64,18 @@ export default function ImportData({ lang }: { lang: Lang }) {
             <input type="file" accept=".csv" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </label>
           <span className="text-sm text-gray-600">{file?.name ?? ""}</span>
-          <select value={subsidiary} onChange={(e) => setSubsidiary(e.target.value)} className={input} title={s.subsidiary}>
-            <option value="">{s.subsidiary}</option>
-            {subsidiaries.map((f) => (
-              <option key={f.name} value={f.name}>
-                {f.short_label}
-              </option>
-            ))}
-          </select>
+          {scope ? (
+            <span className="text-sm font-medium text-gray-700">{scope}</span>
+          ) : (
+            <select value={subsidiary} onChange={(e) => setSubsidiary(e.target.value)} className={input} title={s.subsidiary}>
+              <option value="">{s.subsidiary}</option>
+              {subsidiaries.map((f) => (
+                <option key={f.name} value={f.name}>
+                  {f.short_label}
+                </option>
+              ))}
+            </select>
+          )}
           <button disabled={busy} onClick={() => run(true)} className="px-3 py-1 rounded text-sm bg-gray-200 hover:bg-gray-300 disabled:opacity-50">
             {s.simulate}
           </button>

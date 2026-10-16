@@ -14,9 +14,10 @@ Offer type mapping (Campaign does not exist in Guardian, removed):
 * audit: normal price, branch discount applies, no basic kit;
 * off_guardian: branch discount is NOT applied (discount = 0).
 
-The Basic Kit is a selector, not a type: when basic_kit=True the rounding
-adjustment is split (half to the kit, rest to work) like the legacy "Basic
-Kit" Guardian type, and bk_hours/bk_price come from the basic_kit catalog.
+The Basic Kit is a Guardian Type option, not a separate selector: when
+basic_kit=True the rounding adjustment is split (half to the kit, rest to
+work) like the legacy "Basic Kit" Guardian type, and bk_hours/bk_price come
+from the basic_kit catalog.
 """
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP

@@ -257,3 +257,64 @@ def test_dry_run_does_not_resolve_away_a_pending_customer(db):
     assert report.errors == []
     assert report.customers_created == 1
     assert db.scalar(select(func.count()).select_from(Customer)) == 0
+
+
+ROW_DE_SITE_B = ROW_DE.replace("Twegtje 1", "Anderestrasse 9").replace(
+    "Katlenburg-Lindau", "Rosdorf"
+).replace("037191", "37124")
+
+
+def test_changed_address_updates_instead_of_duplicating(db):
+    """The user's 4-rows-for-2 regression: re-importing the same installed
+    component under another address must move the row, never clone it, and a
+    repeated import must settle (updated back to 0)."""
+    run_import(db, (HEADER + ROW_DE).encode(), subsidiary_id="Weber Germany", dry_run=False)
+    moved = run_import(db, (HEADER + ROW_DE_SITE_B).encode(), subsidiary_id="Weber Germany", dry_run=False)
+    assert moved.errors == []
+    assert moved.equipment_created == 0
+    assert moved.equipment_updated == 1
+    assert db.scalar(select(func.count()).select_from(Equipment)) == 1
+
+    row = db.scalar(select(Equipment))
+    assert row is not None and row.site is not None
+    assert row.site.physical_street == "Anderestrasse 9"
+
+    settled = run_import(db, (HEADER + ROW_DE_SITE_B).encode(), subsidiary_id="Weber Germany", dry_run=False)
+    assert settled.errors == []
+    assert settled.equipment_created == 0
+    assert settled.equipment_updated == 0
+    assert db.scalar(select(func.count()).select_from(Equipment)) == 1
+
+
+def test_added_machine_type_updates_instead_of_duplicating(db):
+    """A later export that fills a previously empty Machine Type corrects
+    the row instead of adding a twin."""
+    no_family = ROW_DE.replace(';"CCS305";', ';"";')
+    first = run_import(db, (HEADER + no_family).encode(), subsidiary_id="Weber Germany", dry_run=False)
+    assert first.errors == [] and first.equipment_created == 1
+
+    corrected = run_import(db, (HEADER + ROW_DE).encode(), subsidiary_id="Weber Germany", dry_run=False)
+    assert corrected.errors == []
+    assert corrected.equipment_created == 0
+    assert corrected.equipment_updated == 1
+    assert db.scalar(select(func.count()).select_from(Equipment)) == 1
+    assert db.scalar(select(Equipment)).machine_type == "CCS305"
+
+
+def test_second_plant_listed_alongside_stays_a_second_row(db):
+    """A new plant only counts as a second instance while the old plant is
+    still listed: the exact row claims its match first, whatever the order."""
+    run_import(db, (HEADER + ROW_DE).encode(), subsidiary_id="Weber Germany", dry_run=False)
+
+    for content in (HEADER + ROW_DE + ROW_DE_SITE_B, HEADER + ROW_DE_SITE_B + ROW_DE):
+        report = run_import(db, content.encode(), subsidiary_id="Weber Germany", dry_run=False)
+        assert report.errors == []
+        assert report.equipment_created == 1, content
+        assert report.equipment_updated == 0, content
+        assert db.scalar(select(func.count()).select_from(Equipment)) == 2, content
+        # Reset for the mirrored order: drop the plant-B row again.
+        for row in db.scalars(
+            select(Equipment).where(Equipment.site.has(CustomerSite.physical_street == "Anderestrasse 9"))
+        ):
+            db.delete(row)
+        db.commit()

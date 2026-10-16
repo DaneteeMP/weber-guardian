@@ -6,7 +6,6 @@ export type Tab =
   | "home"
   | "offers"
   | "customers"
-  | "import"
   | "workloads"
   | "config";
 

@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import Config from "./Config";
 import Customers from "./Customers";
-import ImportData from "./ImportData";
 import OfferBuilder from "./OfferBuilder";
 import Offers from "./Offers";
 import WorkloadCatalog from "./WorkloadCatalog";
 import Gate from "./components/Gate";
+import ErrorBoundary from "./components/ErrorBoundary";
 import TopBar, { type Tab } from "./components/TopBar";
 import {
   ensureDevUser,
@@ -92,6 +92,7 @@ export default function App() {
   const contentKey = `${dev}:${scope ?? "all"}:${epoch}`;
 
   return (
+    <ErrorBoundary lang={lang}>
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-gray-100">
       <div className="shrink-0">
         <TopBar
@@ -124,8 +125,6 @@ export default function App() {
             onEdit={openOffer}
             onNew={openNewOffer}
           />
-        ) : tab === "import" ? (
-          <ImportData key={contentKey} lang={lang} />
         ) : tab === "workloads" ? (
           <WorkloadCatalog
             key={contentKey}
@@ -147,5 +146,6 @@ export default function App() {
         )}
       </div>
     </div>
+    </ErrorBoundary>
   );
 }

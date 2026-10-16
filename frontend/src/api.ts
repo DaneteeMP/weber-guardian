@@ -99,10 +99,24 @@ export function onGateRequired(cb: () => void) {
 // Validates the shared password without needing an app identity: /openapi.json
 // sits outside /api/v1 and asks for no user, only the gate. Returns true when
 // the credentials are accepted (also true in local dev, where there is no gate).
-export async function probeGate(): Promise<boolean> {
+// The timeout turns a sleeping backend into a visible Gate prompt instead of
+// an eternal blank screen: fetch never rejects on its own while the server
+// is cold-starting.
+export async function probeGate(timeoutMs = 20000): Promise<boolean> {
   const origin = BASE.replace(/\/api\/v1\/?$/, "");
-  const res = await fetch(`${origin}/openapi.json`, { headers: authHeaders() });
-  return res.ok;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${origin}/openapi.json`, {
+      headers: authHeaders(),
+      signal: controller.signal,
+    });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export type Me = {
@@ -549,6 +563,8 @@ export type OfferOut = OfferListItem & {
   work_hours: string | number;
   report_hours: string | number;
   trip_hours: string | number;
+  bk_hours: string | number;
+  bk_price: string | number;
   items: { equipment: string | null; description: string | null; import_amount: string | number; workload: string | number }[];
 };
 
@@ -770,6 +786,48 @@ export function updatePrices(
   }).then((r) => checked(r, "PUT prices"));
 }
 
+export type Responsible = {
+  id: string;
+  subsidiary_id: string;
+  name: string;
+  active: boolean;
+};
+
+export function listResponsibles(subsidiary_id: string): Promise<Responsible[]> {
+  const params = new URLSearchParams({ subsidiary_id });
+  return fetch(`${BASE}/responsibles?${params}`, { headers: headers() }).then((r) =>
+    checked(r, "GET responsibles")
+  );
+}
+
+export function createResponsible(subsidiary_id: string, name: string): Promise<Responsible> {
+  return fetch(`${BASE}/responsibles`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ subsidiary_id, name }),
+  }).then((r) => checked(r, "POST responsible"));
+}
+
+export function updateResponsible(
+  id: string,
+  patch: { name?: string; active?: boolean }
+): Promise<Responsible> {
+  return fetch(`${BASE}/responsibles/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: headers(),
+    body: JSON.stringify(patch),
+  }).then((r) => checked(r, "PATCH responsible"));
+}
+
+export function deleteResponsible(id: string): Promise<void> {
+  return fetch(`${BASE}/responsibles/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: headers(),
+  }).then(async (r) => {
+    if (!r.ok) throw new Error(`DELETE responsible failed (${r.status})`);
+  });
+}
+
 export type Distance = {
   subsidiary_id: string;
   province: string;
@@ -805,6 +863,18 @@ export function listDistances(): Promise<Distance[]> {
   return fetch(`${BASE}/distances?${params}`, { headers: headers() }).then((r) =>
     checked(r, "GET distances")
   );
+}
+
+/** Resolve a free-text SAP province to its route. Null when the catalog has
+no route (unknown exonym or uncovered province): the caller keeps zeroes. */
+export async function lookupDistance(
+  subsidiary_id: string,
+  province: string
+): Promise<Distance | null> {
+  const params = new URLSearchParams({ subsidiary_id, province });
+  const response = await fetch(`${BASE}/distances/lookup?${params}`, { headers: headers() });
+  if (response.status === 404) return null;
+  return checked(response, "GET distance lookup");
 }
 
 export function upsertDistance(

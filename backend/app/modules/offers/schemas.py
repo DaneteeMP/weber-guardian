@@ -99,7 +99,8 @@ class OfferCalculateIn(BaseModel):
     currency: str = Field(default="EUR", min_length=1, max_length=8)
     # Guardian contract discriminator. Campaign does not exist: removed.
     # audit uses no basic kit but keeps the branch discount; off_guardian
-    # drops the branch discount; guardian may use the basic kit selector.
+    # drops the branch discount; the "Basic Kit" guardian type sends
+    # offer_type guardian with basic_kit True.
     offer_type: Literal["guardian", "audit", "off_guardian"] = "audit"
     num_trips: int = Field(default=1, ge=1)
     basic_kit: bool = False
@@ -172,7 +173,7 @@ class MaintenanceDraftOut(BaseModel):
     line row first and its modules after it. basic_kit_hours and
     basic_kit_price are the sums from the basic_kit catalog for the selected
     machines (zero when no machine has a kit): the offer turns them into the
-    bk_hours/bk_price pricing inputs when its Basic Kit selector is on.
+    bk_hours/bk_price pricing inputs when its Guardian Type is Basic Kit.
     """
 
     customer_id: str

@@ -6,7 +6,7 @@ import unicodedata
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -76,6 +76,46 @@ def get_distance(db: Session, subsidiary_id: str, province: str) -> Distance | N
             Distance.province == province,
         )
     )
+
+
+# SAP free-text provinces vs catalog spellings, verified against real data:
+# English exonyms and local variants collapse to the catalog name. Kept in
+# code (like COUNTRY_ALIASES): seven pairs, not a table.
+PROVINCE_ALIASES = {
+    "florence": "Firenze",
+    "turin": "Torino",
+    "naples": "Napoli",
+    "padua": "Padova",
+    "mantua": "Mantova",
+    "monza and brianza": "Monza e della Brianza",
+    "roma": "Roma Capitale",
+}
+
+
+def resolve_distance(db: Session, subsidiary_id: str, province: str | None) -> Distance | None:
+    """Find the route for a free-text SAP province: exact name or code
+    (case-insensitive), then the alias table. None when nothing matches, so
+    the caller keeps zeroes instead of failing the offer."""
+    cleaned = " ".join((province or "").split()).casefold()
+    if not cleaned:
+        return None
+    candidates = [cleaned]
+    aliased = PROVINCE_ALIASES.get(cleaned)
+    if aliased is not None:
+        candidates.append(aliased.casefold())
+    for candidate in candidates:
+        row = db.scalar(
+            select(Distance).where(
+                Distance.subsidiary_id == subsidiary_id,
+                or_(
+                    func.lower(Distance.province) == candidate,
+                    func.lower(Distance.province_code) == candidate,
+                ),
+            )
+        )
+        if row is not None:
+            return row
+    return None
 
 
 def validate_subsidiary(db: Session, subsidiary_id: str) -> str:

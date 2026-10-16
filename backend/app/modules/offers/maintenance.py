@@ -29,7 +29,11 @@ from app.modules.customers.models import Customer
 from app.modules.customers.service import CustomerNotFound
 from app.modules.component_names.models import ComponentName
 from app.modules.component_names.service import legacy_base_material_no, normalize_material_no
-from app.modules.component_names.slicers import SLICER_TYPE_CODES, is_line_part
+from app.modules.component_names.slicers import (
+    LINE_PART_COMPONENT_TYPES,
+    SLICER_TYPE_CODES,
+    is_line_part,
+)
 from app.modules.basic_kit.models import BasicKit
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_catalog.service import resolve_line
@@ -144,11 +148,17 @@ def _module_rows(
     """
     # One row per distinct catalogue material; keep the raw material so a
     # dictionary imported before the model-aware normalization still resolves.
+    # The installed component types ride along: a row SAP files as line
+    # accessories is priced by the family line row even when its material
+    # never made it into the dictionary.
     raw_by_key: dict[str, str] = {}
+    installed_types: dict[str, set[str]] = {}
     for row in rows:
         if not row.material_no:
             continue
-        raw_by_key.setdefault(normalize_material_no(row.material_no), row.material_no)
+        key = normalize_material_no(row.material_no)
+        raw_by_key.setdefault(key, row.material_no)
+        installed_types.setdefault(key, set()).add((row.component_type or "").strip())
 
     output: list[MaintenanceDraftRowOut] = []
 
@@ -157,6 +167,16 @@ def _module_rows(
         name = names_by_key.get(material_no) or names_by_key.get(
             legacy_base_material_no(raw_material)
         )
+        rule = rule_by_material.get(name.material_no) if name is not None else None
+
+        if rule is None and any(
+            component_type in LINE_PART_COMPONENT_TYPES
+            for component_type in installed_types.get(material_no, ())
+        ):
+            # Installed as the line itself or its accessories: the family
+            # line row already prices it, dictionary entry or not. An
+            # explicit rule still wins (checked above).
+            continue
 
         if name is None:
             output.append(
@@ -183,9 +203,9 @@ def _module_rows(
             continue
 
         # The rule is found by the dictionary material, never by type_code: two
-        # materials with the same legacy code may belong to different rules.
-        rule = rule_by_material.get(name.material_no)
-
+        # materials with the same legacy code may belong to different rules
+        # (looked up above, before the installed-membership skip, so an
+        # explicit rule always wins).
         # Line parts (WLZ accessories, "accessories slicing line" rows, Textor
         # slicers...) are priced by the family line row of the machine, never
         # as modules. An explicit rule wins: a linked material keeps its hours.
@@ -371,7 +391,7 @@ def maintenance_draft(
     )
 
     # Basic-kit aggregates for the selected machines: the offer fills its
-    # bk_hours/bk_price from these when the Basic Kit selector is on.
+    # bk_hours/bk_price from these when the Guardian Type is Basic Kit.
     basic_kit_hours = Decimal("0")
     basic_kit_price = Decimal("0")
     for machine_type in machine_types:

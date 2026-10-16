@@ -444,3 +444,34 @@ def test_draft_row_exposes_the_module_edit_target(db, italy_customer):
     assert module.type_code == "CCU"
     assert module.workload_id == rule.id
     assert module.component_type == "Portioning Conveyor"
+
+
+def test_line_accessories_never_become_module_rows(db, italy_customer):
+    """A row SAP files as line accessories rides inside the family line row,
+    even when its material never made it into the dictionary: no unknown
+    row, no review flag, nothing to price."""
+    _equipment(
+        db, italy_customer.customer_id, "602-750 MCS",
+        material_no="WLZ03051", component_type="Line Accessories",
+    )
+
+    draft = maintenance_draft(db, italy_customer.customer_id, ["602-750 MCS"])
+
+    assert [row.kind for row in draft.rows] == ["line"]
+
+
+def test_explicit_rule_still_wins_over_installed_line_membership(db, italy_customer):
+    """Linking a material to a workload rule prices it even when the
+    installed row calls it line accessories."""
+    _dictionary(db, "CCW05001", "CCW")
+    _rule_for(db, "CCW05001", "1.5")
+    _equipment(
+        db, italy_customer.customer_id, "602-750 MCS",
+        material_no="CCW05001", component_type="Line Accessories",
+    )
+
+    draft = maintenance_draft(db, italy_customer.customer_id, ["602-750 MCS"])
+
+    module = next(row for row in draft.rows if row.kind == "module")
+    assert module.workload == Decimal("1.5")
+    assert module.needs_review is False

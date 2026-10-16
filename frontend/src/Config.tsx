@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DistanceImport from "./DistanceImport";
+import ImportData from "./ImportData";
 import {
+  createResponsible,
   deleteDistance,
+  deleteResponsible,
   listDistances,
+  listResponsibles,
   getPrices,
   listSubsidiaries,
   updatePrices,
+  updateResponsible,
   upsertDistance,
   type Distance,
+  type Responsible,
   type Subsidiary,
 } from "./api";
 import Button from "./components/Button";
@@ -16,6 +22,7 @@ import DataTable from "./components/DataTable";
 import IconButton from "./components/IconButton";
 import Modal from "./components/Modal";
 import SectionCard from "./components/SectionCard";
+import { ToastStack, useToasts } from "./components/Toasts";
 import { t, type Lang } from "./i18n";
 
 function EditIcon() {
@@ -39,7 +46,7 @@ function DeleteIcon() {
   );
 }
 
-type Section = "rates" | "distances";
+type Section = "rates" | "distances" | "import";
 type Editing =
   | {
       kind: "distance";
@@ -99,6 +106,7 @@ export default function Config({
   const [section, setSection] = useState<Section>("rates");
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
+  const { toasts, push, dismiss } = useToasts();
   const [editing, setEditing] = useState<Editing>(null);
   const [subsidiaries, setSubsidiaries] = useState<Subsidiary[]>([]);
 
@@ -108,6 +116,11 @@ export default function Config({
   const [distances, setDistances] = useState<Distance[]>([]);
   const [distanceSubsidiary, setDistanceSubsidiary] = useState(scope ?? "");
   const [importOpen, setImportOpen] = useState(false);
+
+  const [responsibles, setResponsibles] = useState<Responsible[]>([]);
+  const [newResponsible, setNewResponsible] = useState("");
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renamingName, setRenamingName] = useState("");
 
   const input = "border rounded px-2 py-1 text-sm";
 
@@ -137,13 +150,13 @@ export default function Config({
           getPrices(nextSub)
             .then((p) =>
               setRates({
-                currency: p.currency,
-                km_rate: p.km_rate,
-                tech_rate: p.tech_rate,
-                diet_full_rate: p.diet_full_rate,
-                diet_half_rate: p.diet_half_rate,
-                hotel_rate: p.hotel_rate,
-                discount_rate: p.discount_rate,
+                currency: p.currency ?? "",
+                km_rate: p.km_rate ?? "",
+                tech_rate: p.tech_rate ?? "",
+                diet_full_rate: p.diet_full_rate ?? "",
+                diet_half_rate: p.diet_half_rate ?? "",
+                hotel_rate: p.hotel_rate ?? "",
+                discount_rate: p.discount_rate ?? "",
               }),
             )
             .catch((e) => setError(String(e)));
@@ -160,13 +173,13 @@ export default function Config({
       if (!sub) throw new Error(t(lang, "cfg_select_subsidiary"));
       const p = await getPrices(sub);
       setRates({
-        currency: p.currency,
-        km_rate: p.km_rate,
-        tech_rate: p.tech_rate,
-        diet_full_rate: p.diet_full_rate,
-        diet_half_rate: p.diet_half_rate,
-        hotel_rate: p.hotel_rate,
-        discount_rate: p.discount_rate,
+        currency: p.currency ?? "",
+        km_rate: p.km_rate ?? "",
+        tech_rate: p.tech_rate ?? "",
+        diet_full_rate: p.diet_full_rate ?? "",
+        diet_half_rate: p.diet_half_rate ?? "",
+        hotel_rate: p.hotel_rate ?? "",
+        discount_rate: p.discount_rate ?? "",
       });
     } catch (e) {
       setError(String(e));
@@ -178,13 +191,93 @@ export default function Config({
     setOk(null);
     try {
       if (!sub) throw new Error(t(lang, "cfg_select_subsidiary"));
-      if (Object.values(rates).some((value) => !value.trim())) throw new Error(t(lang, "cfg_rates_required"));
+      if (Object.values(rates).some((value) => !String(value ?? "").trim()))
+        throw new Error(t(lang, "cfg_rates_required"));
       await updatePrices(sub, rates);
       setOk("OK");
     } catch (e) {
       setError(String(e));
     }
   }
+
+  async function loadResponsibles(target = sub) {
+    setError(null);
+    try {
+      if (!target) throw new Error(t(lang, "cfg_select_subsidiary"));
+      setResponsibles(await listResponsibles(target));
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function addResponsible() {
+    setError(null);
+    setOk(null);
+    try {
+      if (!sub) throw new Error(t(lang, "cfg_select_subsidiary"));
+      if (!newResponsible.trim()) return;
+      await createResponsible(sub, newResponsible.trim());
+      setNewResponsible("");
+      setOk("OK");
+      await loadResponsibles();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function renameResponsible(id: string) {
+    setError(null);
+    setOk(null);
+    try {
+      if (!renamingName.trim()) return;
+      await updateResponsible(id, { name: renamingName.trim() });
+      setRenamingId(null);
+      setOk("OK");
+      await loadResponsibles();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function toggleResponsible(row: Responsible) {
+    setError(null);
+    try {
+      await updateResponsible(row.id, { active: !row.active });
+      await loadResponsibles();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function removeResponsible(id: string) {
+    if (!window.confirm(t(lang, "cfg_delete"))) return;
+    setError(null);
+    try {
+      await deleteResponsible(id);
+      await loadResponsibles();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  useEffect(() => {
+    if (isAdmin && section === "rates") void loadResponsibles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, section, sub]);
+
+  // Legacy banner states surface as overlay toasts, so call sites stay untouched.
+  useEffect(() => {
+    if (error) {
+      push("error", error);
+      setError(null);
+    }
+  }, [error, push]);
+  useEffect(() => {
+    if (ok) {
+      push("success", ok);
+      setOk(null);
+    }
+  }, [ok, push]);
 
   async function saveModal() {
     if (!editing) return;
@@ -355,20 +448,26 @@ export default function Config({
     ? distances.filter((distance) => distance.subsidiary_id === distanceSubsidiary)
     : distances;
 
+  const sectionLabel: Record<Section, string> = {
+    rates: t(lang, "cfg_rates"),
+    distances: t(lang, "cfg_distances"),
+    import: t(lang, "nav_import"),
+  };
+
   return (
     <div className="flex h-full min-h-0 w-full flex-col gap-3 p-4">
       <h1 className="shrink-0 text-2xl font-bold text-gray-900">{t(lang, "cfg_title")}</h1>
       <div className="flex shrink-0 gap-2">
-        {(["rates", "distances"] as Section[]).map((s) => (
+        {(Object.keys(sectionLabel) as Section[]).map((s) => (
           <button key={s} onClick={() => setSection(s)} className={tab(section === s)}>
-            {t(lang, s === "rates" ? "cfg_rates" : "cfg_distances")}
+            {sectionLabel[s]}
           </button>
         ))}
       </div>
-      {error && <p className="shrink-0 text-sm text-red-600 bg-white rounded shadow p-2">{error}</p>}
-      {ok && <p className="shrink-0 text-sm text-green-700 bg-white rounded shadow p-2">{ok}</p>}
+      <ToastStack toasts={toasts} onClose={dismiss} />
 
       {section === "rates" && (
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-1">
         <SectionCard title={t(lang, "cfg_rates")}>
           <div className="flex gap-2 items-center flex-wrap">
             <span className="text-sm font-medium text-gray-700">{sub}</span>
@@ -393,6 +492,62 @@ export default function Config({
             {t(lang, "cfg_save")}
           </Button>
         </SectionCard>
+
+        <SectionCard title={t(lang, "cfg_responsibles")}>
+          <div className="flex gap-2 items-center">
+            <input
+              value={newResponsible}
+              onChange={(e) => setNewResponsible(e.target.value)}
+              placeholder={t(lang, "cfg_responsible_name")}
+              maxLength={128}
+              className={`${input} flex-1`}
+            />
+            <Button size="sm" onClick={addResponsible}>{t(lang, "cfg_add")}</Button>
+          </div>
+          <ul className="mt-2 space-y-1">
+            {responsibles.map((r) => (
+              <li key={r.id} className="flex items-center gap-2 text-sm">
+                {renamingId === r.id ? (
+                  <>
+                    <input
+                      value={renamingName}
+                      onChange={(e) => setRenamingName(e.target.value)}
+                      maxLength={128}
+                      className={`${input} flex-1`}
+                    />
+                    <Button size="sm" onClick={() => renameResponsible(r.id)}>{t(lang, "cfg_save")}</Button>
+                    <Button size="sm" variant="secondary" onClick={() => setRenamingId(null)}>{t(lang, "cfg_cancel")}</Button>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      type="checkbox"
+                      checked={r.active}
+                      onChange={() => toggleResponsible(r)}
+                      title={t(lang, "cfg_active")}
+                      className="accent-blue-700"
+                    />
+                    <span className={`flex-1 ${r.active ? "text-gray-900" : "text-gray-400 line-through"}`}>{r.name}</span>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setRenamingId(r.id);
+                        setRenamingName(r.name);
+                      }}
+                    >
+                      {t(lang, "cfg_edit")}
+                    </Button>
+                    <Button size="sm" variant="danger" onClick={() => removeResponsible(r.id)}>
+                      {t(lang, "cfg_delete")}
+                    </Button>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+        </div>
       )}
 
       {section === "distances" && (
@@ -431,6 +586,12 @@ export default function Config({
             className="min-h-0 flex-1"
           />
         </SectionCard>
+      )}
+
+      {section === "import" && (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <ImportData lang={lang} scope={scope} />
+        </div>
       )}
 
       {editing && (

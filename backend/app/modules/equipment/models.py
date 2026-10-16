@@ -3,9 +3,12 @@
 One row per installed component at a customer. Rows are born in the CSV
 import (F3). material_no is a PART reference, not an instance id: the same
 "MSG 460-2" or "CCW05001" legitimately repeats across customers, machines
-and even twice for one customer (same spare in two machines). Identity is
-therefore the full-row hash (row_hash UNIQUE): exact duplicate rows are the
-same installed instance and collapse; any differing field is a new one.
+and even twice for one customer (same spare in two machines). The installed
+instance is therefore the site-free identity (instance_hash_of): the site
+and the machine family are attributes a later export corrects, so
+re-importing with another address updates the row instead of cloning it.
+row_hash stays the exact-row fingerprint (UNIQUE) used to skip identical
+re-imports.
 material_no is NULLABLE: machine-level rows (equipment + purchase date but
 no component breakdown, e.g. "WLN10002-31803" with empty Material No.)
 import as equipment with NULL material instead of being rejected.
@@ -44,6 +47,31 @@ def row_hash_of(
     if site_hash:
         values += (site_hash,)
     joined = "\x1f".join(values)
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+
+
+def instance_hash_of(
+    customer_id: str | None,
+    equipment_name: str | None,
+    component_type: str | None,
+    material_no: str | None,
+    purchase_date: str | None,
+) -> str:
+    """Stable installed-instance identity: which component this is, excluding
+    the site and the machine family (both are corrected by later exports).
+    Two rows sharing it are the same installed instance; the 0027 cleanup
+    merges them. The "equipment-instance" prefix keeps this namespace apart
+    from row hashes even when the field values coincide."""
+    joined = "\x1f".join(
+        (
+            "equipment-instance",
+            customer_id or "",
+            equipment_name or "",
+            component_type or "",
+            material_no or "",
+            purchase_date or "",
+        )
+    )
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()
 
 

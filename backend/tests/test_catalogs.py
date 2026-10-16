@@ -15,6 +15,7 @@ from app.modules.distances.service import (
     delete_distance,
     get_distance,
     list_distances,
+    resolve_distance,
     upsert_distance,
 )
 from app.modules.prices.models import PriceList
@@ -252,3 +253,37 @@ def test_distance_rejects_a_subsidiary_missing_from_catalog(db):
             "Somewhere",
             DistanceUpdate(km=Decimal("10"), trip_hours=Decimal("1")),
         )
+
+
+def test_resolve_distance_matches_name_code_and_alias(db):
+    """SAP free text (English exonyms, any case) resolves to the catalog row;
+    unknown, blank or foreign province yields None so the offer keeps zeroes."""
+    _seed(db)
+    db.add_all(
+        [
+            Distance(
+                subsidiary_id="Weber Italy",
+                province="Firenze",
+                province_code="FI",
+                km=Decimal("351"),
+                trip_hours=Decimal("2.5"),
+            ),
+            Distance(
+                subsidiary_id="Weber Italy",
+                province="Torino",
+                province_code="TO",
+                km=Decimal("394"),
+                trip_hours=Decimal("3"),
+            ),
+        ]
+    )
+    db.commit()
+
+    assert resolve_distance(db, "Weber Italy", "Firenze").km == Decimal("351")
+    assert resolve_distance(db, "Weber Italy", "FI").km == Decimal("351")
+    assert resolve_distance(db, "Weber Italy", "  Florence  ").km == Decimal("351")
+    assert resolve_distance(db, "Weber Italy", "TURIN").province == "Torino"
+    assert resolve_distance(db, "Weber Italy", "Atlantis") is None
+    assert resolve_distance(db, "Weber Italy", "") is None
+    assert resolve_distance(db, "Weber Italy", None) is None
+    assert resolve_distance(db, "Weber Germany", "Firenze") is None
