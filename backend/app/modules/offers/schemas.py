@@ -107,6 +107,9 @@ class OfferCalculateIn(BaseModel):
     # ListadoMaquinas). Persistence recomputes the count from the stored
     # items, so this field is only the dry-run preview number.
     equipment_count: int = Field(ge=0)
+    # Module lines, so the preview can show the amounts the gross is spread
+    # over (legacy "RepartirCostes") exactly as the saved offer will.
+    items: list[OfferItemCreate] = Field(default_factory=list)
 
 
 class OfferCalculateOut(BaseModel):
@@ -117,6 +120,9 @@ class OfferCalculateOut(BaseModel):
     report_hours: Decimal
     total_hours: Decimal
     num_days: int
+    # Amount of each module line once the gross is spread over them (legacy
+    # "RepartirCostes"), in the order of the items that were sent.
+    line_amounts: list[Decimal]
     trip_cost: Decimal
     trip_hours: Decimal
     diets: Decimal

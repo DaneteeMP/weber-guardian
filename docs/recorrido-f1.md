@@ -47,6 +47,19 @@ Backend como fuente de verdad. React presenta; el servidor calcula y persiste.
 
 ## Ampliaciones posteriores
 
+- **Importes legacy del Access** (20/10/2026). Los totales siguen el modelo del WeberAssistant, no el "fix" que se hizo
+  en la migración F1 (que restaba el descuento del neto). Modelo actual:
+  - `HOURS IMPORT` = horas redondeadas × tarifa del técnico.
+  - `EXPENSES IMPORT` = viaje + dietas + hoteles.
+  - `Total amount` (neto) = `HOURS IMPORT` + `EXPENSES IMPORT` (+ recambios del basic kit).
+  - `Total` (bruto) = `Total amount` + `Descuento`: el descuento se **suma** al bruto, no se resta del neto.
+  - `Descuento` = 15% de las horas import (0 en la oferta `off_guardian`).
+  - **RepartirCostes**: las líneas de módulos llevan el bruto repartido entre ellas (proporcional a sus horas, con
+    los céntimos repartidos por resto mayor para que la suma sea exacta), así que el anexo cuadra con la cabecera.
+    `distribute_costs()` en `offers/service.py`; el preview en vivo devuelve los mismos importes en
+    `line_amounts` (el navegador no calcula dinero).
+  El contrato en PDF queda pendiente de revisar: con el bruto ya repartido en las líneas, su línea "Travel Amount"
+  cuenta el viaje dos veces (está dentro de los importes de los módulos y además en su propia línea).
 - **El total facturado incluye las horas de viaje del desglose, no una sola pierna** (20/10/2026). La migración F1
   redondeaba a jornadas de 8h sumando la pierna base del viaje (`trip_hours_base`), pero el desglose muestra las
   piernas repetidas por día de trabajo (`base × días`). En un viaje cercano de varios días, la diferencia (una

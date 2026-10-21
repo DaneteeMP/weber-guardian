@@ -1,7 +1,7 @@
 """Offer logic. Receives a Session, returns models. No HTTP here."""
 import uuid
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN, ROUND_FLOOR
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -29,6 +29,46 @@ class OfferAlreadyExists(Exception):
     def __init__(self, number: str):
         super().__init__(f"Offer already exists: {number}")
         self.number = number
+
+
+def distribute_costs(gross: Decimal, items: list) -> list[Decimal]:
+    """Spread the gross amount over the module lines (legacy "RepartirCostes").
+
+    The legacy did not price every module on its own: it spread the total
+    of the offer over the lines, proportionally to their hours, so the annex
+    adds up with the header. Each line gets a share of the gross; the shares
+    are rounded to cents and the leftover cents go to the lines with the
+    largest remaining fraction, so the sum is exactly the gross.
+
+    The key is the workload of the line. Lines without hours get no share:
+    they are rows nobody has priced yet, and the legacy flagged them for
+    review instead of giving them a made up amount.
+    """
+    if not items:
+        return []
+    weights = [Decimal(str(item.workload or 0)) for item in items]
+    total_weight = sum(weights)
+    if total_weight <= 0:
+        # Nothing has hours: the whole gross goes to the first line, the
+        # rest stay at zero.
+        shares = [Decimal("0.00") for _ in items]
+        shares[0] = gross.quantize(Decimal("0.01"))
+        return shares
+
+    exact = [gross * weight / total_weight for weight in weights]
+    shares = [share.quantize(Decimal("0.01"), rounding=ROUND_DOWN) for share in exact]
+    leftover = gross - sum(shares)
+    # Largest remainder first: the lines that lost the most to the rounding
+    # get the leftover cents back.
+    order = sorted(
+        range(len(items)),
+        key=lambda index: (exact[index] - shares[index], -index),
+        reverse=True,
+    )
+    cents = int((leftover * 100).to_integral_value(rounding=ROUND_FLOOR))
+    for step in range(cents):
+        shares[order[step % len(order)]] += Decimal("0.01")
+    return shares
 
 
 def calculate_price(data: OfferCalculateIn) -> OfferCalculateOut:
@@ -64,6 +104,7 @@ def calculate_price(data: OfferCalculateIn) -> OfferCalculateOut:
         report_hours=out.report_hours,
         total_hours=out.total_hours,
         num_days=out.num_days,
+        line_amounts=distribute_costs(out.total, data.items),
         trip_cost=out.trip_cost,
         trip_hours=out.trip_hours,
         diets=out.diets,
@@ -138,13 +179,16 @@ def create_offer(
         created_by=created_by,
         offer_date=offer_date,
     )
+    # The lines carry the gross amount spread over them (legacy
+    # "RepartirCostes"), so the annex adds up with the header.
+    line_amounts = distribute_costs(priced.total, data.items)
     for pos, item in enumerate(data.items, start=1):
         offer.items.append(
             OfferItem(
                 row_no=pos,
                 equipment=item.equipment,
                 description=item.description,
-                import_amount=item.import_amount,
+                import_amount=line_amounts[pos - 1],
                 workload=item.workload,
             )
         )
@@ -278,13 +322,16 @@ def update_offer(
         offer.created_at.date() if offer.created_at else None
     )
     offer.items.clear()
+    # Same rule as on create: the lines carry the gross amount spread over
+    # them (legacy "RepartirCostes").
+    line_amounts = distribute_costs(priced.total, data.items)
     for pos, item in enumerate(data.items, start=1):
         offer.items.append(
             OfferItem(
                 row_no=pos,
                 equipment=item.equipment,
                 description=item.description,
-                import_amount=item.import_amount,
+                import_amount=line_amounts[pos - 1],
                 workload=item.workload,
             )
         )

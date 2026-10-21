@@ -745,12 +745,20 @@ export default function OfferBuilder({
         offer_type: OFFER_TYPE_TO_API[guardianType] ?? "audit",
         basic_kit: isBasicKit,
         equipment_count: equipmentCount,
+        // The lines, so the preview shows the amounts the gross is spread
+        // over (the backend does the split, never the browser).
+        items: items.map((item) => ({
+          equipment: item.equipment,
+          description: item.description,
+          import_amount: num(item.import_amount, 0),
+          workload: num(item.workload, 0),
+        })),
       })
         .then(setCalc)
         .catch((e) => setError(String(e)));
     }, 300);
     return () => clearTimeout(timer);
-  }, [workHours, equipmentCount, tripBase, km, kmRate, techRate, dietFull, dietHalf, hotelRate, discountRate, guardianType, kitHours, kitPrice]);
+  }, [workHours, equipmentCount, tripBase, km, kmRate, techRate, dietFull, dietHalf, hotelRate, discountRate, guardianType, kitHours, kitPrice, items]);
 
   async function refreshOffers() {
     if (customerId) {
@@ -919,13 +927,15 @@ export default function OfferBuilder({
   const eur = (v: string | number | null | undefined) =>
     `${Number(v ?? 0).toLocaleString("en-GB", { minimumFractionDigits: 2 })} €`;
 
+  // The amount of a line is what the backend spread the gross over (legacy
+  // "RepartirCostes"); until the preview answers, the draft amount is shown.
   const moduleRows: OfferTableRow[] = items.map((item, index) => ({
     id: `${index}:${lineKey(item.equipment, item.description)}`,
     pos: index + 1,
     equipment: item.equipment,
     module: item.description,
     workload: item.workload,
-    amount: num(item.import_amount, 0),
+    amount: num(calc?.line_amounts?.[index] ?? item.import_amount, 0),
     catalogWarning: item.catalogWarning,
   }));
   const linesTotal = moduleRows.reduce((sum, r) => sum + r.amount, 0);
@@ -1384,29 +1394,17 @@ export default function OfferBuilder({
               <section className="w-[260px] shrink-0 rounded-lg border border-blue-200 bg-blue-50/50 p-3 shadow-sm">
                 <div className="mb-1.5 text-sm font-bold text-slate-800">{t(lang, "ob_total_amount")}</div>
                 <div className="space-y-1 text-sm">
-                  {/* The three components of the gross amount, so the
-                      arithmetic of the block is checkable at a glance. */}
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-slate-600">{t(lang, "ob_f_hours_import")}</span>
-                    <span className="font-mono text-[15px]">{calc ? eur(calc.hours_import) : "—"}</span>
-                  </div>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-slate-600">{t(lang, "ob_f_expenses")}</span>
-                    <span className="font-mono text-[15px]">{calc ? eur(calc.expenses) : "—"}</span>
+                    <span className="text-slate-600">{t(lang, "ob_total")}</span>
+                    <span className="font-mono text-[15px] font-semibold">{calc ? eur(calc.total) : "—"}</span>
                   </div>
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-slate-600">{t(lang, "ob_spare")}</span>
                     <span className="font-mono text-[15px]">{calc ? eur(calc.bk_price) : "—"}</span>
                   </div>
-                  <div className="flex items-baseline justify-between gap-2 border-t border-blue-100 pt-1">
-                    <span className="text-slate-600">{t(lang, "ob_total")}</span>
-                    <span className="font-mono text-[15px] font-semibold">{calc ? eur(calc.total) : "—"}</span>
-                  </div>
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-slate-600">{t(lang, "ob_discount")}</span>
-                    <span className="font-mono text-[15px] text-red-600">
-                      {calc ? `−${eur(calc.discount)}` : "—"}
-                    </span>
+                    <span className="font-mono text-[15px] text-red-600">{calc ? eur(calc.discount) : "—"}</span>
                   </div>
                   <div className="flex items-baseline justify-between gap-2 border-t-2 border-blue-200 pt-1.5">
                     <span className="font-bold text-slate-800">{t(lang, "ob_total_amount")}</span>

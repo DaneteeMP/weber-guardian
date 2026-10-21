@@ -177,6 +177,8 @@ export type Pricing = {
   basic_kit?: boolean;
   // Inspected machines: report hours derive server-side (2h each).
   equipment_count: number;
+  // Module lines, so the preview shows the amounts the gross is spread over.
+  items?: OfferItemIn[];
 };
 
 export type Breakdown = {
@@ -185,6 +187,9 @@ export type Breakdown = {
   report_hours: string;
   total_hours: string;
   num_days: number;
+  // Amount of each line once the gross is spread over them, in the order of
+  // the items that were sent.
+  line_amounts: string[];
   trip_cost: string;
   trip_hours: string;
   diets: string;

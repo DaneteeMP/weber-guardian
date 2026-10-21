@@ -120,20 +120,20 @@ def test_far_two_hotel_nights_for_long_work():
 
 
 def test_total_and_total_end_fixed():
-    """Locks the inherited OfferBuilder bug fix.
+    """Locks the legacy amounts (WeberAssistant).
 
-    Buggy JS: total = hours + discount + expenses + kit, total_end =
-    total - discount (client never got 15% off).
-    Fixed: total = hours + expenses + kit (gross),
-    total_end = total - discount (net). Expenses now include the nearby
-    hotel (1730 = 1440 + 290).
+    Total amount = hours import + expenses import (what the client pays).
+    Total = total amount + discount: the gross the module lines sum to,
+    the discount is added to it and taken off the net.
     """
     out = calculate(_base())
     assert out.hours_import == Decimal("1440.00")
     assert out.discount == Decimal("216.00")
-    assert out.total == Decimal("1730.00")
-    assert out.total_end == Decimal("1514.00")
-    assert out.total - out.total_end == out.discount
+    # Gross: hours import + expenses + discount.
+    assert out.total == Decimal("1946.00")
+    # Net: hours import + expenses (the kit is added on top).
+    assert out.total_end == Decimal("1730.00")
+    assert out.total - out.discount == out.total_end
 
 
 def test_basic_kit_splits_rounding_and_prices_spares():
@@ -153,8 +153,8 @@ def test_basic_kit_splits_rounding_and_prices_spares():
     # hours = 24 * 60; total = hours + expenses + spares. Expenses = trip 50
     # + diets 80 (2 nights) + hotel 160.
     assert out.hours_import == Decimal("1440.00")
-    assert out.total == Decimal("1830.00")  # 1440 + 290 expenses + 100 kit
-    assert out.total_end == Decimal("1614.00")  # 1830 - 216 discount
+    assert out.total == Decimal("1946.00")  # gross: 1440 + 290 expenses + 216 discount
+    assert out.total_end == Decimal("1830.00")  # net: 1440 + 290 expenses + 100 kit
 
 
 def test_no_basic_kit_keeps_rounding_on_work():

@@ -14,6 +14,7 @@ from app.modules.offers.service import (
     UnknownCustomer,
     calculate_price,
     create_offer,
+    distribute_costs,
     get_offer_document,
     list_offers,
 )
@@ -55,8 +56,9 @@ def _offer_data(cid="0001012933", number="W-02-2026-0001"):
 def test_calculate_is_dry_run_with_fixed_totals():
     out = calculate_price(_pricing())
     assert out.report_hours == Decimal("2.0")
-    assert out.total == Decimal("1730.00")
-    assert out.total_end == Decimal("1514.00")
+    # Gross (the module lines sum to it) and net (what the client pays).
+    assert out.total == Decimal("1946.00")
+    assert out.total_end == Decimal("1730.00")
 
 
 def test_create_offer_persists_header_and_items_with_server_totals(db):
@@ -66,10 +68,45 @@ def test_create_offer_persists_header_and_items_with_server_totals(db):
     # Report hours derive from the stored items: both lines share one
     # machine, so 1 x 2h.
     assert offer.report_hours == Decimal("2.0")
-    assert offer.total == Decimal("1730.00")
-    assert offer.total_end == Decimal("1514.00")
+    assert offer.total == Decimal("1946.00")
+    assert offer.total_end == Decimal("1730.00")
     assert len(offer.items) == 2
     assert [i.row_no for i in offer.items] == [1, 2]
+    # The lines carry the gross spread over them (legacy "RepartirCostes"),
+    # so the annex adds up with the header.
+    assert sum(i.import_amount for i in offer.items) == offer.total
+
+
+def test_distribute_costs_shares_the_gross_by_hours():
+    items = [
+        OfferItemCreate(equipment="A", description="a", import_amount=Decimal("600"), workload=Decimal("6")),
+        OfferItemCreate(equipment="A", description="b", import_amount=Decimal("400"), workload=Decimal("4")),
+    ]
+    shares = distribute_costs(Decimal("1000.00"), items)
+    assert shares == [Decimal("600.00"), Decimal("400.00")]
+    assert sum(shares) == Decimal("1000.00")
+
+
+def test_distribute_costs_keeps_the_cents_exact():
+    # 100.00 over three equal lines: 33.33 + 33.33 + 33.34.
+    items = [
+        OfferItemCreate(equipment="A", description="a", import_amount=Decimal("0"), workload=Decimal("1")),
+        OfferItemCreate(equipment="A", description="b", import_amount=Decimal("0"), workload=Decimal("1")),
+        OfferItemCreate(equipment="A", description="c", import_amount=Decimal("0"), workload=Decimal("1")),
+    ]
+    shares = distribute_costs(Decimal("100.00"), items)
+    assert sum(shares) == Decimal("100.00")
+    assert sorted(shares) == [Decimal("33.33"), Decimal("33.33"), Decimal("33.34")]
+
+
+def test_distribute_costs_leaves_lines_without_hours_at_zero():
+    items = [
+        OfferItemCreate(equipment="A", description="a", import_amount=Decimal("0"), workload=Decimal("2")),
+        OfferItemCreate(equipment="A", description="unpriced", import_amount=Decimal("0"), workload=Decimal("0")),
+    ]
+    shares = distribute_costs(Decimal("100.00"), items)
+    assert shares == [Decimal("100.00"), Decimal("0.00")]
+    assert sum(shares) == Decimal("100.00")
 
 
 def test_create_offer_unknown_customer_raises_404_domain(db):
@@ -174,7 +211,7 @@ def test_update_offer_recomputes_and_replaces_lines(db):
     assert updated.language == "Portuguese"
     # One stored machine -> 2 report hours; totals recompute from items.
     assert updated.report_hours == Decimal("2.0")
-    assert updated.total == Decimal("1730.00")
+    assert updated.total == Decimal("1946.00")
     assert [i.row_no for i in updated.items] == [1]
     assert update_offer(
         db,
