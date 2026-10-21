@@ -44,3 +44,10 @@ Interfaz `push_offer/pull_customers` con `NotImplementedError`. Reserva la costu
 ## Herencia
 
 - `import_data.rs` frágil del Rust: sustituido (encoding, `""`, duplicados, informe con líneas). No reproducido.
+
+## Ampliaciones posteriores (16/10/2026)
+
+- **Deduplicación de equipos entre plantas** (`0027_merge_duplicate_equipment.py` + `imports/service.py`): la identidad de un equipo ya no incluye sitio ni `machine_type`, sino un `instance_hash` (prefijo `equipment-instance`) calculado con cliente, componente y material. El import corre en 2 pasadas: primero casa por hash exacto de fila; lo que no case, por instancia existente → actualiza en sitio (una dirección nueva o un `machine_type` corregido se aplican sin crear fila nueva; un sitio vacío en el CSV no borra el sitio conocido). La migración `0027` fusiona duplicados previos con `ROW_NUMBER` priorizando la fila con sitio, y con guard de `op.get_bind()` para funcionar en modo `--sql`. Cubierto en `test_imports.py` (cambios de dirección/modelo, y un mismo equipo en dos plantas importado en los dos órdenes).
+- **Lookup de distancias** (`GET /distances/lookup?subsidiary=&province=`): resuelve nombre, código o alias (`PROVINCE_ALIASES`, p. ej. `Florence`→Firenze: las 7 provincias SAP vienen en inglés). `resolve_distance()` en `distances/service.py` normaliza con `casefold`; `404` cuando no hay ruta. El frontend lo usa para el viaje desde la ubicación del cliente (`lookupDistance` en `api.ts` rellena km y base del trip sin pisar un trip manual en edición). Tests: `test_distance_lookup_http.py` + servicio en `test_catalogs.py`.
+- **Line Accessories excluidas del draft** (`offers/maintenance.py`): filas instaladas con `component_type` en `LINE_PART_COMPONENT_TYPES` no devuelven filas de módulo aunque el diccionario las conozca — la regla explícita gana sobre la pertenencia instalada (`test_line_accessories_never_become_module_rows`).
+- **`GET /offers/maintenance-draft` sin DB** (`offers/router.py`): `SQLAlchemyError` → `503` con detalle `database unavailable: the schema may be behind, run alembic upgrade head`, en vez de error 500 crudo. Test `test_maintenance_draft_http.py`.

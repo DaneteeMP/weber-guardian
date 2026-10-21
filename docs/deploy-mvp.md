@@ -38,6 +38,20 @@ contraseña compartida y **no** es una postura de produccion.
    ```
    El contenedor de Render no lanza migraciones al arrancar (no hay migraciones
    automaticas en el plan gratuito), por eso se hace aqui y a mano.
+   **Repetir este comando cada vez que aparezca una migracion nueva** (por
+   ejemplo `0026` responsibles, `0027` dedup de equipos, `0028` RLS): solo
+   aplica lo que falta, es idempotente. Si falla la app a mitad con `503
+   database unavailable: the schema may be behind`, casi siempre es esto.
+   Comprobacion: `SELECT version_num FROM alembic_version;` en el SQL editor
+   de Supabase debe devolver la ultima revision del repositorio.
+   - `0028` ademas activa **Row Level Security (RLS)** en las 21 tablas del
+     schema `public`, sin politicas permisivas, para que la API REST de
+     Supabase (PostgREST, que nadie usa aqui) no deje leer las tablas a
+     cualquiera con la `anon key`. Nada cambia para la app: entra como
+     `postgres`, que se salta RLS, igual que `service_role`. Verificado en
+     local (migracion aplicada + query autenticada posterior). El linter de
+     Supabase (Database -> Linter) pasa de 21 avisos `rls_disabled_in_public`
+     a 0 al re-evaluar.
 3. Identidades: la app todavia no tiene login real y arranca como `dev-admin`,
    asi que **siempre** hacen falta los usuarios dev:
    ```
