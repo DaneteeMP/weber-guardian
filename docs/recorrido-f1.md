@@ -44,3 +44,19 @@ Backend como fuente de verdad. React presenta; el servidor calcula y persiste.
 ## Pendiente F1 (hecho, verificar en navegador)
 
 - Frontend `OfferBuilder` (`frontend/src/OfferBuilder.tsx`, Tailwind `weber-blue`, `SectionCard/FieldRow`): preview vía `POST /calculate` en vivo con debounce 300ms, cero cálculo en JS (solo muestra los strings `Decimal` del backend), guardado vía `POST /offers`, errores `404/409/422` visibles. `npm run build` OK (34 módulos).
+
+## Ampliaciones posteriores
+
+- **El total facturado incluye las horas de viaje del desglose, no una sola pierna** (20/10/2026). La migración F1
+  redondeaba a jornadas de 8h sumando la pierna base del viaje (`trip_hours_base`), pero el desglose muestra las
+  piernas repetidas por día de trabajo (`base × días`). En un viaje cercano de varios días, la diferencia (una
+  pierna menos de las que se cobran) la absorbía la fila de trabajo: el "Work hours" quedaba **por debajo** de las
+  horas reales de los módulos (16 h de catálogo con 12 h de viaje se cobraban como 10 h de trabajo). El legacy arma el
+  total con las horas del desglose, así que la fila de trabajo solo puede ser **mayor** que el trabajo real (por el
+  relleno de la jornada), nunca menor. Corregido en `pricing_engine.py`: el `raw` del redondeo usa `trip_hours` (las
+  piernas del desglose) en vez de la pierna base. Sin efecto en los viajes lejanos (una sola pierna) ni en las ofertas
+  de un solo día. Test de invariante: `test_work_row_is_never_below_the_real_work`.
+- **Informe y viaje en el mismo total** (20/10/2026): las horas de informe (2 h por máquina) y las de viaje forman
+  parte del total redondeado a jornadas, y el relleno de la jornada va a la fila de trabajo (regla legacy
+  "Ajuste" + "Reajuste final"). El desglose no muestra el relleno por separado: el Access original tampoco lo
+  muestra, así que se mantiene la paridad con el sistema heredado.

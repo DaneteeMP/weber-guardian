@@ -26,6 +26,13 @@ Offer type mapping (Campaign does not exist in Guardian, removed):
     row does not extend the stay). Report hours are derived upstream (2h per
     inspected machine, legacy ActualizarListadoMaquinas); the service feeds
     them as an input.
+
+    The billed total is the sum of the rows the breakdown shows (work + kit +
+    travel + report) rounded up to whole 8h days, and the rounding padding
+    lands on the work row (legacy "Ajuste" and "Reajuste final"). The travel
+    counted here is the one of the breakdown: the repeated legs of a nearby
+    trip, not a single leg. With that, the work row can only be larger than
+    the real work, never smaller.
 """
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP
@@ -107,27 +114,6 @@ def calculate(inp: PricingInput, bk_price: Decimal = Decimal("0")) -> PricingOut
     if bk_price < 0:
         raise ValueError("bk_price must be >= 0")
 
-    raw = inp.trip_hours_base + inp.work_hours + inp.bk_hours + inp.report_hours
-    total_hours = (raw / EIGHT).to_integral_value(rounding=ROUND_CEILING) * EIGHT
-    if total_hours < EIGHT:
-        total_hours = EIGHT
-    adjustment = total_hours - raw
-
-    # Rounding distribution: with the Basic Kit selector and a kit present,
-    # half the round-up goes to the kit and the rest to work; otherwise all
-    # of it lands on work (legacy "Ajuste").
-    adjusted_work = inp.work_hours + adjustment
-    adjusted_bk = inp.bk_hours
-    if inp.basic_kit and inp.bk_hours > 0 and adjustment > 0:
-        half_adj = (adjustment / 2).to_integral_value(rounding=ROUND_FLOOR)
-        adjusted_bk = inp.bk_hours + half_adj
-        adjusted_work = inp.work_hours + adjustment - half_adj
-    if adjusted_work < 1:
-        adjusted_bk = max(Decimal("0"), adjusted_bk - (Decimal("1") - adjusted_work))
-        adjusted_work = Decimal("1")
-
-    num_days = max(1, int(total_hours // EIGHT))
-
     # Working days that drive travel (legacy NumeroViajes = HorasGuardian/8):
     # derived from on-site hours only (work + kit), never from report hours,
     # so inspecting more machines does not inflate trips or hotel nights.
@@ -149,6 +135,31 @@ def calculate(inp: PricingInput, bk_price: Decimal = Decimal("0")) -> PricingOut
         trip_cost = inp.km * inp.km_rate + inp.trip_hours_base * inp.tech_rate
         trip_hours = inp.trip_hours_base
         nearby = False
+
+    # The billed total is built with the same travel hours the breakdown
+    # shows (the repeated legs of a nearby trip, not a single leg), so the
+    # work row can never end up below the real work: the rounding to whole
+    # 8h days only adds hours to it.
+    raw = trip_hours + inp.work_hours + inp.bk_hours + inp.report_hours
+    total_hours = (raw / EIGHT).to_integral_value(rounding=ROUND_CEILING) * EIGHT
+    if total_hours < EIGHT:
+        total_hours = EIGHT
+    adjustment = total_hours - raw
+
+    # Rounding distribution: with the Basic Kit selector and a kit present,
+    # half the round-up goes to the kit and the rest to work; otherwise all
+    # of it lands on work (legacy "Ajuste").
+    adjusted_work = inp.work_hours + adjustment
+    adjusted_bk = inp.bk_hours
+    if inp.basic_kit and inp.bk_hours > 0 and adjustment > 0:
+        half_adj = (adjustment / 2).to_integral_value(rounding=ROUND_FLOOR)
+        adjusted_bk = inp.bk_hours + half_adj
+        adjusted_work = inp.work_hours + adjustment - half_adj
+    if adjusted_work < 1:
+        adjusted_bk = max(Decimal("0"), adjusted_bk - (Decimal("1") - adjusted_work))
+        adjusted_work = Decimal("1")
+
+    num_days = max(1, int(total_hours // EIGHT))
 
     # One hotel night per full 8h block of work + travel (the report row
     # does not extend the stay), for both nearby and far trips. Nearby uses

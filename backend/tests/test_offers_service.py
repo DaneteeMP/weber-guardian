@@ -55,8 +55,8 @@ def _offer_data(cid="0001012933", number="W-02-2026-0001"):
 def test_calculate_is_dry_run_with_fixed_totals():
     out = calculate_price(_pricing())
     assert out.report_hours == Decimal("2.0")
-    assert out.total == Decimal("1250.00")
-    assert out.total_end == Decimal("1106.00")
+    assert out.total == Decimal("1730.00")
+    assert out.total_end == Decimal("1514.00")
 
 
 def test_create_offer_persists_header_and_items_with_server_totals(db):
@@ -66,8 +66,8 @@ def test_create_offer_persists_header_and_items_with_server_totals(db):
     # Report hours derive from the stored items: both lines share one
     # machine, so 1 x 2h.
     assert offer.report_hours == Decimal("2.0")
-    assert offer.total == Decimal("1250.00")
-    assert offer.total_end == Decimal("1106.00")
+    assert offer.total == Decimal("1730.00")
+    assert offer.total_end == Decimal("1514.00")
     assert len(offer.items) == 2
     assert [i.row_no for i in offer.items] == [1, 2]
 
@@ -174,7 +174,7 @@ def test_update_offer_recomputes_and_replaces_lines(db):
     assert updated.language == "Portuguese"
     # One stored machine -> 2 report hours; totals recompute from items.
     assert updated.report_hours == Decimal("2.0")
-    assert updated.total == Decimal("1250.00")
+    assert updated.total == Decimal("1730.00")
     assert [i.row_no for i in updated.items] == [1]
     assert update_offer(
         db,

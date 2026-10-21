@@ -1469,8 +1469,12 @@ export default function OfferBuilder({
               <FieldRow label={t(lang, "ob_f_bk")}>{calc?.bk_hours ?? "—"}</FieldRow>
               <FieldRow label={t(lang, "ob_f_total_hours")}>{calc?.total_hours ?? "—"}</FieldRow>
               <FieldRow label={t(lang, "ob_f_guard_hours")}>{calc?.total_hours ?? "—"}</FieldRow>
-              <FieldRow label={t(lang, "ob_f_hours_import")}>€{calc?.hours_import ?? "—"}</FieldRow>
-              <FieldRow label={t(lang, "ob_f_expenses")}>€{calc?.expenses ?? "—"}</FieldRow>
+              <FieldRow label={t(lang, "ob_f_hours_import")} emphasis>
+                €{calc?.hours_import ?? "—"}
+              </FieldRow>
+              <FieldRow label={t(lang, "ob_f_expenses")} emphasis>
+                €{calc?.expenses ?? "—"}
+              </FieldRow>
             </div>
           </section>
         </aside>

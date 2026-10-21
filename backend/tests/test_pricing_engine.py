@@ -25,12 +25,12 @@ def _base(**overrides):
 
 def test_rounds_up_to_8h_days_and_breaks_down_exactly():
     out = calculate(_base())
-    # raw = 3 + 10 + 0 + 2 = 15 -> 16h, 2 days.
-    assert out.total_hours == Decimal("16.0")
-    assert out.num_days == 2
-    # Nearby travel repeats once per day: trip hours = 3 x 2 days = 6. The
-    # final adjustment leaves work = 16 - (6 + 2 + 0) = 8.
-    assert out.work_hours == Decimal("8.0")
+    # raw = 6 (travel: 3h x 2 days) + 10 + 0 + 2 = 18 -> 24h, 3 days.
+    assert out.total_hours == Decimal("24.0")
+    assert out.num_days == 3
+    # The breakdown adds up to the total: the work row takes the rounding
+    # padding, the travel and report rows keep their own hours.
+    assert out.work_hours == Decimal("16.0")
     assert (
         out.work_hours + out.trip_hours + out.report_hours + out.bk_hours == out.total_hours
     )
@@ -126,13 +126,13 @@ def test_total_and_total_end_fixed():
     total - discount (client never got 15% off).
     Fixed: total = hours + expenses + kit (gross),
     total_end = total - discount (net). Expenses now include the nearby
-    hotel (1250 = 960 + 290).
+    hotel (1730 = 1440 + 290).
     """
     out = calculate(_base())
-    assert out.hours_import == Decimal("960.00")
-    assert out.discount == Decimal("144.00")
-    assert out.total == Decimal("1250.00")
-    assert out.total_end == Decimal("1106.00")
+    assert out.hours_import == Decimal("1440.00")
+    assert out.discount == Decimal("216.00")
+    assert out.total == Decimal("1730.00")
+    assert out.total_end == Decimal("1514.00")
     assert out.total - out.total_end == out.discount
 
 
@@ -140,12 +140,12 @@ def test_basic_kit_splits_rounding_and_prices_spares():
     out = calculate(
         _base(basic_kit=True, bk_hours=Decimal("2")), bk_price=Decimal("100")
     )
-    # raw = 3 + 10 + 2 + 2 = 17 -> 24h (3 days). Adjustment = 7: half to the
-    # kit (3), the rest to work. Trip = 3h x 2 work days (ceil(12/8)) = 6;
-    # work absorbs the rest.
+    # raw = 6 (travel) + 10 + 2 + 2 = 20 -> 24h (3 days). Adjustment = 4:
+    # half to the kit (2), the rest to work. Trip = 3h x 2 work days
+    # (ceil(12/8)) = 6; work absorbs the rest.
     assert out.total_hours == Decimal("24.0")
-    assert out.bk_hours == Decimal("5.0")
-    assert out.work_hours == Decimal("11.0")  # 24 - trip 6 - report 2 - bk 5
+    assert out.bk_hours == Decimal("4.0")
+    assert out.work_hours == Decimal("12.0")  # 24 - trip 6 - report 2 - bk 4
     assert out.bk_price == Decimal("100.00")
     assert (
         out.work_hours + out.trip_hours + out.report_hours + out.bk_hours == out.total_hours
@@ -190,12 +190,13 @@ def test_off_guardian_never_discounts():
     out = calculate(_base(apply_discount=False))
     assert out.discount == Decimal("0.00")
     assert out.total_end == out.total
-    assert out.total_end == Decimal("1250.00")
+    assert out.total_end == Decimal("1730.00")
 
 
-def test_reajuste_final_zeroes_work_and_report_on_impossible_total():
-    # Trip legs (2 work days x 12h) exceed the rounded 24h total: nothing left
-    # for work or the report row, so both collapse to zero (legacy behaviour).
+def test_repeated_travel_legs_are_inside_the_billed_total():
+    # Nearby trip legs (2 work days x 12h = 24h) belong to the billed
+    # total: raw = 24 + 9 + 0 + 2 = 35 -> 40h (5 days). The work row takes
+    # the rounding padding and the report row keeps its hours.
     out = calculate(
         _base(
             work_hours=Decimal("9"),
@@ -203,10 +204,31 @@ def test_reajuste_final_zeroes_work_and_report_on_impossible_total():
             report_hours=Decimal("2"),
         )
     )
-    assert out.total_hours == Decimal("24.0")
-    assert out.work_hours == Decimal("0.0")
-    assert out.report_hours == Decimal("0.0")
+    assert out.total_hours == Decimal("40.0")
     assert out.trip_hours == Decimal("24.0")
+    assert out.work_hours == Decimal("14.0")  # 40 - trip 24 - report 2
+    assert out.report_hours == Decimal("2.0")
+
+
+def test_work_row_is_never_below_the_real_work():
+    """Rounding to 8h days may only add hours to the work row.
+
+    The travel counted in the total is the one of the breakdown (the
+    repeated legs of a nearby trip), so the work row can never be reduced
+    below the work the modules really need.
+    """
+    for work_hours, trip_base in (("16", "6"), ("10", "3"), ("9", "12"), ("3", "1")):
+        out = calculate(
+            _base(
+                work_hours=Decimal(work_hours),
+                trip_hours_base=Decimal(trip_base),
+            )
+        )
+        assert out.work_hours >= Decimal(work_hours)
+        assert (
+            out.work_hours + out.trip_hours + out.report_hours + out.bk_hours
+            == out.total_hours
+        )
 
 
 def test_money_uses_decimal_with_two_places():
