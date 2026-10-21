@@ -5,6 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 import { listWorkloadRules, type WorkloadRule } from "../api";
 import DataTable from "../components/DataTable";
+import SearchInput from "../components/SearchInput";
 import { t, type Lang } from "../i18n";
 import { formatHours } from "./labels";
 
@@ -109,11 +110,11 @@ export default function RulesPanel({
   return (
     <>
       <div className="mb-2 flex shrink-0 items-center gap-2">
-        <input
+        <SearchInput
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={setSearch}
           placeholder={t(lang, "workload_search")}
-          className="min-w-0 flex-1 rounded border px-3 py-1.5 text-sm"
+          className="min-w-0 flex-1"
         />
 
         <span className="shrink-0 text-sm text-gray-500">

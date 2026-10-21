@@ -4,24 +4,34 @@ import DistanceImport from "./DistanceImport";
 import ImportData from "./ImportData";
 import {
   createResponsible,
+  createSubsidiaryCountry,
   deleteDistance,
   deleteResponsible,
+  getSubsidiaryStats,
   listDistances,
   listResponsibles,
+  listSubsidiaryCountries,
+  listUnassignedCountries,
   getPrices,
   listSubsidiaries,
+  moveSubsidiaryCountry,
   updatePrices,
   updateResponsible,
   upsertDistance,
   type Distance,
   type Responsible,
   type Subsidiary,
+  type SubsidiaryCountry,
+  type SubsidiaryStats,
+  type UnassignedCountry,
 } from "./api";
 import Button from "./components/Button";
 import DataTable from "./components/DataTable";
 import IconButton from "./components/IconButton";
 import Modal from "./components/Modal";
+import SearchInput from "./components/SearchInput";
 import SectionCard from "./components/SectionCard";
+import { matchesQuery } from "./components/searchQuery";
 import { ToastStack, useToasts } from "./components/Toasts";
 import { t, type Lang } from "./i18n";
 
@@ -46,7 +56,9 @@ function DeleteIcon() {
   );
 }
 
-type Section = "rates" | "distances" | "import";
+// The import panel lives inside the rates screen (same row), so there is no
+// separate "import" section.
+type Section = "rates" | "distances" | "countries";
 type Editing =
   | {
       kind: "distance";
@@ -121,6 +133,26 @@ export default function Config({
   const [newResponsible, setNewResponsible] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingName, setRenamingName] = useState("");
+
+  // Country supervision mapping: global admins only (backend enforces 403).
+  const isGlobalAdmin = isAdmin && scope === null;
+  const [countries, setCountries] = useState<SubsidiaryCountry[]>([]);
+  const [newCountry, setNewCountry] = useState("");
+  const [newCountrySubsidiary, setNewCountrySubsidiary] = useState("");
+  // Filter by subsidiary: "" = every country, otherwise only the ones the
+  // selected subsidiary has assigned.
+  const [countryFilter, setCountryFilter] = useState("");
+  const [countryStats, setCountryStats] = useState<SubsidiaryStats[]>([]);
+  const [unassigned, setUnassigned] = useState<UnassignedCountry[]>([]);
+  // Destination subsidiary for the "assign country to subsidiary" flow:
+  // picked once at the top, then every row pushes its country into it.
+  const [assignTarget, setAssignTarget] = useState("");
+  // First card, two views: counters per subsidiary or the editable country map.
+  const [countryView, setCountryView] = useState<"subsidiary" | "country">("country");
+  // The country view keeps a button only: the form lives in this modal.
+  const [countryAddOpen, setCountryAddOpen] = useState(false);
+  // Free-text search over country and subsidiary names in the country view.
+  const [countrySearch, setCountrySearch] = useState("");
 
   const input = "border rounded px-2 py-1 text-sm";
 
@@ -259,6 +291,81 @@ export default function Config({
       setError(String(e));
     }
   }
+
+  // Loads the whole countries tab: the map, the per-subsidiary counters and
+  // the countries outside the map. Re-run after every mutation so the three
+  // views never disagree.
+  async function loadCountryData() {
+    setError(null);
+    try {
+      const [map, stats, un] = await Promise.all([
+        listSubsidiaryCountries(),
+        getSubsidiaryStats(),
+        listUnassignedCountries(),
+      ]);
+      setCountries(map);
+      setCountryStats(stats);
+      setUnassigned(un);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function addCountry() {
+    setError(null);
+    setOk(null);
+    try {
+      const name = newCountry.trim();
+      if (!name) throw new Error(t(lang, "cfg_country_required"));
+      if (!newCountrySubsidiary) throw new Error(t(lang, "cfg_select_subsidiary"));
+      await createSubsidiaryCountry(name, newCountrySubsidiary);
+      setNewCountry("");
+      setCountryAddOpen(false);
+      setOk(t(lang, "cfg_country_added"));
+      await loadCountryData();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  // Cover an unmapped country: extend the map only. Customer rows keep the
+  // subsidiary the import tagged them with (retagging is a separate decision).
+  // The destination stays selected after success so a batch of countries can
+  // be pushed to the same subsidiary one after another.
+  async function assignCountry(country: string) {
+    if (!assignTarget) return;
+    setError(null);
+    setOk(null);
+    try {
+      await createSubsidiaryCountry(country, assignTarget);
+      setOk(t(lang, "cfg_country_added"));
+      await loadCountryData();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function changeCountrySubsidiary(country: string, subsidiary: string) {
+    setError(null);
+    setOk(null);
+    try {
+      await moveSubsidiaryCountry(country, subsidiary);
+      setOk(t(lang, "cfg_country_updated"));
+      await loadCountryData();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  useEffect(() => {
+    if (isGlobalAdmin) void loadCountryData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGlobalAdmin]);
+
+  useEffect(() => {
+    if (!isGlobalAdmin && section === "countries") setSection("rates");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGlobalAdmin, section]);
 
   useEffect(() => {
     if (isAdmin && section === "rates") void loadResponsibles();
@@ -438,6 +545,107 @@ export default function Config({
     [lang],
   );
 
+  const countryStatsColumns: ColumnDef<SubsidiaryStats>[] = useMemo(
+    () => [
+      {
+        accessorKey: "short_label",
+        header: t(lang, "cfg_country_subsidiary"),
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span>
+            <span className="font-semibold">{row.original.short_label}</span>{" "}
+            <span className="text-xs text-gray-500">{row.original.name}</span>
+          </span>
+        ),
+      },
+      {
+        accessorKey: "countries",
+        header: () => <span className="block text-right">{t(lang, "cfg_countries_count")}</span>,
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span className="block text-right font-mono">{row.original.countries}</span>
+        ),
+      },
+      {
+        accessorKey: "customers",
+        header: () => <span className="block text-right">{t(lang, "dash_customers")}</span>,
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span className="block text-right font-mono">{row.original.customers.toLocaleString()}</span>
+        ),
+      },
+    ],
+    [lang],
+  );
+
+  const unassignedColumns: ColumnDef<UnassignedCountry>[] = useMemo(
+    () => [
+      {
+        accessorKey: "country",
+        header: t(lang, "cfg_country"),
+        enableSorting: true,
+        cell: ({ row }) => <span className="font-medium">{row.original.country}</span>,
+      },
+      {
+        accessorKey: "count",
+        header: () => <span className="block text-right">{t(lang, "dash_customers")}</span>,
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span className="block text-right font-mono">{row.original.count.toLocaleString()}</span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end">
+            <Button
+              size="sm"
+              disabled={!assignTarget}
+              title={!assignTarget ? t(lang, "cfg_select_subsidiary") : undefined}
+              onClick={() => void assignCountry(row.original.country)}
+            >
+              {t(lang, "cfg_country_assign")}
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    // assignTarget is part of the render contract: the row button enables with it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lang, assignTarget],
+  );
+
+  const countryColumns: ColumnDef<SubsidiaryCountry>[] = useMemo(
+    () => [
+      {
+        accessorKey: "country",
+        header: t(lang, "cfg_country"),
+        enableSorting: true,
+        cell: ({ row }) => <span className="font-medium">{row.original.country}</span>,
+      },
+      {
+        accessorKey: "subsidiary",
+        header: t(lang, "cfg_country_subsidiary"),
+        enableSorting: true,
+        cell: ({ row }) => (
+          <select
+            value={row.original.subsidiary}
+            onChange={(event) => changeCountrySubsidiary(row.original.country, event.target.value)}
+            className={input}
+          >
+            {subsidiaries.map((s) => (
+              <option key={s.name} value={s.name}>{s.name}</option>
+            ))}
+          </select>
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lang, subsidiaries],
+  );
+
   if (!isAdmin) return <p className="p-4 text-sm text-gray-500">{t(lang, "cfg_admin_only")}</p>;
 
   const tab = (active: boolean) =>
@@ -447,18 +655,29 @@ export default function Config({
   const visibleDistances = distanceSubsidiary
     ? distances.filter((distance) => distance.subsidiary_id === distanceSubsidiary)
     : distances;
+  // Same filter shape as distances: pick a subsidiary to list its countries,
+  // then narrow the list by free text (country or subsidiary name).
+  const countryQuery = countrySearch.trim();
+  const visibleCountries = countries.filter(
+    (country) =>
+      (!countryFilter || country.subsidiary === countryFilter) &&
+      (!countryQuery || matchesQuery(countryQuery, country.country, country.subsidiary)),
+  );
 
   const sectionLabel: Record<Section, string> = {
     rates: t(lang, "cfg_rates"),
     distances: t(lang, "cfg_distances"),
-    import: t(lang, "nav_import"),
+    countries: t(lang, "cfg_countries"),
   };
+  const visibleSections: Section[] = isGlobalAdmin
+    ? ["rates", "distances", "countries"]
+    : ["rates", "distances"];
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col gap-3 p-4">
       <h1 className="shrink-0 text-2xl font-bold text-gray-900">{t(lang, "cfg_title")}</h1>
       <div className="flex shrink-0 gap-2">
-        {(Object.keys(sectionLabel) as Section[]).map((s) => (
+        {visibleSections.map((s) => (
           <button key={s} onClick={() => setSection(s)} className={tab(section === s)}>
             {sectionLabel[s]}
           </button>
@@ -467,53 +686,65 @@ export default function Config({
       <ToastStack toasts={toasts} onClose={dismiss} />
 
       {section === "rates" && (
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-1">
-        <SectionCard title={t(lang, "cfg_rates")}>
-          <div className="flex gap-2 items-center flex-wrap">
-            <span className="text-sm font-medium text-gray-700">{sub}</span>
-            <Button variant="secondary" size="sm" onClick={loadRates}>Load</Button>
+        <div className="min-h-0 flex-1 overflow-y-auto pb-1">
+        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start">
+        <SectionCard
+          title={t(lang, "cfg_rates")}
+          className="min-w-0 md:flex-[2]"
+        >
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-700">{sub}</span>
+            <Button variant="secondary" size="sm" onClick={loadRates}>
+              {t(lang, "cfg_load")}
+            </Button>
+            <Button size="sm" onClick={saveRates}>
+              {t(lang, "cfg_save")}
+            </Button>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+          <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
             {(Object.keys(rates) as (keyof typeof rates)[]).map((k) => (
-              <label key={k} className="text-xs">
-                {t(lang, `cfg_${k}` as "cfg_currency" | "cfg_km_rate" | "cfg_tech_rate" | "cfg_diet_full_rate" | "cfg_diet_half_rate" | "cfg_hotel_rate" | "cfg_discount_rate")}
+              <label key={k} className="flex items-center justify-between gap-3 text-xs">
+                <span className="truncate text-gray-600">
+                  {t(lang, `cfg_${k}` as "cfg_currency" | "cfg_km_rate" | "cfg_tech_rate" | "cfg_diet_full_rate" | "cfg_diet_half_rate" | "cfg_hotel_rate" | "cfg_discount_rate")}
+                </span>
                 <input
                   type={k === "currency" ? "text" : "number"}
                   min={k === "currency" ? undefined : "0"}
                   step={k === "currency" ? undefined : "any"}
                   value={rates[k]}
                   onChange={(e) => setRates({ ...rates, [k]: e.target.value })}
-                  className={`${input} w-full`}
+                  className={`${input} w-28 shrink-0 text-right`}
                 />
               </label>
             ))}
           </div>
-          <Button size="sm" className="mt-2" onClick={saveRates}>
-            {t(lang, "cfg_save")}
-          </Button>
         </SectionCard>
 
-        <SectionCard title={t(lang, "cfg_responsibles")}>
+        <SectionCard
+          title={t(lang, "cfg_responsibles")}
+          className="min-w-0 md:flex-1"
+        >
           <div className="flex gap-2 items-center">
             <input
               value={newResponsible}
               onChange={(e) => setNewResponsible(e.target.value)}
               placeholder={t(lang, "cfg_responsible_name")}
               maxLength={128}
-              className={`${input} flex-1`}
+              className={`${input} min-w-0 flex-1`}
             />
             <Button size="sm" onClick={addResponsible}>{t(lang, "cfg_add")}</Button>
           </div>
           <ul className="mt-2 space-y-1">
             {responsibles.map((r) => (
-              <li key={r.id} className="flex items-center gap-2 text-sm">
+              <li key={r.id} className="flex flex-wrap items-center gap-2 text-sm">
                 {renamingId === r.id ? (
                   <>
                     <input
                       value={renamingName}
                       onChange={(e) => setRenamingName(e.target.value)}
                       maxLength={128}
-                      className={`${input} flex-1`}
+                      className={`${input} min-w-0 flex-1`}
                     />
                     <Button size="sm" onClick={() => renameResponsible(r.id)}>{t(lang, "cfg_save")}</Button>
                     <Button size="sm" variant="secondary" onClick={() => setRenamingId(null)}>{t(lang, "cfg_cancel")}</Button>
@@ -527,7 +758,7 @@ export default function Config({
                       title={t(lang, "cfg_active")}
                       className="accent-blue-700"
                     />
-                    <span className={`flex-1 ${r.active ? "text-gray-900" : "text-gray-400 line-through"}`}>{r.name}</span>
+                    <span className={`min-w-0 flex-1 truncate ${r.active ? "text-gray-900" : "text-gray-400 line-through"}`}>{r.name}</span>
                     <Button
                       size="sm"
                       variant="secondary"
@@ -547,6 +778,12 @@ export default function Config({
             ))}
           </ul>
         </SectionCard>
+        </div>
+
+        {/* Import panel below the rates: it shares the screen but keeps its
+            own full-width card, because the format help needs the room. */}
+        <ImportData lang={lang} scope={scope} />
+        </div>
         </div>
       )}
 
@@ -588,9 +825,114 @@ export default function Config({
         </SectionCard>
       )}
 
-      {section === "import" && (
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <ImportData lang={lang} scope={scope} />
+      {section === "countries" && isGlobalAdmin && (
+        <div className="flex min-h-0 flex-1 flex-col gap-3 md:flex-row">
+          <SectionCard
+            title={t(lang, "cfg_countries")}
+            className="flex min-h-0 min-w-0 flex-1 flex-col md:flex-[2]"
+          >
+            <div className="mb-2 flex shrink-0 overflow-hidden rounded border text-sm">
+              <button
+                type="button"
+                onClick={() => setCountryView("subsidiary")}
+                className={`px-3 py-1.5 ${
+                  countryView === "subsidiary"
+                    ? "bg-weber-blue font-semibold text-white"
+                    : "bg-white hover:bg-gray-50"
+                }`}
+              >
+                {t(lang, "cfg_country_view_subsidiary")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCountryView("country")}
+                className={`px-3 py-1.5 ${
+                  countryView === "country"
+                    ? "bg-weber-blue font-semibold text-white"
+                    : "bg-white hover:bg-gray-50"
+                }`}
+              >
+                {t(lang, "cfg_country_view_country")}
+              </button>
+            </div>
+
+            {countryView === "subsidiary" ? (
+              <DataTable
+                data={countryStats}
+                columns={countryStatsColumns}
+                getRowId={(row) => row.name}
+                tableClassName="min-w-[480px]"
+              />
+            ) : (
+              <>
+                <p className="mb-2 shrink-0 text-xs text-gray-500">{t(lang, "cfg_countries_hint")}</p>
+                <div className="mb-2 flex shrink-0 items-center gap-2">
+                  <select
+                    value={countryFilter}
+                    onChange={(e) => setCountryFilter(e.target.value)}
+                    aria-label={t(lang, "cfg_country_subsidiary")}
+                    className={`${input} w-56`}
+                  >
+                    <option value="">{t(lang, "cfg_country_filter_all")}</option>
+                    {subsidiaries.map((s) => (
+                      <option key={s.name} value={s.name}>{s.name}</option>
+                    ))}
+                  </select>
+                  <span className="text-sm text-gray-500">
+                    {countryFilter || countryQuery
+                      ? `${visibleCountries.length} / ${countries.length}`
+                      : countries.length}
+                  </span>
+                  <span className="flex-1" />
+                  <Button size="sm" onClick={() => setCountryAddOpen(true)}>
+                    {t(lang, "cfg_country_add")}
+                  </Button>
+                </div>
+                <SearchInput
+                  value={countrySearch}
+                  onChange={setCountrySearch}
+                  placeholder={t(lang, "cfg_country_search")}
+                  className="mb-2 shrink-0"
+                />
+                <DataTable
+                  data={visibleCountries}
+                  columns={countryColumns}
+                  getRowId={(row) => row.country}
+                  emptyText={t(lang, "cfg_countries_none")}
+                  tableClassName="min-w-[520px]"
+                />
+              </>
+            )}
+          </SectionCard>
+
+          <SectionCard
+            title={`${t(lang, "cfg_country_unassigned")} (${unassigned.length})`}
+            className="flex min-h-0 min-w-0 flex-1 flex-col"
+          >
+            <div className="mb-2 flex shrink-0 items-center gap-2">
+              <span className="shrink-0 text-xs text-gray-500">
+                {t(lang, "cfg_country_subsidiary")}
+              </span>
+              <select
+                value={assignTarget}
+                onChange={(e) => setAssignTarget(e.target.value)}
+                aria-label={t(lang, "cfg_country_subsidiary")}
+                className={`${input} min-w-0 flex-1`}
+              >
+                <option value="">{t(lang, "cfg_select_subsidiary")}</option>
+                {subsidiaries.map((s) => (
+                  <option key={s.name} value={s.name}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <DataTable
+              data={unassigned}
+              columns={unassignedColumns}
+              getRowId={(row) => row.country}
+              emptyText={t(lang, "cfg_countries_covered")}
+              tableClassName="min-w-[340px]"
+            />
+          </SectionCard>
         </div>
       )}
 
@@ -708,6 +1050,47 @@ export default function Config({
             subsidiaryId={distanceSubsidiary}
             onImported={refreshTables}
           />
+        </Modal>
+      )}
+
+      {countryAddOpen && (
+        <Modal
+          title={t(lang, "cfg_country_add_title")}
+          onClose={() => setCountryAddOpen(false)}
+          widthClass="max-w-sm"
+        >
+          <div className="space-y-2">
+            <label className="block text-xs">
+              {t(lang, "cfg_country_subsidiary")}
+              <select
+                value={newCountrySubsidiary}
+                onChange={(e) => setNewCountrySubsidiary(e.target.value)}
+                className={`${input} mt-1 w-full`}
+              >
+                <option value="">{t(lang, "cfg_select_subsidiary")}</option>
+                {subsidiaries.map((s) => (
+                  <option key={s.name} value={s.name}>{s.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs">
+              {t(lang, "cfg_country")}
+              <input
+                value={newCountry}
+                onChange={(e) => setNewCountry(e.target.value)}
+                placeholder={t(lang, "cfg_country")}
+                maxLength={128}
+                autoFocus
+                className={`${input} mt-1 w-full`}
+              />
+            </label>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="secondary" size="sm" onClick={() => setCountryAddOpen(false)}>
+                {t(lang, "cfg_cancel")}
+              </Button>
+              <Button size="sm" onClick={addCountry}>{t(lang, "cfg_country_add")}</Button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

@@ -31,6 +31,7 @@ import SectionCard from "./components/SectionCard";
 import { ToastStack, useToasts } from "./components/Toasts";
 import { statusTone } from "./statusTone";
 import { quoteLinesFromDraft, type CatalogQuoteLine } from "./catalogLines";
+import { formatHours } from "./workloads/labels";
 import { t, type Lang } from "./i18n";
 
 const num = (v: string, fallback: number) => {
@@ -42,6 +43,30 @@ const money = (v: string | number | null | undefined) =>
   Number(v ?? 0).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const day = (v: string | null | undefined) => (v ? v.slice(0, 10) : "");
+
+// Sort key for the customer list. Accents fold to their base letter and the
+// letters that do not decompose (ž, š, č...) fold to their ASCII base too, so
+// "Žahovi" sorts with the Z names instead of jumping to the top of the list.
+const FOLDED_LETTERS: Record<string, string> = {
+  ž: "z",
+  š: "s",
+  č: "c",
+  ć: "c",
+  đ: "d",
+  ł: "l",
+  ø: "o",
+  ß: "ss",
+  æ: "ae",
+  œ: "oe",
+};
+
+function customerSortKey(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[žščćđłøßæœ]/g, (ch) => FOLDED_LETTERS[ch] ?? ch);
+}
 
 // ISO day (yyyy-mm-dd) for <input type="date">. Built from local parts, not
 // toISOString, which would shift the day for any timezone behind UTC.
@@ -131,6 +156,8 @@ type OfferTableRow = {
   pos: number;
   equipment: string;
   module: string;
+  // Workload hours of this module, as the backend priced them.
+  workload: string;
   amount: number;
   catalogWarning?: CatalogQuoteLine["catalogWarning"];
 };
@@ -168,7 +195,6 @@ export default function OfferBuilder({
   const [kitHours, setKitHours] = useState("0");
   const [kitPrice, setKitPrice] = useState("0");
 
-  const [reportHours, setReportHours] = useState("0");
   const [tripBase, setTripBase] = useState("0");
   // Trip km used to come hardcoded as 0: it now resolves from the customer's
   // location against the subsidiary distance catalog (see the effect below).
@@ -256,6 +282,13 @@ export default function OfferBuilder({
     [items],
   );
 
+  // Distinct inspected machines: the backend derives 2 report hours each
+  // (legacy rule), so the form only reports how many machines are on offer.
+  const equipmentCount = useMemo(
+    () => new Set(items.map((i) => i.equipment).filter(Boolean)).size,
+    [items],
+  );
+
   // Fill the form from the stored offer. Trip inputs are reloaded from the
   // current subsidiary rates, while the remaining values come from the offer.
   useEffect(() => {
@@ -272,7 +305,6 @@ export default function OfferBuilder({
         setResponsible(o.responsible_person || "");
         setComments(o.general_comments || "");
         setGuardianSelections(o.guardian_selections || []);
-        setReportHours(String(Number(o.report_hours ?? 0)));
         setTripBase(String(Number(o.trip_hours ?? 0)));
         // The saved type label is not stored: nonzero kit figures mean this
         // offer was priced as Basic Kit (other types always send zeroes).
@@ -390,7 +422,6 @@ export default function OfferBuilder({
       setGuardianType("Inspection");
     setComments("");
     setGuardianSelections([]);
-    setReportHours("0");
     setTripBase("0");
     setKm("0");
     setKitHours("0");
@@ -655,12 +686,18 @@ export default function OfferBuilder({
 
   const filteredCustomers = useMemo(() => {
     const q = clientSearch.trim().toLowerCase();
-    if (!q) return customers;
-    return customers.filter(
-      (c) =>
-        c.account_name.toLowerCase().includes(q) ||
-        c.customer_id.toLowerCase().includes(q) ||
-        (c.country ?? "").toLowerCase().includes(q)
+    const matches = q
+      ? customers.filter(
+          (c) =>
+            c.account_name.toLowerCase().includes(q) ||
+            c.customer_id.toLowerCase().includes(q) ||
+            (c.country ?? "").toLowerCase().includes(q),
+        )
+      : customers;
+    // Alphabetical by account name, on the folded key so accents and the
+    // non-decomposable letters stay next to their base letter.
+    return [...matches].sort((a, b) =>
+      customerSortKey(a.account_name).localeCompare(customerSortKey(b.account_name), "en"),
     );
   }, [customers, clientSearch]);
 
@@ -695,7 +732,6 @@ export default function OfferBuilder({
       calculate({
         work_hours: num(workHours, 0),
         bk_hours: isBasicKit ? num(kitHours, 0) : 0,
-        report_hours: num(reportHours, 0),
         trip_hours_base: num(tripBase, 0),
         km: num(km, 0),
         km_rate: num(kmRate, 0),
@@ -708,12 +744,13 @@ export default function OfferBuilder({
         currency: "EUR",
         offer_type: OFFER_TYPE_TO_API[guardianType] ?? "audit",
         basic_kit: isBasicKit,
+        equipment_count: equipmentCount,
       })
         .then(setCalc)
         .catch((e) => setError(String(e)));
     }, 300);
     return () => clearTimeout(timer);
-  }, [workHours, reportHours, tripBase, km, kmRate, techRate, dietFull, dietHalf, hotelRate, discountRate, guardianType, kitHours, kitPrice]);
+  }, [workHours, equipmentCount, tripBase, km, kmRate, techRate, dietFull, dietHalf, hotelRate, discountRate, guardianType, kitHours, kitPrice]);
 
   async function refreshOffers() {
     if (customerId) {
@@ -732,7 +769,6 @@ export default function OfferBuilder({
       const pricing = {
         work_hours: num(workHours, 0),
         bk_hours: isBasicKit ? num(kitHours, 0) : 0,
-        report_hours: num(reportHours, 0),
         trip_hours_base: num(tripBase, 0),
         km: num(km, 0),
         km_rate: num(kmRate, 0),
@@ -745,6 +781,7 @@ export default function OfferBuilder({
         currency: "EUR",
         offer_type: OFFER_TYPE_TO_API[guardianType] ?? "audit",
         basic_kit: isBasicKit,
+        equipment_count: equipmentCount,
       };
       const lines = items.map((i) => ({
         equipment: i.equipment || undefined,
@@ -887,6 +924,7 @@ export default function OfferBuilder({
     pos: index + 1,
     equipment: item.equipment,
     module: item.description,
+    workload: item.workload,
     amount: num(item.import_amount, 0),
     catalogWarning: item.catalogWarning,
   }));
@@ -919,6 +957,15 @@ export default function OfferBuilder({
                 {t(lang, row.original.catalogWarning === "unconfirmed" ? "ob_unconfirmed" : "ob_unpriced")}
               </span>
             )}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "workload",
+        header: () => <span className="block text-right">{t(lang, "ob_col_workload")}</span>,
+        cell: ({ getValue }) => (
+          <span className="block text-right font-mono text-slate-600">
+            {formatHours(String(getValue() ?? ""))}
           </span>
         ),
       },
@@ -1306,7 +1353,9 @@ export default function OfferBuilder({
                     </span>
                   )}
                 </span>
-                <span className="font-mono font-semibold text-slate-700">{eur(linesTotal)}</span>
+                <span className="font-mono font-semibold text-slate-700">
+                  {workHours} h · {eur(linesTotal)}
+                </span>
               </div>
               <DataTable
                 data={moduleRows}

@@ -163,7 +163,6 @@ export function createCustomer(payload: {
 export type Pricing = {
   work_hours: number;
   bk_hours?: number;
-  report_hours: number;
   trip_hours_base: number;
   km: number;
   km_rate: number;
@@ -175,8 +174,9 @@ export type Pricing = {
   bk_price?: number;
   currency: string;
   offer_type: "guardian" | "audit" | "off_guardian";
-  num_trips?: number;
   basic_kit?: boolean;
+  // Inspected machines: report hours derive server-side (2h each).
+  equipment_count: number;
 };
 
 export type Breakdown = {
@@ -826,6 +826,66 @@ export function deleteResponsible(id: string): Promise<void> {
   }).then(async (r) => {
     if (!r.ok) throw new Error(`DELETE responsible failed (${r.status})`);
   });
+}
+
+export type SubsidiaryCountry = {
+  country: string;
+  subsidiary: string;
+};
+
+export function listSubsidiaryCountries(): Promise<SubsidiaryCountry[]> {
+  return fetch(`${BASE}/subsidiaries/countries`, { headers: headers() }).then((r) =>
+    checked(r, "GET subsidiary countries")
+  );
+}
+
+export function createSubsidiaryCountry(country: string, subsidiary: string): Promise<SubsidiaryCountry> {
+  return fetch(`${BASE}/subsidiaries/countries`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ country, subsidiary }),
+  }).then((r) => checked(r, "POST subsidiary country"));
+}
+
+export function moveSubsidiaryCountry(country: string, subsidiary: string): Promise<SubsidiaryCountry> {
+  return fetch(`${BASE}/subsidiaries/countries/${encodeURIComponent(country)}`, {
+    method: "PATCH",
+    headers: headers(),
+    body: JSON.stringify({ country, subsidiary }),
+  }).then((r) => checked(r, "PATCH subsidiary country"));
+}
+
+export function deleteSubsidiaryCountry(country: string): Promise<void> {
+  return fetch(`${BASE}/subsidiaries/countries/${encodeURIComponent(country)}`, {
+    method: "DELETE",
+    headers: headers(),
+  }).then(async (r) => {
+    if (!r.ok) throw new Error(`DELETE subsidiary country failed (${r.status})`);
+  });
+}
+
+export type SubsidiaryStats = {
+  name: string;
+  short_label: string;
+  countries: number;
+  customers: number;
+};
+
+export function getSubsidiaryStats(): Promise<SubsidiaryStats[]> {
+  return fetch(`${BASE}/subsidiaries/stats`, { headers: headers() }).then((r) =>
+    checked(r, "GET subsidiary stats")
+  );
+}
+
+export type UnassignedCountry = {
+  country: string;
+  count: number;
+};
+
+export function listUnassignedCountries(): Promise<UnassignedCountry[]> {
+  return fetch(`${BASE}/subsidiaries/unassigned-countries`, { headers: headers() }).then((r) =>
+    checked(r, "GET unassigned countries")
+  );
 }
 
 export type Distance = {

@@ -5,6 +5,8 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 import { listUnresolvedMaterials, type UnresolvedMaterial } from "../api";
 import DataTable from "../components/DataTable";
+import SearchInput from "../components/SearchInput";
+import { matchesQuery } from "../components/searchQuery";
 import { t, type Lang } from "../i18n";
 import { reasonKey } from "./labels";
 
@@ -20,8 +22,26 @@ export default function UnresolvedPanel({
 }) {
   const [rows, setRows] = useState<UnresolvedMaterial[]>([]);
   const [total, setTotal] = useState(0);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Client-side filter over everything the endpoint returned (well below the
+  // 500 row cap). The reason is matched already translated: the user searches
+  // for what the badge shows, not for the internal code.
+  const filtered = useMemo(
+    () =>
+      rows.filter((row) =>
+        matchesQuery(
+          search,
+          row.material_no,
+          row.name_en,
+          row.type_code,
+          t(lang, reasonKey(row.reason)),
+        ),
+      ),
+    [rows, search, lang],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -102,9 +122,19 @@ export default function UnresolvedPanel({
 
   return (
     <>
-      <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
+      <div className="mb-2 shrink-0 space-y-1.5">
         <p className="text-xs text-gray-600">{t(lang, "workload_unresolved_help")}</p>
-        <span className="shrink-0 text-sm text-gray-500">{total.toLocaleString()}</span>
+        <div className="flex items-center gap-2">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder={t(lang, "workload_search")}
+            className="min-w-0 flex-1"
+          />
+          <span className="shrink-0 text-sm text-gray-500">
+            {search.trim() ? `${filtered.length} / ${total}` : total.toLocaleString()}
+          </span>
+        </div>
       </div>
 
       {error && (
@@ -112,7 +142,7 @@ export default function UnresolvedPanel({
       )}
 
       <DataTable
-        data={rows}
+        data={filtered}
         columns={columns}
         loading={loading}
         loadingText={t(lang, "dash_loading")}

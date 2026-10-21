@@ -56,7 +56,7 @@ export default function ImportData({ lang, scope }: { lang: Lang; scope?: string
   }
 
   return (
-    <div className="p-4 space-y-3 max-w-3xl mx-auto">
+    <>
       <SectionCard title={s.title}>
         <div className="flex gap-2 items-center flex-wrap">
           <label className={`${input} cursor-pointer bg-blue-50`}>
@@ -83,6 +83,8 @@ export default function ImportData({ lang, scope }: { lang: Lang; scope?: string
             {s.import}
           </button>
         </div>
+        <p className="mt-3 text-xs text-gray-500">{t(lang, "cfg_import_hint")}</p>
+        <p className="mt-1 text-xs text-gray-600">{t(lang, "cfg_import_columns")}</p>
       </SectionCard>
 
       {error && <p className="text-sm text-red-600 bg-white rounded shadow p-2">{error}</p>}
@@ -114,6 +116,6 @@ export default function ImportData({ lang, scope }: { lang: Lang; scope?: string
           )}
         </SectionCard>
       )}
-    </div>
+    </>
   );
 }

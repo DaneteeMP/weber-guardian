@@ -4,7 +4,7 @@
 // Offers sum these per machine_type through the maintenance draft
 // (basic_kit_hours / basic_kit_price); this screen is the only place to
 // maintain the table.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   createKit,
@@ -16,6 +16,8 @@ import {
 import Button from "../components/Button";
 import IconButton from "../components/IconButton";
 import Modal from "../components/Modal";
+import SearchInput from "../components/SearchInput";
+import { matchesQuery } from "../components/searchQuery";
 import { t, type Lang } from "../i18n";
 import { displayKitModel } from "../kitModels";
 
@@ -49,9 +51,17 @@ type Editing = { model: string; hours: string; spares: string; isNew: boolean } 
 
 export default function KitsPanel({ lang, canEdit }: { lang: Lang; canEdit: boolean }) {
   const [kits, setKits] = useState<Kit[]>([]);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
+
+  // Client-side filter over the full kit list. Both the stored model and the
+  // displayed one are matched, so "Slicer 902" and "CCS902" find the same row.
+  const filtered = useMemo(
+    () => kits.filter((kit) => matchesQuery(search, kit.model, displayKitModel(kit.model))),
+    [kits, search],
+  );
 
   async function load() {
     try {
@@ -102,13 +112,24 @@ export default function KitsPanel({ lang, canEdit }: { lang: Lang; canEdit: bool
 
   return (
     <>
-      <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
+      <div className="mb-2 shrink-0 space-y-1.5">
         <p className="text-xs text-gray-600">{t(lang, "workload_kits_help")}</p>
-        {canEdit && (
-          <Button size="sm" onClick={() => setEditing({ model: "", hours: "", spares: "", isNew: true })}>
-            {t(lang, "cfg_add")}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder={t(lang, "workload_search")}
+            className="min-w-0 flex-1"
+          />
+          <span className="shrink-0 text-sm text-gray-500">
+            {search.trim() ? `${filtered.length} / ${kits.length}` : kits.length}
+          </span>
+          {canEdit && (
+            <Button size="sm" onClick={() => setEditing({ model: "", hours: "", spares: "", isNew: true })}>
+              {t(lang, "cfg_add")}
+            </Button>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -132,14 +153,14 @@ export default function KitsPanel({ lang, canEdit }: { lang: Lang; canEdit: bool
                   {t(lang, "dash_loading")}
                 </td>
               </tr>
-            ) : kits.length === 0 ? (
+            ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={canEdit ? 4 : 3} className="px-3 py-4 text-center text-gray-500">
                   {t(lang, "workload_no_results")}
                 </td>
               </tr>
             ) : (
-              kits.map((kit) => (
+              filtered.map((kit) => (
                 <tr key={kit.model} className="border-b">
                   <td className="px-3 py-1.5 font-mono">{displayKitModel(kit.model)}</td>
                   <td className="px-3 py-1.5 text-right font-mono">{kit.workload_basic_kit}</td>

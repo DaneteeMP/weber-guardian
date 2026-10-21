@@ -67,7 +67,7 @@ export default function TopBar({
   return (
     <header className="border-b-2 border-weber-blue bg-white">
       <div className="flex min-h-0 items-stretch gap-3 px-4 pt-2">
-        <img src="/guardian-logo.png" alt={APP_NAME} className="h-8 w-auto shrink-0 self-center" />
+        <img src="/guardian-logo.png" alt={APP_NAME} className="h-8 w-auto shrink-0 self-center mb-1" />
         <span
           className="max-w-[180px] shrink-0 truncate self-center text-base font-bold text-gray-800"
           title={currentScopeLabel}

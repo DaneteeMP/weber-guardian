@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Config from "./Config";
 import Customers from "./Customers";
 import OfferBuilder from "./OfferBuilder";
@@ -6,6 +6,7 @@ import Offers from "./Offers";
 import WorkloadCatalog from "./WorkloadCatalog";
 import Gate from "./components/Gate";
 import ErrorBoundary from "./components/ErrorBoundary";
+import SplashScreen from "./components/SplashScreen";
 import TopBar, { type Tab } from "./components/TopBar";
 import {
   ensureDevUser,
@@ -31,7 +32,10 @@ export default function App() {
   const [editingOffer, setEditingOffer] = useState<string | null>(null);
   const [gateBlocked, setGateBlocked] = useState(false);
   const [gateChecked, setGateChecked] = useState(false);
+  // Brand splash, shown only right after the Gate password passes.
+  const [splash, setSplash] = useState(false);
   const [epoch, setEpoch] = useState(0);
+  const finishSplash = useCallback(() => setSplash(false), []);
 
   function openNewOffer() {
     setEditingOffer(null);
@@ -78,6 +82,7 @@ export default function App() {
 
   function passGate() {
     setGateBlocked(false);
+    setSplash(true);
     setEpoch((n) => n + 1);
   }
 
@@ -87,6 +92,10 @@ export default function App() {
 
   if (gateBlocked) {
     return <Gate lang={lang} onPass={passGate} />;
+  }
+
+  if (splash) {
+    return <SplashScreen onComplete={finishSplash} />;
   }
 
   const contentKey = `${dev}:${scope ?? "all"}:${epoch}`;

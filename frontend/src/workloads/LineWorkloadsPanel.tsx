@@ -5,7 +5,7 @@
 // Saving sends PUT /line-workloads/{code} with the row's first machine code:
 // the endpoint keys lines by machine_type and resolves back to this same
 // family (also confirming that code). Offers only display the hours.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import {
@@ -15,10 +15,13 @@ import {
   type LineWorkload,
 } from "../api";
 import DataTable from "../components/DataTable";
+import SearchInput from "../components/SearchInput";
+import { matchesQuery } from "../components/searchQuery";
 import { t, type Lang } from "../i18n";
 
 export default function LineWorkloadsPanel({ lang, canEdit }: { lang: Lang; canEdit: boolean }) {
   const [rows, setRows] = useState<LineWorkload[]>([]);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Unsaved hours per entry id; a key only exists while the row is dirty.
@@ -41,6 +44,16 @@ export default function LineWorkloadsPanel({ lang, canEdit }: { lang: Lang; canE
       cancelled = true;
     };
   }, []);
+
+  // Client-side filter: the whole family list is already in memory.
+  // A family matches by its label or by any of its machine codes.
+  const filtered = useMemo(
+    () =>
+      rows.filter((entry) =>
+        matchesQuery(search, entry.label, ...entry.matches.map((match) => match.match_value)),
+      ),
+    [rows, search],
+  );
 
   function value(entry: LineWorkload): string {
     if (entry.id in drafts) return drafts[entry.id];
@@ -211,9 +224,19 @@ export default function LineWorkloadsPanel({ lang, canEdit }: { lang: Lang; canE
 
   return (
     <>
-      <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
+      <div className="mb-2 shrink-0 space-y-1.5">
         <p className="text-xs text-gray-600">{t(lang, "workload_lines_help")}</p>
-        <span className="shrink-0 text-sm text-gray-500">{rows.length}</span>
+        <div className="flex items-center gap-2">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder={t(lang, "workload_search")}
+            className="min-w-0 flex-1"
+          />
+          <span className="shrink-0 text-sm text-gray-500">
+            {search.trim() ? `${filtered.length} / ${rows.length}` : rows.length}
+          </span>
+        </div>
       </div>
 
       {error && (
@@ -221,7 +244,7 @@ export default function LineWorkloadsPanel({ lang, canEdit }: { lang: Lang; canE
       )}
 
       <DataTable
-        data={rows}
+        data={filtered}
         columns={columns}
         loading={loading}
         loadingText={t(lang, "dash_loading")}
