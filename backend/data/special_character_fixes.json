@@ -1,0 +1,617 @@
+{
+  "reason": "The SAP export is ISO-8859-1: it cannot write the letters and punctuation used by the local names, so it wrote '?'. The import stored that '?' verbatim. These are the reviewed reconstructions of the lost characters.",
+  "customers": [
+    {
+      "customer_id": "0001012957",
+      "current": "Ponnath ?EZNI?TÍ MIST?I, s.r.o.",
+      "corrected": "Ponnath ŘEZNIČTÍ MISTŘI, s.r.o.",
+      "note": "R with caron, C with caron, R with caron; the export kept a plain I in MISTRI",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001013450",
+      "current": "PPK karlova?ka mesna industrija d.d.",
+      "corrected": "PPK karlovačka mesna industrija d.d.",
+      "note": "Croatian C with acute",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001013838",
+      "current": "NIKSEN - ?AVOR",
+      "corrected": "NIKSEN - ŠAVOR",
+      "note": "S with caron (Kotor)",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001013881",
+      "current": "Industrija mesa Goranovi? d.o.o. Nik?i?",
+      "corrected": "Industrija mesa Goranović d.o.o. Nikšić",
+      "note": "C with acute and S with caron; city 'Nik?i? Stra?evina' in the same file",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001014537",
+      "current": "Lacrum Velké Mezi?í?í s.r.o. CZ 63992370",
+      "corrected": "Lacrum Velké Meziříčí s.r.o. CZ 63992370",
+      "note": "R with caron and C with caron; town 'Velke Mezi?i?i' in the same file",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001014556",
+      "current": "LE&Co - Ing. Ji?í Lenc s.r.o. CZ26502658",
+      "corrected": "LE&Co - Ing. Jiří Lenc s.r.o. CZ26502658",
+      "note": "R with caron",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001014686",
+      "current": "Frais Devant Z.A.C. du parc d?activités du Tuboe",
+      "corrected": "Frais Devant Z.A.C. du parc d'activités du Tuboe",
+      "note": "E with acute",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001014853",
+      "current": "PR?UTANA GRADINA d.o.o.",
+      "corrected": "PRŠUTANA GRADINA d.o.o.",
+      "note": "Croatian S with caron",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001014967",
+      "current": "Soko?ów S.A. Robakowo",
+      "corrected": "Sokołów S.A. Robakowo",
+      "note": "L with stroke; parent name in the export is SOKOLOW S.A.",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001014994",
+      "current": "ZAK?ADY MI?SNE Nove Sp. z o.o.",
+      "corrected": "ZAKŁADY MIĘSNE Nove Sp. z o.o.",
+      "note": "L with stroke and E with ogonek",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001015547",
+      "current": "PR?UT-VO?TANE d.o.o.",
+      "corrected": "PRŠUT-VOĐTANE d.o.o.",
+      "note": "Croatian S with caron and D with stroke",
+      "confirmed": true,
+      "reviewed_by": "user"
+    },
+    {
+      "customer_id": "0001015777",
+      "current": "MESNINE ?R d.o.o. PODLEHNIK",
+      "corrected": "MESNINE ČR d.o.o. PODLEHNIK",
+      "note": "C with caron (Podlehnik)",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001017089",
+      "current": "GAVRILOVI? d.o.o.",
+      "corrected": "GAVRILOVIĆ d.o.o.",
+      "note": "Street 'Gavrilovic?ev trg' in the same file",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001017141",
+      "current": "Mijuki?-prom",
+      "corrected": "Mijukić-prom",
+      "note": "Croatian C with acute",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001017616",
+      "current": "ENGROS P. KUCHARSKI, R. TORCHALSKI SPÓ?KA JAWNA",
+      "corrected": "ENGROS P. KUCHARSKI, R. TORCHALSKI SPÓŁKA JAWNA",
+      "note": "L with stroke",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001023662",
+      "current": "KMOTR  - Masna Krom??í? a. s.",
+      "corrected": "KMOTR  - Masna Kroměříž a. s.",
+      "note": "E with caron, R with caron, Z with caron; town in the same file",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001039674",
+      "current": "PRANTL Masný pr?mysl s.r.o. DI?: CZ28128079",
+      "corrected": "PRANTL Masný průmysl s.r.o. DIČ: CZ28128079",
+      "note": "U with ring and C with caron",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001045085",
+      "current": "Krahulík - MASOZÁVOD Krahul?í, a.s. CZ 25586823",
+      "corrected": "Krahulík - MASOZÁVOD Krahulčí, a.s. CZ 25586823",
+      "note": "I with acute and C with caron; the town is not confirmed",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001045943",
+      "current": "Inter-Wiba Andrzej Wiewióra-Barabac Wies?awa Wiewióra-Barabach Sp. J.",
+      "corrected": "Inter-Wiba Andrzej Wiewióra-Barabac Wiesława Wiewióra-Barabach Sp. J.",
+      "note": "L with stroke",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001050141",
+      "current": "?ito d.d.",
+      "corrected": "Žito d.d.",
+      "note": "Croatian Z with caron (Cepin)",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001050142",
+      "current": "?ITO d.d.",
+      "corrected": "ŽITO d.d.",
+      "note": "Croatian Z with caron (Osijek)",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001050316",
+      "current": "ZDENKA-mlije?ni proizvodi d.o.o.",
+      "corrected": "ZDENKA-mliječni proizvodi d.o.o.",
+      "note": "Croatian C with caron",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001050384",
+      "current": "Uzeniny P?íbram, a. s.",
+      "corrected": "Uzeniny Příbram, a. s.",
+      "note": "R with caron; town 'P?ibram' in the same file",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001050611",
+      "current": "C.E.M. ? Soc. Coop. Cooperativa fra Esercenti Macellai",
+      "corrected": "C.E.M. – Soc. Coop. Cooperativa fra Esercenti Macellai",
+      "note": "Separator; the dash type could not be confirmed",
+      "confirmed": true,
+      "reviewed_by": "user"
+    },
+    {
+      "customer_id": "0001050917",
+      "current": "VENKY?S (INDIA) LIMITED (Food Div.) Village Baur, P.O. Karunj,",
+      "corrected": "VENKY'S (INDIA) LIMITED (Food Div.) Village Baur, P.O. Karunj,",
+      "note": "Apostrophe (typographic in the export)",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001050995",
+      "current": "Bohu?ovická mlékárna, a. s.",
+      "corrected": "Bohušovická mlékárna, a. s.",
+      "note": "S with caron; town 'Bohu?ovice' in the same file",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001051097",
+      "current": "Madeta Planá nad Lu?nicí",
+      "corrected": "Madeta Planá nad Lužnicí",
+      "note": "Z with caron (Planá nad Lužnicí)",
+      "confirmed": true,
+      "reviewed_by": "user"
+    },
+    {
+      "customer_id": "0001051106",
+      "current": "Farmer?s Choice Limited",
+      "corrected": "Farmer's Choice Limited",
+      "note": "Apostrophe (typographic in the export)",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001051331",
+      "current": "SNJ Gorni? d.o.o",
+      "corrected": "SNJ Gornić d.o.o",
+      "note": "C with acute; street 'Sava Buri?a' in the same file",
+      "confirmed": true,
+      "reviewed_by": "user"
+    },
+    {
+      "customer_id": "0001051380",
+      "current": "Zak?ady Mi?sne HAGA Sp. z o. o.",
+      "corrected": "Zakłady Mięsne HAGA Sp. z o. o.",
+      "note": "L with stroke and E with ogonek",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001051535",
+      "current": "Animex Kutno sp. z o.o. Oddzia? K1 w Kutnie",
+      "corrected": "Animex Kutno sp. z o.o. Oddział K1 w Kutnie",
+      "note": "L with stroke",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001051653",
+      "current": "Crocodille ?R, spol. s r.o.",
+      "corrected": "Crocodille ČR, spol. s r.o.",
+      "note": "C with caron (Czech Republic)",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001052325",
+      "current": "DOO ?UR?EVI? 1999 SUBOTI?TE",
+      "corrected": "DOO ĆURČEVIĆ 1999 SUBOTIĆTE",
+      "note": "C with acute, C with caron, C with acute; town 'Suboti?te' in the same file",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001052357",
+      "current": "?eznictví a uzená?ství U DOLEJ?ÍCH, s.r.o.",
+      "corrected": "Řeznictví a uzenářství U DOLEJŠÍCH, s.r.o.",
+      "note": "R with caron, S with caron, S with caron",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001052466",
+      "current": "Dr?be?á?ský závod Klatovy a. s.",
+      "corrected": "Drábežáňský závod Klatovy a. s.",
+      "note": "A with acute, Z with caron, N with caron; the word could not be confirmed",
+      "confirmed": true,
+      "reviewed_by": "user"
+    },
+    {
+      "customer_id": "0001052473",
+      "current": "Ettat Et Ürünleri ?n?. G?da San. ve",
+      "corrected": "Ettat Et Ürünleri Önü. Gıda San. ve",
+      "note": "O with umlaut, U with umlaut and I with dot above; the word could not be confirmed",
+      "confirmed": true,
+      "reviewed_by": "user"
+    },
+    {
+      "customer_id": "0001052616",
+      "current": "Drobimex Sp. z o.o. Zak?ad Produkcyjny",
+      "corrected": "Drobimex Sp. z o.o. Zakład Produkcyjny",
+      "note": "L with stroke",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001052637",
+      "current": "Industrija mesa Matijevi? d.o.o.",
+      "corrected": "Industrija mesa Matijević d.o.o.",
+      "note": "C with acute (Novi Sad)",
+      "confirmed": true,
+      "reviewed_by": "user"
+    },
+    {
+      "customer_id": "0001052649",
+      "current": "Industrija mesa Semi? d.o.o.",
+      "corrected": "Industrija mesa Semić d.o.o.",
+      "note": "C with acute; street 'Ozrakovici' in the same file",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001052859",
+      "current": "Zak?ady Mi?sne SALTOWSKI",
+      "corrected": "Zakłady Mięsne SALTOWSKI",
+      "note": "L with stroke and E with ogonek",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001053002",
+      "current": "Mesna industrija Bra?a Pivac d.o.o.",
+      "corrected": "Mesna industrija Brača Pivac d.o.o.",
+      "note": "Croatian C with caron; company sits in Vrgorac",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001053429",
+      "current": "Mesna industrija Ravli? d.o.o.",
+      "corrected": "Mesna industrija Ravlić d.o.o.",
+      "note": "Croatian C with acute (Osijek)",
+      "confirmed": true,
+      "reviewed_by": "user"
+    },
+    {
+      "customer_id": "0001054047",
+      "current": "A/S ?Cesvaines Piens?",
+      "corrected": "A/S “Cesvaines Piens”",
+      "note": "Typographic quotes around the name; the inner text could not be confirmed",
+      "confirmed": true,
+      "reviewed_by": "user"
+    },
+    {
+      "customer_id": "0001054360",
+      "current": "Quinta de Jugais?Comércio de Produtos Alimentares, LDA.",
+      "corrected": "Quinta de Jugais–Comércio de Produtos Alimentares, LDA.",
+      "note": "Separator; the dash type could not be confirmed",
+      "confirmed": true,
+      "reviewed_by": "user"
+    },
+    {
+      "customer_id": "0001054456",
+      "current": "Z.M ?uków S.A.",
+      "corrected": "Z.M Żuków S.A.",
+      "note": "Z with dot above",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001054756",
+      "current": "Okr?gowa Spó?dzielnia Mleczarska w Kosow",
+      "corrected": "Okręgowa Spółdzielnia Mleczarska w Kosow",
+      "note": "E with ogonek and L with stroke",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001054805",
+      "current": "MASO UZENINY PÍSEK, a.s. Výrobní st?edisko Písek",
+      "corrected": "MASO UZENINY PÍSEK, a.s. Výrobní středisko Písek",
+      "note": "R with caron",
+      "confirmed": true,
+      "reviewed_by": "user"
+    },
+    {
+      "customer_id": "0001054879",
+      "current": "Konet Et Entegre A.?.",
+      "corrected": "Konet Et Entegre A.Ş.",
+      "note": "S with cedilla",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001054881",
+      "current": "Rella G?da San. ve Tic. A.?.",
+      "corrected": "Rella Gıda San. ve Tic. A.Ş.",
+      "note": "I with dot above and S with cedilla",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001055061",
+      "current": "Tareks Tuzla Et ve Et Ürünleri A.?.",
+      "corrected": "Tareks Tuzla Et ve Et Ürünleri A.Ş.",
+      "note": "S with cedilla",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001055592",
+      "current": "Bidfood Dý?ina a.s.",
+      "corrected": "Bidfood Dýšina a.s.",
+      "note": "S with caron",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001055594",
+      "current": "Bizerba Tart? Çözümleri San. Ve Tic. A.?",
+      "corrected": "Bizerba Tartı Çözümleri San. Ve Tic. A.Ş",
+      "note": "I with dot above and S with cedilla",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001055806",
+      "current": "SUCHAN Zak?ad Mi?sny sp.j. Barbara Suchan Kazimierz Suchan",
+      "corrected": "SUCHAN Zakład Mięsny sp.j. Barbara Suchan Kazimierz Suchan",
+      "note": "L with stroke and E with ogonek",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001055987",
+      "current": "ZMB Bia?ystok Sp z o.o. sp.k.",
+      "corrected": "ZMB Białystok Sp z o.o. sp.k.",
+      "note": "L with stroke",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001056003",
+      "current": "Zak?ad Mleczarski w Piotrkowie Kuja",
+      "corrected": "Zakład Mleczarski w Piotrkowie Kuja",
+      "note": "L with stroke",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001056419",
+      "current": "AGRA?S FOOD FACTORY SRL",
+      "corrected": "AGRAȘS FOOD FACTORY SRL",
+      "note": "S with comma below; the doubled S could not be confirmed",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001056575",
+      "current": "Veljkovi? d.o.o.",
+      "corrected": "Veljković d.o.o.",
+      "note": "C with acute",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001057235",
+      "current": "Sýrárna ROLS, Rols Le?any, spol. s.r.o.",
+      "corrected": "Sýrárna ROLS, Rols Lešany, spol. s.r.o.",
+      "note": "S with caron",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001057365",
+      "current": "SAMOSTALNA TRGOVINSKA RADNJA - RENT A CAR ?UNA TRADE",
+      "corrected": "SAMOSTALNA TRGOVINSKA RADNJA - RENT A CAR ĐUNA TRADE",
+      "note": "D with stroke; the letter could not be confirmed from the export",
+      "confirmed": true,
+      "reviewed_by": "user"
+    },
+    {
+      "customer_id": "0001057432",
+      "current": "DRU?TVO ZA PROIZVODNJU TRGOVINU I USLUGE",
+      "corrected": "DRUŠTVO ZA PROIZVODNJU TRGOVINU I USLUGE",
+      "note": "S with caron",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001057587",
+      "current": "O?Brien Fine Foods UK",
+      "corrected": "O'Brien Fine Foods UK",
+      "note": "Apostrophe (typographic in the export)",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001057742",
+      "current": "Unicoop Firenze ? centro freschi",
+      "corrected": "Unicoop Firenze – centro freschi",
+      "note": "Separator; the dash type could not be confirmed",
+      "confirmed": true,
+      "reviewed_by": "user"
+    },
+    {
+      "customer_id": "0001057780",
+      "current": "?ahovi? Company d.o.o.",
+      "corrected": "Žahoviž Company d.o.o.",
+      "note": "Croatian Z with caron on both sides",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001058467",
+      "current": "Mijuki?-prom",
+      "corrected": "Mijukić-prom",
+      "note": "Croatian C with acute; same company as 0001017141",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001059157",
+      "current": "Mesna industrija Bra?a Pivac Proizvodna lokacija Karlovac",
+      "corrected": "Mesna industrija Brača Pivac Proizvodna lokacija Karlovac",
+      "note": "Croatian C with caron; same company as 0001053002",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001059250",
+      "current": "DRU?TVO S OGRANI?ENOM ODGOVORNO??U ?SU?ARA STANI?I?\" CETINJE",
+      "corrected": "DRUŠTVO S OGRANIČENOM ODGOVORNOŠĆU ŠSUŠARA STANIŠIĆ\" CETINJE",
+      "note": "S with caron, C with caron, S with caron, S with caron, C with caron, C with acute (Cetinje)",
+      "confirmed": true,
+      "reviewed_by": "user"
+    },
+    {
+      "customer_id": "0001059660",
+      "current": "Migros Ticaret A.?.",
+      "corrected": "Migros Ticaret A.Ş.",
+      "note": "S with cedilla",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001059723",
+      "current": "TO?XTANIYOZ-OTA FX",
+      "corrected": "TO'XTANIYOZ-OTA FX",
+      "note": "Apostrophe (typographic in the export)",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001059729",
+      "current": "Öz???k Süt Ürünleri Yem G?da Tar?m",
+      "corrected": "Öztürk Süt Ürünleri Yem Gıda Tarım",
+      "note": "T with U with ring; the word could not be confirmed",
+      "confirmed": true,
+      "reviewed_by": "user"
+    },
+    {
+      "customer_id": "0010025692",
+      "current": "?itar d.o.o",
+      "corrected": "Žitar d.o.o",
+      "note": "Croatian Z with caron",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0010025976",
+      "current": "Fazl?o?lu Et ve Et Ürün G?da Sanayi",
+      "corrected": "Fazlıoğlu Et ve Et Ürün Gıda Sanayi",
+      "note": "I with dot above, G with breve and I with dot above",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0010025977",
+      "current": "Beyde Süt Sanayi A.?.",
+      "corrected": "Beyde Süt Sanayi A.Ş.",
+      "note": "S with cedilla",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0010025979",
+      "current": "Bal?kesir Onur Süt ve Petrol Ürün.",
+      "corrected": "Balıkesir Onur Süt ve Petrol Ürün.",
+      "note": "I with dot above (Balikesir)",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0010025981",
+      "current": "Gündo?du G?da Süt Ürünleri San. ve",
+      "corrected": "Gündoğdu Gıda Süt Ürünleri San. ve",
+      "note": "G with breve and I with dot above",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0010025982",
+      "current": "ÇAPANO?LU ET VE GIDA SANAY? T?CARET",
+      "corrected": "ÇAPANOĞLU ET VE GIDA SANAYİ TİCARET",
+      "note": "G with breve and two I with dot above",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0010026000",
+      "current": "MAHMUT KAYA SÜT ÜRÜNLER? GIDA TARIM",
+      "corrected": "MAHMUT KAYA SÜT ÜRÜNLERİ GIDA TARIM",
+      "note": "I with dot above",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0010026084",
+      "current": "?itar d.o.o. Kralja Tomislava 5",
+      "corrected": "Žitar d.o.o. Kralja Tomislava 5",
+      "note": "Croatian Z with caron",
+      "confirmed": true
+    }
+  ],
+  "sites": [
+    {
+      "customer_id": "0001013868",
+      "field": "physical_street",
+      "current": "Largo das Arribanas ? Arrifes",
+      "corrected": "Largo das Arribanas – Arrifes",
+      "note": "Separator; the dash type could not be confirmed",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001050619",
+      "field": "physical_city",
+      "current": "Lesignano De? Bagni",
+      "corrected": "Lesignano De' Bagni",
+      "note": "Apostrophe (typographic in the export)",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001050700",
+      "field": "physical_city",
+      "current": "Poggio Sant?Ilario",
+      "corrected": "Poggio Sant'Ilario",
+      "note": "Apostrophe (typographic in the export)",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001051147",
+      "field": "physical_city",
+      "current": "Cedros ? Horta",
+      "corrected": "Cedros – Horta",
+      "note": "Separator; the dash type could not be confirmed",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001054034",
+      "field": "physical_city",
+      "current": "Hornachos ? Badajoz",
+      "corrected": "Hornachos – Badajoz",
+      "note": "Separator (town in the province of Badajoz)",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001056973",
+      "field": "physical_street",
+      "current": "Via dell?Industria, 11",
+      "corrected": "Via dell'Industria, 11",
+      "note": "Apostrophe (typographic in the export)",
+      "confirmed": true
+    },
+    {
+      "customer_id": "0001058375",
+      "field": "physical_street",
+      "current": "Via Sant?Anna 5",
+      "corrected": "Via Sant'Anna 5",
+      "note": "Apostrophe (typographic in the export)",
+      "confirmed": true
+    }
+  ]
+}
