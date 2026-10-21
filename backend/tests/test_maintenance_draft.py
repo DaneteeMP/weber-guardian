@@ -88,10 +88,12 @@ def _dictionary(
     db.commit()
 
 
-def _rule_for(db, material_no: str, workload: str | None, *, needs_review: bool = False) -> WorkloadRule:
+def _rule_for(
+    db, material_no: str, workload: str | None, *, needs_review: bool = False, name: str | None = None
+) -> WorkloadRule:
     """Create a global rule and link one dictionary material to it."""
     rule = WorkloadRule(
-        name=f"rule for {material_no}",
+        name=name or f"rule for {material_no}",
         workload=Decimal(workload) if workload is not None else None,
         category="legacy",
         needs_review=needs_review or workload is None,
@@ -111,7 +113,8 @@ def test_line_amount_is_workload_times_the_subsidiary_rate(db, italy_customer):
 
     line = draft.rows[0]
     assert line.kind == "line"
-    assert line.description == "602"
+    # Slicer machines (CCS machine types) speak the family label with a prefix.
+    assert line.description == "Slicer 602"
     assert line.workload == Decimal("3.0")
     # 3.0 h × 58.00 €/h = 174.00, computed server-side.
     assert line.amount == Decimal("174.00")
@@ -119,10 +122,30 @@ def test_line_amount_is_workload_times_the_subsidiary_rate(db, italy_customer):
     assert line.needs_review is False
 
 
+def test_washing_line_keeps_the_plain_family_label(db, italy_customer):
+    """A non-slicer machine hitting a shared family entry has no prefix.
+
+    The catalog label "602" prices both CCS602 slicers and WLN06021 washing
+    lines. Only the machine decides the prefix, so the washing line must keep
+    the plain label.
+    """
+    _confirmed_line(db, label="602", machine_type="WLN06021")
+    _equipment(
+        db, italy_customer.customer_id, "602-750 MCS",
+        machine_type="WLN06021", material_no="WLN06021",
+    )
+
+    draft = maintenance_draft(db, italy_customer.customer_id, ["602-750 MCS"])
+
+    line = draft.rows[0]
+    assert line.kind == "line"
+    assert line.description == "602"
+
+
 def test_modules_resolve_through_the_dictionary_and_collapse_duplicates(db, italy_customer):
     _confirmed_line(db)
     _dictionary(db, "CCW05001", "CCW")
-    _rule_for(db, "CCW05001", "1.5")
+    _rule_for(db, "CCW05001", "1.5", name="Checkweigher CCW mono")
     # The same part installed twice on one machine must not be priced twice.
     _equipment(db, italy_customer.customer_id, "602-750 MCS", material_no="CCW05001", component_type="Checkweigher")
     _equipment(db, italy_customer.customer_id, "602-750 MCS", material_no="CCW05001", component_type="Checkweigher")
@@ -131,7 +154,8 @@ def test_modules_resolve_through_the_dictionary_and_collapse_duplicates(db, ital
 
     modules = [row for row in draft.rows if row.kind == "module"]
     assert len(modules) == 1
-    assert modules[0].description == "Checkweigher"
+    # A priced module carries its workload rule name, not the dictionary name.
+    assert modules[0].description == "Checkweigher CCW mono"
     assert modules[0].type_code == "CCW"
     assert modules[0].workload == Decimal("1.5")
     assert modules[0].amount == Decimal("87.00")
@@ -164,6 +188,8 @@ def test_dictionary_material_without_a_rule_is_flagged_not_priced(db, italy_cust
 
     module = draft.rows[1]
     assert module.type_code == "CCW"
+    # No rule adopted it: the row keeps the dictionary name as a label.
+    assert module.description == "Checkweigher"
     assert module.workload is None
     assert module.workload_id is None
     assert module.needs_review is True
@@ -193,7 +219,7 @@ def test_slicer_component_is_the_line_and_is_not_repeated_as_a_module(db, italy_
 
     assert [row.kind for row in draft.rows] == ["line"]
     line = draft.rows[0]
-    assert line.description == "30x"
+    assert line.description == "Slicer 30x"
     assert line.workload == Decimal("2.0")
     assert draft.total_workload == Decimal("2.0")
     assert draft.total_amount == Decimal("116.00")
@@ -382,7 +408,7 @@ def test_gigi_machine_resolves_its_real_modules_and_never_a_slicer(db, italy_cus
     _dictionary(db, "CMB01001", "CMB", name="Marking Conveyor", component_type="Transport Conveyor")
     _rule_for(db, "CMB01001", "1.50", needs_review=True)
     _dictionary(db, "CCW01001", "CCW", name="Checkweigher CCW 100", component_type="Checkweigher")
-    _rule_for(db, "CCW01001", "1.00")
+    _rule_for(db, "CCW01001", "1.00", name="Checkweigher CCW mono")
     _dictionary(db, "CCU04051", "CCU", name="portioning unit 405-Extended", component_type="Portioning Conveyor")
     _rule_for(db, "CCU04051", "0.50")
     _dictionary(db, "CCS04051", "CCS", name="Slicer 405-Extended", component_type="Slicer")
@@ -402,7 +428,8 @@ def test_gigi_machine_resolves_its_real_modules_and_never_a_slicer(db, italy_cus
     assert modules["CMB01001"].workload == Decimal("1.50")
     assert modules["CMB01001"].needs_review is True
     assert modules["CCW01001"].workload == Decimal("1.00")
-    assert modules["CCW01001"].description == "Checkweigher CCW 100"
+    # Priced modules speak the workload rule name, not the dictionary name.
+    assert modules["CCW01001"].description == "Checkweigher CCW mono"
     assert modules["CCU04051"].workload == Decimal("0.50")
     assert "WLZ04051" not in modules
     # 2.0 line + 1.0 KSG + 1.5 CCE + 1.5 CMB + 1.0 CCW + 0.5 CCU = 7.5 h.

@@ -14,10 +14,18 @@ Offer type mapping (Campaign does not exist in Guardian, removed):
 * audit: normal price, branch discount applies, no basic kit;
 * off_guardian: branch discount is NOT applied (discount = 0).
 
-The Basic Kit is a Guardian Type option, not a separate selector: when
-basic_kit=True the rounding adjustment is split (half to the kit, rest to
-work) like the legacy "Basic Kit" Guardian type, and bk_hours/bk_price come
-from the basic_kit catalog.
+    The Basic Kit is a Guardian Type option, not a separate selector: when
+    basic_kit=True the rounding adjustment is split (half to the kit, rest to
+    work) like the legacy "Basic Kit" Guardian type, and bk_hours/bk_price come
+    from the basic_kit catalog.
+
+    Nearby trips and hotel nights are derived from on-site hours only (work +
+    kit), never from report hours: legacy NumeroViajes = HorasGuardian/8, so
+    inspecting more machines does not inflate travel. One hotel night per
+    full 8h block of work + travel, for both nearby and far trips (the report
+    row does not extend the stay). Report hours are derived upstream (2h per
+    inspected machine, legacy ActualizarListadoMaquinas); the service feeds
+    them as an input.
 """
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP
@@ -52,7 +60,6 @@ class PricingInput:
     diet_half_rate: Decimal = Decimal("0")
     hotel_rate: Decimal = Decimal("0")
     discount_rate: Decimal = Decimal("0.15")
-    num_trips: int = 1
     basic_kit: bool = False
     apply_discount: bool = True
     currency: str = "EUR"
@@ -99,8 +106,6 @@ def calculate(inp: PricingInput, bk_price: Decimal = Decimal("0")) -> PricingOut
             raise ValueError(f"{name} must be >= 0")
     if bk_price < 0:
         raise ValueError("bk_price must be >= 0")
-    if inp.num_trips < 1:
-        raise ValueError("num_trips must be >= 1")
 
     raw = inp.trip_hours_base + inp.work_hours + inp.bk_hours + inp.report_hours
     total_hours = (raw / EIGHT).to_integral_value(rounding=ROUND_CEILING) * EIGHT
@@ -123,19 +128,49 @@ def calculate(inp: PricingInput, bk_price: Decimal = Decimal("0")) -> PricingOut
 
     num_days = max(1, int(total_hours // EIGHT))
 
+    # Working days that drive travel (legacy NumeroViajes = HorasGuardian/8):
+    # derived from on-site hours only (work + kit), never from report hours,
+    # so inspecting more machines does not inflate trips or hotel nights.
+    # Rounding padding is not real work, so the raw inputs are used.
+    work_days = max(
+        1,
+        int(((inp.work_hours + inp.bk_hours) / EIGHT).to_integral_value(rounding=ROUND_CEILING)),
+    )
+
     if inp.km < 200:
-        # Nearby travel: the trip (cost, hours and half diet) repeats once per
-        # trip (legacy "NumeroViajes"), not per working day.
-        trips = Decimal(inp.num_trips)
+        # Nearby travel: the trip (cost and hours) repeats once per working
+        # day, derived from work hours only so equipment (report hours)
+        # never scales it.
+        trips = Decimal(work_days)
         trip_cost = inp.km * inp.km_rate * trips
         trip_hours = inp.trip_hours_base * trips
-        diets = trips * inp.diet_half_rate
-        hotel = Decimal("0")
+        nearby = True
     else:
         trip_cost = inp.km * inp.km_rate + inp.trip_hours_base * inp.tech_rate
         trip_hours = inp.trip_hours_base
-        hotel = Decimal(num_days - 1) * inp.hotel_rate
-        diets = Decimal(num_days - 1) * inp.diet_full_rate + inp.diet_half_rate
+        nearby = False
+
+    # One hotel night per full 8h block of work + travel (the report row
+    # does not extend the stay), for both nearby and far trips. Nearby uses
+    # the total repeated trip hours (base per day x working days).
+    hotel_nights = int(
+        ((inp.work_hours + inp.bk_hours + trip_hours) / EIGHT).to_integral_value(
+            rounding=ROUND_FLOOR
+        )
+    )
+    hotel = Decimal(hotel_nights) * inp.hotel_rate
+
+    if nearby:
+        # Legacy nearby diets were one half diet per working day. With
+        # hotels now applying here too, each hotel night upgrades to a full
+        # diet and the leftover working days keep the half diet.
+        diets = Decimal(hotel_nights) * inp.diet_full_rate + max(
+            Decimal("0"), Decimal(work_days) - Decimal(hotel_nights)
+        ) * inp.diet_half_rate
+    else:
+        # Far: full diets match the hotel nights plus one half diet for the
+        # travel day (legacy behavior).
+        diets = Decimal(hotel_nights) * inp.diet_full_rate + inp.diet_half_rate
 
     # Final adjustment (legacy "Reajuste final"): work absorbs whatever the
     # trip/report/kit rows leave of the rounded total, so the breakdown sums

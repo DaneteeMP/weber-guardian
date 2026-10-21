@@ -116,10 +116,18 @@ def _line_row(
         else Decimal("0.00")
     )
 
+    # The catalog label names the shared family ("602" covers both a slicer
+    # and a washing line), so the prefix comes from the machine itself: the
+    # computerslicer family (CCS machine types) reads "Slicer 902", a washing
+    # line hitting the same entry keeps the plain label.
+    label = entry.label
+    if machine_type.upper().startswith("CCS"):
+        label = f"Slicer {label}"
+
     return MaintenanceDraftRowOut(
         machine=machine,
         kind="line",
-        description=entry.label,
+        description=label,
         workload=workload,
         amount=amount,
         match_state="confirmed" if is_confirmed else "unconfirmed",
@@ -145,6 +153,12 @@ def _module_rows(
     priced by the line row, and repeating them would double the machine. The
     same applies to every other material the dictionary marks as a line part
     (is_line_part), unless an explicit rule has priced it.
+
+    Naming: a priced module shows its workload rule name ("Infeeder CCA",
+    "Checkweigher CCW mono") because that is the label the admins curate in
+    the Workload Catalog and the one the offer must speak. Only unpriced rows
+    (no linked rule) fall back to the dictionary name, which may be a raw
+    German SAP text.
     """
     # One row per distinct catalogue material; keep the raw material so a
     # dictionary imported before the model-aware normalization still resolves.
@@ -224,7 +238,9 @@ def _module_rows(
             MaintenanceDraftRowOut(
                 machine=machine,
                 kind="module",
-                description=name.name_en,
+                # The curated rule name speaks for the module; the dictionary
+                # name only labels rows no rule has adopted yet.
+                description=rule.name if rule is not None else name.name_en,
                 material_no=material_no,
                 type_code=type_code,
                 # Traceability: the catalog row that priced this line.

@@ -86,7 +86,6 @@ class OfferCalculateIn(BaseModel):
 
     work_hours: Decimal = Field(ge=Decimal("0"))
     bk_hours: Decimal = Field(default=Decimal("0"), ge=Decimal("0"))
-    report_hours: Decimal = Field(default=Decimal("0"), ge=Decimal("0"))
     trip_hours_base: Decimal = Field(default=Decimal("0"), ge=Decimal("0"))
     km: Decimal = Field(default=Decimal("0"), ge=Decimal("0"))
     km_rate: Decimal = Field(default=Decimal("0"), ge=Decimal("0"))
@@ -102,8 +101,12 @@ class OfferCalculateIn(BaseModel):
     # drops the branch discount; the "Basic Kit" guardian type sends
     # offer_type guardian with basic_kit True.
     offer_type: Literal["guardian", "audit", "off_guardian"] = "audit"
-    num_trips: int = Field(default=1, ge=1)
     basic_kit: bool = False
+    # Inspected machines count. Report hours are never client data: the
+    # service derives them as equipment_count x 2 (legacy Actualizar-
+    # ListadoMaquinas). Persistence recomputes the count from the stored
+    # items, so this field is only the dry-run preview number.
+    equipment_count: int = Field(ge=0)
 
 
 class OfferCalculateOut(BaseModel):

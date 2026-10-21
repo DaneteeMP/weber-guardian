@@ -28,60 +28,111 @@ def test_rounds_up_to_8h_days_and_breaks_down_exactly():
     # raw = 3 + 10 + 0 + 2 = 15 -> 16h, 2 days.
     assert out.total_hours == Decimal("16.0")
     assert out.num_days == 2
-    # Final adjustment: work = 16 - (trip 3 + report 2 + bk 0) = 11. The
-    # breakdown always sums to TOTAL HOURS (= TOTAL GUARDIAN H).
-    assert out.work_hours == Decimal("11.0")
-    assert (
-        out.work_hours + out.trip_hours + out.report_hours + out.bk_hours == out.total_hours
-    )
-
-
-def test_nearby_km_under_200_scales_with_num_trips():
-    out = calculate(_base())
-    # Nearby travel repeats per trip (default 1): cost, hours and half diet.
-    assert out.trip_cost == Decimal("25.00")
-    assert out.trip_hours == Decimal("3.0")
-    assert out.diets == Decimal("20.00")
-    assert out.hotel_nights_cost == Decimal("0.00")
-    assert out.expenses == Decimal("45.00")
-
-
-def test_two_trips_multiply_nearby_legs_and_diets():
-    out = calculate(_base(num_trips=2))
-    # Twice the trip cost, hours and half diet. The breakdown still sums to
-    # TOTAL HOURS: work shrinks to absorb the doubled trip hours.
-    assert out.trip_cost == Decimal("50.00")
-    assert out.trip_hours == Decimal("6.0")
-    assert out.diets == Decimal("40.00")
+    # Nearby travel repeats once per day: trip hours = 3 x 2 days = 6. The
+    # final adjustment leaves work = 16 - (6 + 2 + 0) = 8.
     assert out.work_hours == Decimal("8.0")
     assert (
         out.work_hours + out.trip_hours + out.report_hours + out.bk_hours == out.total_hours
     )
 
 
+def test_nearby_km_under_200_repeats_once_per_day():
+    out = calculate(_base())
+    # Nearby travel repeats per working day (legacy NumeroViajes = work/8:
+    # work 10 -> ceil(10/8) = 2 days, independent of report hours).
+    assert out.trip_cost == Decimal("50.00")  # 50 km x 0.5 x 2 days
+    assert out.trip_hours == Decimal("6.0")  # 3h base x 2 days
+    # Hotel applies to nearby too: floor((10 + 6)/8) = 2 nights; both
+    # working days carry a hotel night, so both diets are full.
+    assert out.hotel_nights_cost == Decimal("160.00")
+    assert out.diets == Decimal("80.00")  # 2 full, 0 leftover half diets
+    assert out.expenses == Decimal("290.00")  # 50 trip + 80 diets + 160 hotel
+
+
+def test_nearby_half_diet_for_days_without_hotel():
+    # A working day without a hotel night keeps the legacy half diet.
+    # work 9 -> ceil(9/8) = 2 working days, legs = 2 x 1h = 2h;
+    # floor((9 + 2)/8) = 1 night -> 1 full diet + 1 half diet.
+    out = calculate(
+        _base(work_hours=Decimal("9"), trip_hours_base=Decimal("1"), report_hours=Decimal("2"))
+    )
+    assert out.hotel_nights_cost == Decimal("80.00")
+    assert out.diets == Decimal("60.00")  # 1 full (hotel) + 1 half (no hotel)
+
+
+def test_nearby_hotel_ignores_report_hours():
+    """The report row must not add hotel nights or upgrade diets (same as far)."""
+    lean = calculate(_base(report_hours=Decimal("2")))
+    loaded = calculate(_base(report_hours=Decimal("10")))
+    assert lean.hotel_nights_cost == loaded.hotel_nights_cost == Decimal("160.00")
+    assert lean.diets == loaded.diets == Decimal("80.00")
+
+
+def test_nearby_report_hours_do_not_inflate_trips():
+    """Legacy NumeroViajes = HorasGuardian/8: trips scale with work days only.
+    Adding machines (report hours) must not add trips, trip cost or diets."""
+    two_machines = calculate(_base(report_hours=Decimal("2")))  # 2 machines
+    five_machines = calculate(_base(report_hours=Decimal("10")))  # 5 machines
+    assert two_machines.trip_cost == five_machines.trip_cost
+    assert two_machines.trip_hours == five_machines.trip_hours
+    assert two_machines.diets == five_machines.diets
+    # Same work days (ceil(10/8) = 2) regardless of the report row.
+    assert two_machines.trip_hours == Decimal("6.0")
+
+
+def test_nearby_one_day_repeats_once():
+    # One 8h day (work 3 + trip 1 + report 2): a single leg and a single diet.
+    out = calculate(_base(work_hours=Decimal("3"), trip_hours_base=Decimal("1")))
+    assert out.num_days == 1
+    assert out.trip_cost == Decimal("25.00")
+    assert out.trip_hours == Decimal("1.0")
+    assert out.diets == Decimal("20.00")
+    assert out.work_hours == Decimal("5.0")  # 8 - trip 1 - report 2
+
+
 def test_far_km_over_200():
     out = calculate(_base(km=Decimal("300"), trip_hours_base=Decimal("4")))
-    # trip = km*rate + base*tech; hotel for extra days; full+half diets.
+    # trip = km*rate + base*tech; hotel = 1 night per 8h block of work+trip;
+    # full diet per night + a half diet on the travel day.
     assert out.trip_cost == Decimal("300") * Decimal("0.5") + Decimal("4") * Decimal("60")
-    assert out.hotel_nights_cost == Decimal("80.00")  # (2 days - 1) * 80
+    assert out.hotel_nights_cost == Decimal("80.00")  # floor((10 + 4)/8) = 1 night
     assert out.diets == Decimal("60.00")  # 1 x 40 + 20
-    # Far travel ignores num_trips (single contract trip over several days).
+    # Far travel keeps a single leg for the whole contract (no day scaling).
     assert out.trip_hours == Decimal("4.0")
+
+
+def test_far_hotel_nights_ignore_report_hours():
+    """One hotel night per full 8h block of work + travel (legacy rule); the
+    report row must not extend the stay or add nights/diets."""
+    lean = calculate(_base(km=Decimal("300"), trip_hours_base=Decimal("5"), report_hours=Decimal("2")))
+    loaded = calculate(_base(km=Decimal("300"), trip_hours_base=Decimal("5"), report_hours=Decimal("10")))
+    # work 10 + trip 5 = 15 -> floor(15/8) = 1 night, regardless of report.
+    assert lean.hotel_nights_cost == Decimal("80.00")
+    assert loaded.hotel_nights_cost == Decimal("80.00")
+    assert lean.diets == loaded.diets == Decimal("60.00")  # 1 full + 1 half
+
+
+def test_far_two_hotel_nights_for_long_work():
+    out = calculate(_base(km=Decimal("300"), trip_hours_base=Decimal("5"), work_hours=Decimal("16")))
+    # work 16 + trip 5 = 21 -> floor(21/8) = 2 nights.
+    assert out.hotel_nights_cost == Decimal("160.00")
+    assert out.diets == Decimal("100.00")  # 2 full + 1 half
 
 
 def test_total_and_total_end_fixed():
     """Locks the inherited OfferBuilder bug fix.
 
-    Buggy JS: total = hours + discount + expenses + kit (1194),
-    total_end = total - discount (1050, client never got 15% off).
-    Fixed: total = hours + expenses + kit (1050 gross),
-    total_end = total - discount (906 net).
+    Buggy JS: total = hours + discount + expenses + kit, total_end =
+    total - discount (client never got 15% off).
+    Fixed: total = hours + expenses + kit (gross),
+    total_end = total - discount (net). Expenses now include the nearby
+    hotel (1250 = 960 + 290).
     """
     out = calculate(_base())
     assert out.hours_import == Decimal("960.00")
     assert out.discount == Decimal("144.00")
-    assert out.total == Decimal("1005.00")
-    assert out.total_end == Decimal("861.00")
+    assert out.total == Decimal("1250.00")
+    assert out.total_end == Decimal("1106.00")
     assert out.total - out.total_end == out.discount
 
 
@@ -90,26 +141,28 @@ def test_basic_kit_splits_rounding_and_prices_spares():
         _base(basic_kit=True, bk_hours=Decimal("2")), bk_price=Decimal("100")
     )
     # raw = 3 + 10 + 2 + 2 = 17 -> 24h (3 days). Adjustment = 7: half to the
-    # kit (3), the rest to work. Final work absorbs what is left.
+    # kit (3), the rest to work. Trip = 3h x 2 work days (ceil(12/8)) = 6;
+    # work absorbs the rest.
     assert out.total_hours == Decimal("24.0")
     assert out.bk_hours == Decimal("5.0")
-    assert out.work_hours == Decimal("14.0")
+    assert out.work_hours == Decimal("11.0")  # 24 - trip 6 - report 2 - bk 5
     assert out.bk_price == Decimal("100.00")
     assert (
         out.work_hours + out.trip_hours + out.report_hours + out.bk_hours == out.total_hours
     )
-    # hours = 24 * 60; total = hours + expenses + spares.
+    # hours = 24 * 60; total = hours + expenses + spares. Expenses = trip 50
+    # + diets 80 (2 nights) + hotel 160.
     assert out.hours_import == Decimal("1440.00")
-    assert out.total == Decimal("1585.00")
-    assert out.total_end == Decimal("1369.00")
+    assert out.total == Decimal("1830.00")  # 1440 + 290 expenses + 100 kit
+    assert out.total_end == Decimal("1614.00")  # 1830 - 216 discount
 
 
 def test_no_basic_kit_keeps_rounding_on_work():
     out = calculate(_base(bk_hours=Decimal("2")), bk_price=Decimal("100"))
     # Same raw numbers but the selector is off: no split, bk_hours stays raw.
     assert out.bk_hours == Decimal("2.0")
-    # work = 24 - trip 3 - report 2 - bk 2 = 17.
-    assert out.work_hours == Decimal("17.0")
+    # work = 24 - trip 6 - report 2 - bk 2 = 14.
+    assert out.work_hours == Decimal("14.0")
     assert out.total_hours == Decimal("24.0")
 
 
@@ -137,24 +190,23 @@ def test_off_guardian_never_discounts():
     out = calculate(_base(apply_discount=False))
     assert out.discount == Decimal("0.00")
     assert out.total_end == out.total
-    assert out.total_end == Decimal("1005.00")
+    assert out.total_end == Decimal("1250.00")
 
 
 def test_reajuste_final_zeroes_work_and_report_on_impossible_total():
-    # Trip legs (4 trips x 4h) exceed the rounded 8h total: nothing left for
-    # work or the report row, so both collapse to zero (legacy behaviour).
+    # Trip legs (2 work days x 12h) exceed the rounded 24h total: nothing left
+    # for work or the report row, so both collapse to zero (legacy behaviour).
     out = calculate(
         _base(
-            work_hours=Decimal("1"),
-            trip_hours_base=Decimal("4"),
-            report_hours=Decimal("1"),
-            num_trips=4,
+            work_hours=Decimal("9"),
+            trip_hours_base=Decimal("12"),
+            report_hours=Decimal("2"),
         )
     )
-    assert out.total_hours == Decimal("8.0")
+    assert out.total_hours == Decimal("24.0")
     assert out.work_hours == Decimal("0.0")
     assert out.report_hours == Decimal("0.0")
-    assert out.trip_hours == Decimal("16.0")
+    assert out.trip_hours == Decimal("24.0")
 
 
 def test_money_uses_decimal_with_two_places():
@@ -170,5 +222,3 @@ def test_negative_inputs_raise():
         calculate(_base(work_hours=Decimal("-1")))
     with pytest.raises(ValueError):
         calculate(_base(km=Decimal("-5")))
-    with pytest.raises(ValueError):
-        calculate(_base(num_trips=0))

@@ -256,7 +256,8 @@ def test_distance_rejects_a_subsidiary_missing_from_catalog(db):
 
 
 def test_resolve_distance_matches_name_code_and_alias(db):
-    """SAP free text (English exonyms, any case) resolves to the catalog row;
+    """SAP free text resolves to the catalog row regardless of accents, case
+    or known exonyms (English, historical Spanish, Portuguese NUTS regions);
     unknown, blank or foreign province yields None so the offer keeps zeroes."""
     _seed(db)
     db.add_all(
@@ -275,6 +276,34 @@ def test_resolve_distance_matches_name_code_and_alias(db):
                 km=Decimal("394"),
                 trip_hours=Decimal("3"),
             ),
+            Distance(
+                subsidiary_id="Weber Italy",
+                province="Forlì-Cesena",
+                province_code="FC",
+                km=Decimal("130"),
+                trip_hours=Decimal("1.5"),
+            ),
+            Distance(
+                subsidiary_id="Weber Iberica",
+                province="Leon",
+                province_code="LE",
+                km=Decimal("336"),
+                trip_hours=Decimal("3.75"),
+            ),
+            Distance(
+                subsidiary_id="Weber Iberica",
+                province="Girona",
+                province_code="GI",
+                km=Decimal("104"),
+                trip_hours=Decimal("1.25"),
+            ),
+            Distance(
+                subsidiary_id="Weber Iberica",
+                province="Portugal",
+                province_code="PT",
+                km=Decimal("629"),
+                trip_hours=Decimal("6.75"),
+            ),
         ]
     )
     db.commit()
@@ -283,6 +312,15 @@ def test_resolve_distance_matches_name_code_and_alias(db):
     assert resolve_distance(db, "Weber Italy", "FI").km == Decimal("351")
     assert resolve_distance(db, "Weber Italy", "  Florence  ").km == Decimal("351")
     assert resolve_distance(db, "Weber Italy", "TURIN").province == "Torino"
+    # Accent normalization works both ways: SAP accented vs catalog plain,
+    # and SAP plain vs the one accented catalog name (Forlì-Cesena).
+    assert resolve_distance(db, "Weber Iberica", "León").province == "Leon"
+    assert resolve_distance(db, "Weber Italy", "Forli-Cesena").province == "Forlì-Cesena"
+    assert resolve_distance(db, "Weber Italy", "FORLI-CESENA").km == Decimal("130")
+    # Historical Spanish exonyms and Portuguese NUTS regions from real SAP sites.
+    assert resolve_distance(db, "Weber Iberica", "Gerona").province == "Girona"
+    assert resolve_distance(db, "Weber Iberica", "Grande Lisboa").province == "Portugal"
+    assert resolve_distance(db, "Weber Iberica", "Reg. Aut. dos Açores").province == "Portugal"
     assert resolve_distance(db, "Weber Italy", "Atlantis") is None
     assert resolve_distance(db, "Weber Italy", "") is None
     assert resolve_distance(db, "Weber Italy", None) is None

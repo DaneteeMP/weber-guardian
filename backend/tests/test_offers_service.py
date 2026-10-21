@@ -26,7 +26,6 @@ def _customer(db, cid="0001012933"):
 def _pricing(**overrides):
     params = {
         "work_hours": Decimal("10"),
-        "report_hours": Decimal("2"),
         "trip_hours_base": Decimal("3"),
         "km": Decimal("50"),
         "km_rate": Decimal("0.5"),
@@ -34,6 +33,8 @@ def _pricing(**overrides):
         "diet_full_rate": Decimal("40"),
         "diet_half_rate": Decimal("20"),
         "hotel_rate": Decimal("80"),
+        # One inspected machine -> 2 report hours (legacy rule).
+        "equipment_count": 1,
     }
     params.update(overrides)
     return OfferCalculateIn(**params)
@@ -53,16 +54,20 @@ def _offer_data(cid="0001012933", number="W-02-2026-0001"):
 
 def test_calculate_is_dry_run_with_fixed_totals():
     out = calculate_price(_pricing())
-    assert out.total == Decimal("1005.00")
-    assert out.total_end == Decimal("861.00")
+    assert out.report_hours == Decimal("2.0")
+    assert out.total == Decimal("1250.00")
+    assert out.total_end == Decimal("1106.00")
 
 
 def test_create_offer_persists_header_and_items_with_server_totals(db):
     _customer(db)
     offer = create_offer(db, _offer_data())
     assert offer.id_guardian_offer == "W-02-2026-0001"
-    assert offer.total == Decimal("1005.00")
-    assert offer.total_end == Decimal("861.00")
+    # Report hours derive from the stored items: both lines share one
+    # machine, so 1 x 2h.
+    assert offer.report_hours == Decimal("2.0")
+    assert offer.total == Decimal("1250.00")
+    assert offer.total_end == Decimal("1106.00")
     assert len(offer.items) == 2
     assert [i.row_no for i in offer.items] == [1, 2]
 
@@ -167,7 +172,9 @@ def test_update_offer_recomputes_and_replaces_lines(db):
     assert updated is not None
     assert updated.status == "Pending response"
     assert updated.language == "Portuguese"
-    assert updated.total == Decimal("1005.00")
+    # One stored machine -> 2 report hours; totals recompute from items.
+    assert updated.report_hours == Decimal("2.0")
+    assert updated.total == Decimal("1250.00")
     assert [i.row_no for i in updated.items] == [1]
     assert update_offer(
         db,

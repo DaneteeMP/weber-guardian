@@ -120,7 +120,7 @@ def test_renderer_adds_an_equipment_continuation_for_more_than_two_machines():
 
 
 def test_guardian_options_require_a_known_selected_parent_module():
-    pricing = OfferCalculateIn(work_hours=Decimal("0"))
+    pricing = OfferCalculateIn(work_hours=Decimal("0"), equipment_count=0)
     with pytest.raises(ValueError, match="require module selection"):
         OfferCreate(
             customer_id="C-1",
@@ -183,7 +183,7 @@ def client(monkeypatch):
     seed.commit()
     create_customer(seed, CustomerCreate(customer_id="C-ES", account_name="ES Client", subsidiary_id="Weber Iberica"))
     create_customer(seed, CustomerCreate(customer_id="C-DE", account_name="DE Client", subsidiary_id="Weber Germany"))
-    pricing = OfferCalculateIn(work_hours=Decimal("8"), tech_rate=Decimal("60"))
+    pricing = OfferCalculateIn(work_hours=Decimal("8"), tech_rate=Decimal("60"), equipment_count=0)
     es_id = create_offer(
         seed,
         OfferCreate(

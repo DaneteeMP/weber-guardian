@@ -108,7 +108,6 @@ def client(monkeypatch):
 def _pricing():
     return OfferCalculateIn(
         work_hours=Decimal("8"),
-        report_hours=Decimal("0"),
         trip_hours_base=Decimal("0"),
         km=Decimal("0"),
         km_rate=Decimal("0"),
@@ -116,6 +115,7 @@ def _pricing():
         diet_full_rate=Decimal("0"),
         diet_half_rate=Decimal("0"),
         hotel_rate=Decimal("0"),
+        equipment_count=0,
     )
 
 

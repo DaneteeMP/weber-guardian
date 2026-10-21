@@ -1,6 +1,7 @@
 """Offer logic. Receives a Session, returns models. No HTTP here."""
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -35,11 +36,14 @@ def calculate_price(data: OfferCalculateIn) -> OfferCalculateOut:
     # audit excludes the basic kit, off_guardian excludes the branch discount.
     basic_kit = data.basic_kit and data.offer_type != "audit"
     apply_discount = data.offer_type != "off_guardian"
+    # Legacy rule: 2 report hours per inspected machine (Actualizar-
+    # ListadoMaquinas). Never taken from the client payload.
+    report_hours = Decimal(data.equipment_count * 2)
     out = calculate(
         PricingInput(
             work_hours=data.work_hours,
             bk_hours=data.bk_hours,
-            report_hours=data.report_hours,
+            report_hours=report_hours,
             trip_hours_base=data.trip_hours_base,
             km=data.km,
             km_rate=data.km_rate,
@@ -48,7 +52,6 @@ def calculate_price(data: OfferCalculateIn) -> OfferCalculateOut:
             diet_half_rate=data.diet_half_rate,
             hotel_rate=data.hotel_rate,
             discount_rate=data.discount_rate,
-            num_trips=data.num_trips,
             basic_kit=basic_kit,
             apply_discount=apply_discount,
             currency=data.currency,
@@ -81,6 +84,16 @@ def _fallback_number() -> str:
     return f"G-02-{year}-{uuid.uuid4().hex[:8].upper()}"
 
 
+def _price_with_items(pricing: OfferCalculateIn, items: list) -> OfferCalculateOut:
+    """Price a stored offer: the saved items are the truth for machine count.
+
+    The request's equipment_count only feeds the dry-run preview; persistence
+    never trusts it, so the derived report hours always match the lines.
+    """
+    count = len({item.equipment for item in items if item.equipment})
+    return calculate_price(pricing.model_copy(update={"equipment_count": count}))
+
+
 def create_offer(
     db: Session, data: OfferCreate, created_by: uuid.UUID | None = None, scope_subsidiary: str | None = None
 ) -> Offer:
@@ -92,7 +105,7 @@ def create_offer(
     if scope_subsidiary is not None and customer.subsidiary_id != scope_subsidiary:
         raise UnknownCustomer(data.customer_id)
 
-    priced = calculate_price(data.pricing)
+    priced = _price_with_items(data.pricing, data.items)
     number = data.id_guardian_offer or _fallback_number()
     # A missing offer_date means "same day as the row was created": the PDF and
     # the home fall back to created_at, so the business date is never invented.
@@ -236,7 +249,7 @@ def update_offer(
     offer = get_offer(db, offer_id, subsidiary_id=subsidiary_id)
     if offer is None:
         return None
-    priced = calculate_price(data.pricing)
+    priced = _price_with_items(data.pricing, data.items)
     offer.status = data.status
     offer.responsible_person = data.responsible_person
     if data.language is not None:

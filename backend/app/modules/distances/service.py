@@ -6,7 +6,7 @@ import unicodedata
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -79,8 +79,9 @@ def get_distance(db: Session, subsidiary_id: str, province: str) -> Distance | N
 
 
 # SAP free-text provinces vs catalog spellings, verified against real data:
-# English exonyms and local variants collapse to the catalog name. Kept in
-# code (like COUNTRY_ALIASES): seven pairs, not a table.
+# English exonyms and local variants collapse to the catalog name. Keys are
+# accent-stripped casefolded input (see _fold_key); values are catalog names.
+# Kept in code (like COUNTRY_ALIASES): small, explicit lists, not tables.
 PROVINCE_ALIASES = {
     "florence": "Firenze",
     "turin": "Torino",
@@ -89,32 +90,57 @@ PROVINCE_ALIASES = {
     "mantua": "Mantova",
     "monza and brianza": "Monza e della Brianza",
     "roma": "Roma Capitale",
+    # Iberia: SAP historical exonyms and abbreviations found in real sites.
+    "gerona": "Girona",
+    "lerida": "Lleida",
+    "orense": "Ourense",
+    "baleares": "Islas Baleares",
+    "sta. cruz tenerife": "Santa Cruz de Tenerife",
+    # Portuguese NUTS regions priced from the Lisboa reference row: no
+    # per-district road data exists in the legacy catalog either.
+    "grande lisboa": "Portugal",
+    "douro": "Portugal",
+    "entre douro e vouga": "Portugal",
+    "oeste": "Portugal",
+    "alto tras-os-montes": "Portugal",
+    "reg. aut. dos acores": "Portugal",
 }
 
 
-def resolve_distance(db: Session, subsidiary_id: str, province: str | None) -> Distance | None:
-    """Find the route for a free-text SAP province: exact name or code
-    (case-insensitive), then the alias table. None when nothing matches, so
-    the caller keeps zeroes instead of failing the offer."""
-    cleaned = " ".join((province or "").split()).casefold()
+def _fold_key(text: str | None) -> str | None:
+    """Collapse whitespace, strip accents and casefold, so SAP free text
+    ("León", "Forli-Cesena") compares equal to the catalog spelling on either
+    side. None for blank input."""
+    cleaned = " ".join((text or "").split())
     if not cleaned:
         return None
-    candidates = [cleaned]
-    aliased = PROVINCE_ALIASES.get(cleaned)
-    if aliased is not None:
-        candidates.append(aliased.casefold())
-    for candidate in candidates:
-        row = db.scalar(
-            select(Distance).where(
-                Distance.subsidiary_id == subsidiary_id,
-                or_(
-                    func.lower(Distance.province) == candidate,
-                    func.lower(Distance.province_code) == candidate,
-                ),
-            )
-        )
-        if row is not None:
+    decomposed = unicodedata.normalize("NFD", cleaned)
+    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return stripped.casefold()
+
+
+def resolve_distance(db: Session, subsidiary_id: str, province: str | None) -> Distance | None:
+    """Find the route for a free-text SAP province: accent/case-insensitive
+    match on name or code, then the alias table. None when nothing matches,
+    so the caller keeps zeroes instead of failing the offer. The catalog is
+    tiny (≤ a few hundred rows per filial), so the comparison runs in Python
+    where both sides can be accent-normalized; SQL lower() cannot fold
+    accents (and Italian names like Forlì-Cesena must stay matchable)."""
+    key = _fold_key(province)
+    if key is None:
+        return None
+    rows = db.scalars(
+        select(Distance).where(Distance.subsidiary_id == subsidiary_id)
+    ).all()
+    for row in rows:
+        if _fold_key(row.province) == key or _fold_key(row.province_code) == key:
             return row
+    aliased = PROVINCE_ALIASES.get(key)
+    if aliased is not None:
+        alias_key = _fold_key(aliased)
+        for row in rows:
+            if _fold_key(row.province) == alias_key:
+                return row
     return None
 
 
