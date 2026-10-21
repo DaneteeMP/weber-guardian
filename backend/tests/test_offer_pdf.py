@@ -23,7 +23,7 @@ from app.modules.offers.document import OfferDocument, OfferLine
 from app.modules.offers.schemas import OfferCalculateIn, OfferCreate
 from app.modules.offers.service import create_offer
 from app.modules.users.models import User
-from app.weber.pdf import build_offer_pdf
+from app.weber.pdf import _executor, _token_values, build_offer_pdf
 
 
 def _doc(**overrides):
@@ -66,6 +66,29 @@ def test_renderer_returns_real_pdf():
     pdf = build_offer_pdf(_doc())
     assert pdf[:5] == b"%PDF-"
     assert len(pdf) > 5000
+
+
+def test_commercial_summary_hides_the_internal_costs_and_adds_up():
+    """The client sees the modules, the discount and the final amount.
+
+    The travel, the diets and the hotels are already spread over the module
+    prices (legacy "RepartirCostes"), so the travel line is zero and the
+    summary adds up: inspection + kit - discount = total contract value.
+    """
+    doc = _doc(
+        trip_cost=Decimal("50"),
+        expenses=Decimal("90"),
+        discount=Decimal("252"),
+        bk_price=Decimal("0"),
+        total=Decimal("1318"),
+        total_end=Decimal("1066"),
+    )
+    executor, _provisional = _executor(doc)
+    values = _token_values(doc, executor)
+    assert values["Travel_Amount"] == "0.00 EUR"
+    assert values["Inspection_Amount"] == "100.00 EUR"
+    assert values["Guardian_Discount"] == "252.00 EUR"
+    assert values["Total_Contract_Value"] == "1,066.00 EUR"
 
 
 def test_renderer_rejects_unknown_language_and_subsidiary():

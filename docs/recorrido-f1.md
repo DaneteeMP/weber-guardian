@@ -58,8 +58,10 @@ Backend como fuente de verdad. React presenta; el servidor calcula y persiste.
     los céntimos repartidos por resto mayor para que la suma sea exacta), así que el anexo cuadra con la cabecera.
     `distribute_costs()` en `offers/service.py`; el preview en vivo devuelve los mismos importes en
     `line_amounts` (el navegador no calcula dinero).
-  El contrato en PDF queda pendiente de revisar: con el bruto ya repartido en las líneas, su línea "Travel Amount"
-  cuenta el viaje dos veces (está dentro de los importes de los módulos y además en su propia línea).
+  El contrato en PDF (Commercial Summary) **no enseña los costes internos**: el viaje, las dietas y los hoteles ya
+  van dentro de los importes de los módulos (repartidos), así que su línea "Travel / Expenses" va a 0,00 y el
+  resumen cuadra con el total: `Maintenance & Inspection + Spare Parts - Guardian Discount = Total Contract Value`.
+  El cliente solo ve la tabla de módulos, el descuento y el importe final.
 - **El total facturado incluye las horas de viaje del desglose, no una sola pierna** (20/10/2026). La migración F1
   redondeaba a jornadas de 8h sumando la pierna base del viaje (`trip_hours_base`), pero el desglose muestra las
   piernas repetidas por día de trabajo (`base × días`). En un viaje cercano de varios días, la diferencia (una

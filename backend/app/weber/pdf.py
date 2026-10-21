@@ -7,6 +7,7 @@ cannot remain hidden in the delivered PDF.
 import io
 import re
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 
 import pypdfium2 as pdfium
@@ -445,7 +446,12 @@ def _token_values(doc: OfferDocument, executor: dict[str, str]) -> dict[str, str
         "Number_Of_Machines": str(len(machine_names)),
         "Number_Of_Lines": str(len(machine_names)),
         "Inspection_Amount": _money(line_total, doc.currency),
-        "Travel_Amount": _money(doc.expenses, doc.currency),
+        # The client never sees the internal cost estimate. The travel, the
+        # diets and the hotels are already spread over the module prices
+        # (legacy "RepartirCostes"), so the travel line of the commercial
+        # summary is zero and the summary adds up with the total:
+        # inspection + kit - discount = total contract value.
+        "Travel_Amount": _money(Decimal("0"), doc.currency),
         "Parts_Kit_Amount": _money(doc.bk_price, doc.currency),
         "Service_Support_Amount": "",
         "Parts_Module_Amount": "",
