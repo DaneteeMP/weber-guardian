@@ -1384,17 +1384,29 @@ export default function OfferBuilder({
               <section className="w-[260px] shrink-0 rounded-lg border border-blue-200 bg-blue-50/50 p-3 shadow-sm">
                 <div className="mb-1.5 text-sm font-bold text-slate-800">{t(lang, "ob_total_amount")}</div>
                 <div className="space-y-1 text-sm">
+                  {/* The three components of the gross amount, so the
+                      arithmetic of the block is checkable at a glance. */}
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-slate-600">{t(lang, "ob_total")}</span>
-                    <span className="font-mono text-[15px] font-semibold">{calc ? eur(calc.total) : "—"}</span>
+                    <span className="text-slate-600">{t(lang, "ob_f_hours_import")}</span>
+                    <span className="font-mono text-[15px]">{calc ? eur(calc.hours_import) : "—"}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-slate-600">{t(lang, "ob_f_expenses")}</span>
+                    <span className="font-mono text-[15px]">{calc ? eur(calc.expenses) : "—"}</span>
                   </div>
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-slate-600">{t(lang, "ob_spare")}</span>
                     <span className="font-mono text-[15px]">{calc ? eur(calc.bk_price) : "—"}</span>
                   </div>
+                  <div className="flex items-baseline justify-between gap-2 border-t border-blue-100 pt-1">
+                    <span className="text-slate-600">{t(lang, "ob_total")}</span>
+                    <span className="font-mono text-[15px] font-semibold">{calc ? eur(calc.total) : "—"}</span>
+                  </div>
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-slate-600">{t(lang, "ob_discount")}</span>
-                    <span className="font-mono text-[15px] text-red-600">{calc ? eur(calc.discount) : "—"}</span>
+                    <span className="font-mono text-[15px] text-red-600">
+                      {calc ? `−${eur(calc.discount)}` : "—"}
+                    </span>
                   </div>
                   <div className="flex items-baseline justify-between gap-2 border-t-2 border-blue-200 pt-1.5">
                     <span className="font-bold text-slate-800">{t(lang, "ob_total_amount")}</span>
