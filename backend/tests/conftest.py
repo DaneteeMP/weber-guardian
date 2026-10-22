@@ -1,12 +1,5 @@
 """Fixtures: in-memory DB (SQLite) for learning service without Postgres."""
-import os
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-# Set test database URL BEFORE any imports that might create engines
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -16,7 +9,6 @@ import app.modules.component_names.models  # noqa: F401
 import app.modules.customers.models  # noqa: F401
 import app.modules.distances.models  # noqa: F401
 import app.modules.equipment.models  # noqa: F401
-import app.modules.equipment_catalog.models  # noqa: F401
 import app.modules.equipment_catalog.models  # noqa: F401
 import app.modules.machine_prices.models  # noqa: F401
 import app.modules.offers.models  # noqa: F401
