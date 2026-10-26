@@ -7,12 +7,15 @@ export default function Modal({
   onClose,
   children,
   widthClass = "max-w-md",
+  bodyClass = "p-4",
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   // Tailwind max-width class; wide dialogs (tables) pass e.g. "max-w-3xl".
   widthClass?: string;
+  // Content padding/layout; full-height dialogs pass e.g. "p-4 flex flex-col h-[85vh]".
+  bodyClass?: string;
 }) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -31,7 +34,7 @@ export default function Modal({
             ×
           </button>
         </div>
-        <div className="p-4">{children}</div>
+        <div className={bodyClass}>{children}</div>
       </div>
     </div>
   );

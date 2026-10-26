@@ -2,7 +2,6 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react
 import {
   closeOffer,
   deleteOffer,
-  downloadOfferPdf,
   getOffersSummary,
   listAllCustomers,
   listAllOffers,
@@ -18,6 +17,7 @@ const MonthlyOffersChart = lazy(() => import("./components/charts/MonthlyOffersC
 const StatusDonutChart = lazy(() => import("./components/charts/StatusDonutChart"));
 import { statusTone } from "./statusTone";
 import { ToastStack, useToasts } from "./components/Toasts";
+import PrintPdfModal from "./components/PrintPdfModal";
 import { t, type Lang } from "./i18n";
 import DataTable from "./components/DataTable";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -47,6 +47,8 @@ export default function OffersHome({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Print PDF dialog for the row's PDF action (scope/language/annexes+preview).
+  const [printOfferId, setPrintOfferId] = useState<string | null>(null);
   const { toasts, push, dismiss } = useToasts();
 
   useEffect(() => {
@@ -228,9 +230,9 @@ export default function OffersHome({
   return (
             <div className="flex items-center justify-end gap-1 whitespace-nowrap">
               <button
-                onClick={() => run(downloadOfferPdf(o.id), t(lang, "common_download"))}
-                title={t(lang, "common_download")}
-                aria-label={t(lang, "common_download")}
+                onClick={() => setPrintOfferId(o.id)}
+                title={t(lang, "mp_title")}
+                aria-label={t(lang, "mp_title")}
                 className="px-1.5 py-0.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 inline-flex items-center justify-center"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5" aria-hidden="true">
@@ -348,6 +350,15 @@ export default function OffersHome({
         className="max-h-[calc(100vh-430px)] rounded-lg border-gray-200 bg-white"
         tableClassName="min-w-[1250px]"
       />
+
+      {printOfferId && (
+        <PrintPdfModal
+          open
+          offerId={printOfferId}
+          lang={lang}
+          onClose={() => setPrintOfferId(null)}
+        />
+      )}
     </div>
   );
 }

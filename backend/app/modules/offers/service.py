@@ -9,10 +9,16 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.modules.customers.models import Customer
 from app.modules.equipment.models import CustomerSite, Equipment
-from app.modules.offers.document import OfferDocument, OfferLine
+from app.modules.offers.document import CustomAnnex, OfferDocument, OfferLine
 from app.modules.offers.models import Offer, OfferItem
 from app.modules.offers.pricing_engine import PricingInput, calculate
-from app.modules.offers.schemas import OfferCalculateIn, OfferCalculateOut, OfferCreate, OfferUpdate
+from app.modules.offers.schemas import (
+    OfferCalculateIn,
+    OfferCalculateOut,
+    OfferCreate,
+    OfferDocumentSettingsIn,
+    OfferUpdate,
+)
 
 
 class UnknownCustomer(Exception):
@@ -156,6 +162,7 @@ def create_offer(
         id_guardian_offer=number,
         customer_id=data.customer_id,
         status=data.status,
+        offer_type=data.pricing.offer_type,
         responsible_person=data.responsible_person,
         language=data.language,
         inspection_frequency=data.inspection_frequency,
@@ -176,6 +183,7 @@ def create_offer(
         total_end=priced.total_end,
         general_comments=data.general_comments,
         guardian_selections=list(data.guardian_selections),
+        custom_annexes=[annex.model_dump() for annex in data.custom_annexes],
         created_by=created_by,
         offer_date=offer_date,
     )
@@ -295,6 +303,7 @@ def update_offer(
         return None
     priced = _price_with_items(data.pricing, data.items)
     offer.status = data.status
+    offer.offer_type = data.pricing.offer_type
     offer.responsible_person = data.responsible_person
     if data.language is not None:
         offer.language = data.language
@@ -316,6 +325,10 @@ def update_offer(
     offer.total_end = priced.total_end
     offer.general_comments = data.general_comments
     offer.guardian_selections = list(data.guardian_selections)
+    # custom_annexes=None on a full edit means "not sent by this form": the
+    # annexes belong to the print modal and must survive unrelated edits.
+    if data.custom_annexes is not None:
+        offer.custom_annexes = [annex.model_dump() for annex in data.custom_annexes]
     # offer_date=None means "keep the day the row was created", so an edit that
     # does not touch the date can never wipe it.
     offer.offer_date = data.offer_date or offer.offer_date or (
@@ -385,6 +398,59 @@ def set_offer_status(
     return offer
 
 
+def patch_document_settings(
+    db: Session, offer_id: uuid.UUID, data: OfferDocumentSettingsIn, subsidiary_id: str | None = None
+) -> Offer | None:
+    """Partial update of the print settings (Print PDF modal auto-save).
+
+    Only the provided fields change (scope, contract language, custom
+    annexes), in one transaction. None when missing/out of scope.
+    """
+    offer = get_offer(db, offer_id, subsidiary_id=subsidiary_id)
+    if offer is None:
+        return None
+    if data.guardian_selections is not None:
+        offer.guardian_selections = list(data.guardian_selections)
+    if data.language is not None:
+        offer.language = data.language
+    if data.custom_annexes is not None:
+        offer.custom_annexes = [annex.model_dump() for annex in data.custom_annexes]
+    db.commit()
+    db.refresh(offer)
+    return offer
+
+
+class TooManyAnnexes(Exception):
+    """The annex list already holds the maximum number of entries."""
+
+
+def append_custom_annex(
+    db: Session,
+    offer_id: uuid.UUID,
+    title: str,
+    body_html: str,
+    subsidiary_id: str | None = None,
+) -> Offer | None:
+    """Append one parsed .docx annex to the offer's custom annexes.
+
+    Single transaction: the offer is updated only if the annex count is
+    within the same limit the PATCH endpoint enforces (10). The annex is
+    stored with an empty plain-text body: the renderer prefers body_html
+    when both are present.
+    """
+    offer = get_offer(db, offer_id, subsidiary_id=subsidiary_id)
+    if offer is None:
+        return None
+    annexes = list(offer.custom_annexes or [])
+    if len(annexes) >= 10:
+        raise TooManyAnnexes("An offer can hold at most 10 custom annexes.")
+    annexes.append({"title": title, "body": "", "body_html": body_html})
+    offer.custom_annexes = annexes
+    db.commit()
+    db.refresh(offer)
+    return offer
+
+
 def get_offer_document(db: Session, offer_id: uuid.UUID, subsidiary_id: str | None = None) -> OfferDocument | None:
     """Load the official document data (offer + customer + lines), or None."""
     offer = get_offer(db, offer_id, subsidiary_id=subsidiary_id)
@@ -429,6 +495,7 @@ def get_offer_document(db: Session, offer_id: uuid.UUID, subsidiary_id: str | No
         number=offer.id_guardian_offer,
         offer_date=offer.offer_date or (offer.created_at.date() if offer.created_at else None),
         status=offer.status,
+        offer_type=offer.offer_type,
         language=offer.language or "Spanish",
         inspection_frequency=offer.inspection_frequency,
         responsible_person=offer.responsible_person,
@@ -454,6 +521,14 @@ def get_offer_document(db: Session, offer_id: uuid.UUID, subsidiary_id: str | No
         total_end=offer.total_end,
         general_comments=offer.general_comments,
         guardian_selections=tuple(offer.guardian_selections or []),
+        custom_annexes=tuple(
+            CustomAnnex(
+                title=annex["title"],
+                body=annex.get("body", ""),
+                body_html=annex.get("body_html"),
+            )
+            for annex in (offer.custom_annexes or [])
+        ),
         customer_number=customer.customer_id,
         customer_site="; ".join(site_addresses) or None,
         lines=tuple(

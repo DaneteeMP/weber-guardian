@@ -23,7 +23,13 @@ from app.modules.offers.document import OfferDocument, OfferLine
 from app.modules.offers.schemas import OfferCalculateIn, OfferCreate
 from app.modules.offers.service import create_offer
 from app.modules.users.models import User
-from app.weber.pdf import _executor, _token_values, build_offer_pdf
+from app.weber.pdf import build_offer_pdf
+from app.weber.pdf.values import (
+    document_locale,
+    executor_block,
+    executor_is_provisional,
+    token_values,
+)
 
 
 def _doc(**overrides):
@@ -62,6 +68,37 @@ def _doc(**overrides):
     return OfferDocument(**params)
 
 
+def _full_text(rendered) -> str:
+    """All visible text of an open PDF document; the caller closes it."""
+    return " ".join(
+        rendered[index].get_textpage().get_text_range(
+            0, rendered[index].get_textpage().count_chars()
+        )
+        for index in range(len(rendered))
+    )
+
+
+def _sample_docx_bytes() -> bytes:
+    """A small Word file exercising paragraphs, bold runs and tables."""
+    import io
+
+    from docx import Document as DocxDocument
+
+    document = DocxDocument()
+    document.add_paragraph("Confidential service terms")
+    paragraph = document.add_paragraph()
+    paragraph.add_run("Response time: ")
+    paragraph.add_run("4 hours").bold = True
+    table = document.add_table(rows=2, cols=2)
+    table.cell(0, 0).text = "Module"
+    table.cell(0, 1).text = "Hours"
+    table.cell(1, 0).text = "Inspection"
+    table.cell(1, 1).text = "8"
+    buffer = io.BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()
+
+
 def test_renderer_returns_real_pdf():
     pdf = build_offer_pdf(_doc())
     assert pdf[:5] == b"%PDF-"
@@ -83,15 +120,18 @@ def test_commercial_summary_hides_the_internal_costs_and_adds_up():
         total=Decimal("1318"),
         total_end=Decimal("1066"),
     )
-    executor, _provisional = _executor(doc)
-    values = _token_values(doc, executor)
-    assert values["Travel_Amount"] == "0.00 EUR"
-    assert values["Inspection_Amount"] == "100.00 EUR"
-    assert values["Guardian_Discount"] == "252.00 EUR"
-    assert values["Total_Contract_Value"] == "1,066.00 EUR"
+    values = token_values(doc, document_locale(doc))
+
+    def plain(text: str) -> str:
+        return text.replace("\u00a0", " ")
+
+    assert plain(values["Travel_Amount"]) == "0,00 €"
+    assert plain(values["Inspection_Amount"]) == "100,00 €"
+    assert plain(values["Guardian_Discount"]) == "252,00 €"
+    assert plain(values["Total_Contract_Value"]) == "1.066,00 €"
 
 
-def test_renderer_rejects_unknown_language_and_subsidiary():
+def test_renderer_rejects_unknown_language():
     with pytest.raises(ValueError, match="language"):
         build_offer_pdf(_doc(language="Klingon"))
 
@@ -111,20 +151,25 @@ def test_renderer_supports_all_executor_subsidiaries():
 
 
 def test_renderer_uses_only_selected_annex_pages():
-    base_pdf = build_offer_pdf(_doc())
-    base = pdfium.PdfDocument(base_pdf)
-    assert len(base) == 12
-    base.close()
+    # English fixture so the annex titles are the untranslated source text.
+    base = pdfium.PdfDocument(build_offer_pdf(_doc(language="English")))
+    try:
+        selected = pdfium.PdfDocument(
+            build_offer_pdf(
+                _doc(language="English", guardian_selections=("service_support", "remote_support"))
+            )
+        )
+        try:
+            assert len(selected) > len(base)
+            assert "ANNEX 3" not in _full_text(base)
+            assert "ANNEX 3 - SERVICE SUPPORT" in _full_text(selected)
+        finally:
+            selected.close()
+    finally:
+        base.close()
 
-    selected_pdf = build_offer_pdf(
-        _doc(guardian_selections=("service_support", "remote_support"))
-    )
-    selected = pdfium.PdfDocument(selected_pdf)
-    assert len(selected) == 13
-    selected.close()
 
-
-def test_renderer_adds_an_equipment_continuation_for_more_than_two_machines():
+def test_renderer_renders_every_machine_of_the_offer():
     lines = tuple(
         OfferLine(
             pos=position,
@@ -135,11 +180,12 @@ def test_renderer_adds_an_equipment_continuation_for_more_than_two_machines():
         for position in range(1, 4)
     )
     rendered = pdfium.PdfDocument(build_offer_pdf(_doc(lines=lines)))
-    assert len(rendered) == 13
-    continuation = rendered[9].get_textpage()
-    text = continuation.get_text_range(0, continuation.count_chars())
-    assert "M3" in text
-    rendered.close()
+    try:
+        text = _full_text(rendered)
+        for position in (1, 2, 3):
+            assert f"M{position}" in text
+    finally:
+        rendered.close()
 
 
 def test_guardian_options_require_a_known_selected_parent_module():
@@ -160,23 +206,25 @@ def test_guardian_options_require_a_known_selected_parent_module():
 
 
 def test_renderer_falls_back_to_provisional_block_without_invented_data():
-    from app.weber.pdf import _executor
-
-    block, provisional = _executor(_doc(subsidiary_id="Weber Partners"))
-    assert provisional is True
+    provisional_doc = _doc(subsidiary_id="Weber Partners")
+    block = executor_block(provisional_doc)
+    assert executor_is_provisional(provisional_doc) is True
     # Placeholder carries only the canonical name: no street, city, country
     # or signature place that would look like real legal data.
     assert block["name"] == "Weber Partners"
     assert not block["street"] and not block["city"] and not block["country"] and not block["place_date"]
-    # Rendering still works (falls back, never raises).
-    assert build_offer_pdf(_doc(subsidiary_id="Weber Partners"))[:5] == b"%PDF-"
+    # The cover is flagged instead of showing another filial's address.
+    rendered = pdfium.PdfDocument(build_offer_pdf(provisional_doc))
+    try:
+        assert "DRAFT - SUBSIDIARY LEGAL DETAILS REQUIRED" in _full_text(rendered)
+    finally:
+        rendered.close()
     # Subsidiaries with a real legal block are never provisional.
     for subsidiary_id in ("Weber Iberica", "Weber Benelux", "Weber Germany", "Weber Argentina"):
-        _, provisional = _executor(_doc(subsidiary_id=subsidiary_id))
-        assert provisional is False
+        assert executor_is_provisional(_doc(subsidiary_id=subsidiary_id)) is False
 
-    italy, provisional = _executor(_doc(subsidiary_id="Weber Italy"))
-    assert provisional is False
+    assert executor_is_provisional(_doc(subsidiary_id="Weber Italy")) is False
+    italy = executor_block(_doc(subsidiary_id="Weber Italy"))
     assert italy["name"] == "WEBER FOOD TECHNOLOGY ITALIA SrL"
     assert italy["street"] == "Via Josef Maria Pernter, 14"
     assert italy["city"] == "39044 Egna BZ"
@@ -239,18 +287,168 @@ def test_pdf_endpoint_serves_bytes_with_scope(client):
     assert res.headers["content-type"] == "application/pdf"
     assert res.content[:5] == b"%PDF-"
     rendered = pdfium.PdfDocument(res.content)
-    assert len(rendered) == 13
-    visible_text = " ".join(
-        rendered[index].get_textpage().get_text_range(
-            0, rendered[index].get_textpage().count_chars()
-        )
-        for index in range(len(rendered))
-    )
+    visible_text = _full_text(rendered)
+    rendered.close()
     assert "[x]" in visible_text
     assert "Remote Support" in visible_text
     assert "INTERNAL GENERATION RULE" not in visible_text
     assert "DOCUMENT STRUCTURE" not in visible_text
-    rendered.close()
     # Out-of-scope reads as missing; anonymous as unauthenticated.
     assert test_client.get(f"/api/v1/offers/{ids['de']}/pdf", headers={"X-Dev-User": "oid-es"}).status_code == 404
     assert test_client.get(f"/api/v1/offers/{ids['es']}/pdf").status_code == 401
+
+
+def test_document_settings_endpoint_saves_and_renders_the_print_modal_state(client):
+    """The print modal auto-save: partial PATCH, then the PDF reads it back."""
+    test_client, ids = client
+    headers = {"X-Dev-User": "oid-es"}
+
+    saved = test_client.patch(
+        f"/api/v1/offers/{ids['es']}/document",
+        json={
+            "language": "es",
+            "guardian_selections": ["maintenance_inspection", "inspection"],
+            "custom_annexes": [
+                {"title": "ANNEX X - CUSTOM TERMS", "body": "Extra clause line."}
+            ],
+        },
+        headers=headers,
+    )
+    assert saved.status_code == 200
+    body = saved.json()
+    assert body["language"] == "es"
+    assert body["guardian_selections"] == ["maintenance_inspection", "inspection"]
+    assert body["custom_annexes"] == [
+        {"title": "ANNEX X - CUSTOM TERMS", "body": "Extra clause line.", "body_html": None}
+    ]
+
+    # The PDF is rendered from those saved settings: Spanish locale, the
+    # module selected in the modal and the custom annex before the signatures.
+    pdf = test_client.get(f"/api/v1/offers/{ids['es']}/pdf", headers=headers)
+    assert pdf.status_code == 200
+    rendered = pdfium.PdfDocument(pdf.content)
+    text = _full_text(rendered)
+    rendered.close()
+    assert "ANEXO 1" in text
+    assert "ANNEX X - CUSTOM TERMS" in text
+    assert "Extra clause line." in text
+    assert text.index("ANNEX X - CUSTOM TERMS") < text.index("FIRMAS")
+
+    # Option without its module: rejected exactly like the full-edit PUT.
+    invalid_scope = test_client.patch(
+        f"/api/v1/offers/{ids['es']}/document",
+        json={"guardian_selections": ["remote_support"]},
+        headers=headers,
+    )
+    assert invalid_scope.status_code == 422
+
+    # A headingless annex is a defect: blank titles never persist.
+    blank_title = test_client.patch(
+        f"/api/v1/offers/{ids['es']}/document",
+        json={"custom_annexes": [{"title": "   ", "body": "orphan"}]},
+        headers=headers,
+    )
+    assert blank_title.status_code == 422
+
+    # Out-of-scope writes read as missing.
+    cross_scope = test_client.patch(
+        f"/api/v1/offers/{ids['de']}/document",
+        json={"language": "es"},
+        headers=headers,
+    )
+    assert cross_scope.status_code == 404
+
+
+def test_upload_annex_endpoint_parses_docx_into_the_pdf(client):
+    """The modal's Word attachment: parsed on upload, printed before the summary."""
+    test_client, ids = client
+    headers = {"X-Dev-User": "oid-es"}
+
+    res = test_client.post(
+        f"/api/v1/offers/{ids['es']}/document/annexes",
+        files={
+            "file": (
+                "Custom Terms.docx",
+                _sample_docx_bytes(),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+        headers=headers,
+    )
+    assert res.status_code == 200
+    annexes = res.json()["custom_annexes"]
+    assert len(annexes) == 1
+    assert annexes[0]["title"] == "Custom Terms"
+    assert "Confidential service terms" in annexes[0]["body_html"]
+    assert "<strong>4 hours</strong>" in annexes[0]["body_html"]
+    assert "<table>" in annexes[0]["body_html"]
+
+    pdf = test_client.get(f"/api/v1/offers/{ids['es']}/pdf", headers=headers)
+    assert pdf.status_code == 200
+    rendered = pdfium.PdfDocument(pdf.content)
+    text = _full_text(rendered)
+    rendered.close()
+    assert "Confidential service terms" in text
+    assert "4 hours" in text
+    assert "Inspection" in text
+    assert text.index("Custom Terms") < text.index("FIRMAS")
+
+
+def test_upload_annex_endpoint_rejects_bad_files_and_scope(client):
+    test_client, ids = client
+    headers = {"X-Dev-User": "oid-es"}
+    docx_type = (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+
+    wrong_extension = test_client.post(
+        f"/api/v1/offers/{ids['es']}/document/annexes",
+        files={"file": ("annex.txt", b"plain text", "text/plain")},
+        headers=headers,
+    )
+    assert wrong_extension.status_code == 422
+
+    not_a_zip = test_client.post(
+        f"/api/v1/offers/{ids['es']}/document/annexes",
+        files={"file": ("annex.docx", b"not a zip archive", docx_type)},
+        headers=headers,
+    )
+    assert not_a_zip.status_code == 422
+
+    cross_scope = test_client.post(
+        f"/api/v1/offers/{ids['de']}/document/annexes",
+        files={"file": ("annex.docx", _sample_docx_bytes(), docx_type)},
+        headers=headers,
+    )
+    assert cross_scope.status_code == 404
+
+    anonymous = test_client.post(
+        f"/api/v1/offers/{ids['es']}/document/annexes",
+        files={"file": ("annex.docx", _sample_docx_bytes(), docx_type)},
+    )
+    assert anonymous.status_code == 401
+
+
+def test_renderer_prints_uploaded_annex_html_before_the_signatures():
+    from app.modules.offers.document import CustomAnnex
+
+    doc = _doc(
+        custom_annexes=(
+            CustomAnnex(
+                title="ANNEX Y - WORD",
+                body="",
+                body_html=(
+                    "<p>Word <strong>annex</strong> text</p>"
+                    "<table><tbody><tr><th>Module</th></tr><tr><td>Inspection</td></tr></tbody></table>"
+                ),
+            ),
+        )
+    )
+    rendered = pdfium.PdfDocument(build_offer_pdf(doc))
+    try:
+        text = _full_text(rendered)
+        assert "Word annex text" in text
+        assert "Inspection" in text
+        assert text.index("ANNEX Y - WORD") < text.index("FIRMAS")
+    finally:
+        rendered.close()

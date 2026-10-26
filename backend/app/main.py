@@ -36,8 +36,8 @@ print(
 # the core. Routers read request.app.state.pdf_renderer; modules never
 # import app.weber.
 #
-# Import is deferred to the first PDF request: reportlab and pypdfium2 (plus
-# its native library) are heavy, and on the free hosting plan a cold start is
+# Import is deferred to the first PDF request: WeasyPrint plus its native
+# text-stack libraries are heavy, and on the free hosting plan a cold start is
 # dominated by import time. Once imported, the module stays in sys.modules so
 # later calls are a dict lookup.
 def _pdf_renderer(doc):

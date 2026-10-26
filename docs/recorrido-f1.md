@@ -71,6 +71,12 @@ Backend como fuente de verdad. React presenta; el servidor calcula y persiste.
   relleno de la jornada), nunca menor. Corregido en `pricing_engine.py`: el `raw` del redondeo usa `trip_hours` (las
   piernas del desglose) en vez de la pierna base. Sin efecto en los viajes lejanos (una sola pierna) ni en las ofertas
   de un solo día. Test de invariante: `test_work_row_is_never_below_the_real_work`.
+- **Viaje de ida y vuelta** (26/10/2026). Config guarda `km` y `trip_hours` como **ida** (la etiqueta ya decía
+  "Viaje total de ida"). El motor ahora factura el viaje **redondo**: multiplica por 2 el km y las horas de viaje
+  (cercano: por cada día de trabajo; lejano: un único viaje redondo). Antes solo se cobraba la ida y la vuelta no se
+  repercutía. Al duplicar las horas de viaje cambian también el total de horas (y con ello hoteles y dietas), que es
+  lo coherente con la duración real del desplazamiento. Tests `test_pricing_engine.py` y los totales de
+  `test_offers_service.py` actualizados; la etiqueta de Config pasa a "Km carretera (ida)".
 - **Informe y viaje en el mismo total** (20/10/2026): las horas de informe (2 h por máquina) y las de viaje forman
   parte del total redondeado a jornadas, y el relleno de la jornada va a la fila de trabajo (regla legacy
   "Ajuste" + "Reajuste final"). El desglose no muestra el relleno por separado: el Access original tampoco lo

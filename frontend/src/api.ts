@@ -507,12 +507,59 @@ export function createOffer(payload: {
   }).then((r) => checked(r, "POST offer"));
 }
 
-export async function downloadOfferPdf(id: string): Promise<void> {
+export type CustomAnnex = {
+  title: string;
+  body: string;
+  // Sanitized HTML parsed from an uploaded .docx; replaces body when present.
+  body_html?: string | null;
+};
+
+// Partial save of the print settings (Print PDF modal auto-save). Omitted
+// fields keep their stored value on the backend.
+export type DocumentSettingsPatch = {
+  language?: string;
+  guardian_selections?: string[];
+  custom_annexes?: CustomAnnex[];
+};
+
+export function patchOfferDocumentSettings(id: string, payload: DocumentSettingsPatch): Promise<OfferOut> {
+  return fetch(`${BASE}/offers/${encodeURIComponent(id)}/document`, {
+    method: "PATCH",
+    headers: headers(),
+    body: JSON.stringify(payload),
+  }).then((r) => checked(r, "PATCH offer document"));
+}
+
+// Upload one .docx annex: the backend parses it (paragraphs + tables) and
+// appends the sanitized HTML to the offer's custom annexes. The file travels
+// as multipart, so Content-Type must stay unset (the browser adds the
+// boundary) and only the auth headers are sent.
+export function uploadOfferAnnex(id: string, file: File): Promise<OfferOut> {
+  const form = new FormData();
+  form.append("file", file);
+  return fetch(`${BASE}/offers/${encodeURIComponent(id)}/document/annexes`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: form,
+  }).then((r) => checked(r, "upload annex"));
+}
+
+async function getPdfResponse(id: string): Promise<Response> {
   const res = await fetch(`${BASE}/offers/${encodeURIComponent(id)}/pdf`, { headers: authHeaders() });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`GET pdf failed (${res.status}): ${text}`);
   }
+  return res;
+}
+
+// Raw PDF bytes for the preview iframe (blob URL created by the caller).
+export async function fetchOfferPdf(id: string): Promise<Blob> {
+  return (await getPdfResponse(id)).blob();
+}
+
+export async function downloadOfferPdf(id: string): Promise<void> {
+  const res = await getPdfResponse(id);
   const cd = res.headers.get("Content-Disposition") ?? "";
   const filename = cd.match(/filename="([^"]+)"/)?.[1] ?? `Offer_${id}.pdf`;
   const url = URL.createObjectURL(await res.blob());
@@ -532,6 +579,7 @@ export type OfferListItem = {
   currency?: string | null;
   language?: string | null;
   status?: string | null;
+  offer_type?: string | null;
   inspection_frequency?: string | null;
   responsible_person?: string | null;
   work_hours?: string | number | null;
@@ -561,10 +609,12 @@ export function getOffer(id: string): Promise<OfferOut> {
 
 export type OfferOut = OfferListItem & {
   responsible_person: string | null;
+  offer_type: string;
   language: string | null;
   inspection_frequency: string | null;
   general_comments: string | null;
   guardian_selections: string[];
+  custom_annexes: CustomAnnex[];
   work_hours: string | number;
   report_hours: string | number;
   trip_hours: string | number;

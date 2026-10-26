@@ -26,6 +26,9 @@ class Offer(Base):
         String(64), ForeignKey("customers.customer_id", ondelete="RESTRICT"), nullable=False, index=True
     )
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="Pending response")
+    # Guardian type: "audit" (Inspection), "off_guardian" or "guardian"
+    # (Basic Kit). Drives pricing and prints on the commercial breakdown.
+    offer_type: Mapped[str] = mapped_column(String(16), nullable=False, default="audit")
     responsible_person: Mapped[str | None] = mapped_column(String(128), nullable=True)
     language: Mapped[str | None] = mapped_column(String(32), nullable=True)
     inspection_frequency: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -49,6 +52,8 @@ class Offer(Base):
 
     general_comments: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     guardian_selections: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    # Customer-added annexes for the printed contract: [{"title": str, "body": str}].
+    custom_annexes: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

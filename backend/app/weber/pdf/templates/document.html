@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>{{ base_css | safe }}</style>
+</head>
+<body>
+<div class="wordmark"><img src="{{ weber_logo_uri | safe }}" alt="weber"></div>
+{% for section in sections %}
+<section class="{{ section.name }}">
+{% if section.name == "cover" %}
+<img class="cover-logo" src="{{ cover_logo_uri | safe }}" alt="Weber Guardian">
+{% endif %}
+{% for b in section.blocks %}
+    {% if b.type == "h1" %}
+    <h1{% if b.page_break %} class="page-break"{% endif %}>{{ b.text }}</h1>
+    {% if section.name == "cover" and draft_banner %}
+    <p class="draft-banner">{{ draft_banner }}</p>
+    {% endif %}
+{% elif b.type == "h2" %}
+<h2>{{ b.text }}</h2>
+{% elif b.type == "p" %}
+<p{% if b.class %} class="{{ b.class }}"{% endif %}>{{ b.text }}</p>
+{% elif b.type == "ul" %}
+<ul>
+{% for item in b["items"] %}<li>{{ item }}</li>
+{% endfor %}
+</ul>
+{% elif b.type == "ol" %}
+<ol>
+{% for item in b["items"] %}<li>{{ item }}</li>
+{% endfor %}
+</ol>
+{% elif b.type == "dl" %}
+{% for item in b["items"] %}<p><span class="dl-term">{{ item.term }}:</span> {{ item.definition }}</p>
+{% endfor %}
+{% elif b.type == "lines" %}
+{% for item in b["items"] %}<p>{{ item }}</p>
+{% endfor %}
+{% elif b.type == "kv" %}
+<p class="kv"><span class="kv-label">{{ b.label }}</span>{{ b.value }}</p>
+{% elif b.type == "equipment_table" %}
+<table>
+<thead><tr>
+{% for header in b.headers %}<th>{{ header }}</th>
+{% endfor %}
+</tr></thead>
+<tbody>
+{% for row in b.rows %}<tr>
+{% for cell in row %}<td>{{ cell }}</td>
+{% endfor %}
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% elif b.type == "kv_table" %}
+<table>
+<thead><tr>
+{% for header in b.headers %}<th>{{ header }}</th>
+{% endfor %}
+</tr></thead>
+<tbody>
+{% for row in b.rows %}<tr{% if row.total %} class="total"{% endif %}><td>{{ row.label }}</td><td>{{ row.value }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{% elif b.type == "module_checklist" %}
+<ul class="checklist">
+{% for item in b["items"] %}<li>{{ item }}</li>
+{% endfor %}
+</ul>
+{% elif b.type == "signatures" %}
+<table class="sig-table">
+<thead><tr>
+{% for column in b.columns %}<th>{{ column.heading }}</th>
+{% endfor %}
+</tr></thead>
+<tbody>
+<tr>
+{% for column in b.columns %}<td><span class="kv-label">{{ b.company_label }}:</span>{{ column.company }}</td>
+{% endfor %}
+</tr>
+{% for field in b.fields %}
+<tr>
+{% for column in b.columns %}<td>{{ field.label }}: <span class="sig-line"></span></td>
+{% endfor %}
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% elif b.type == "html" %}
+<div class="custom-annex-body">{{ b.html | safe }}</div>
+{% elif b.type == "party" %}
+<div class="party">
+<p class="party-label">{{ b.label }}</p>
+<p class="party-name">{{ b.name }}</p>
+{% for line in b.address %}<p class="party-address">{{ line }}</p>
+{% endfor %}
+<p class="party-alias">{{ b.alias }}</p>
+</div>
+{% elif b.type == "commercial_breakdown" %}
+<div class="breakdown">
+<div class="breakdown-top">
+<div class="breakdown-customer">
+{% for line in b.customer %}<p>{{ line }}</p>
+{% endfor %}
+</div>
+<div class="breakdown-meta-right">
+{% for item in b.meta_right %}<p><span class="breakdown-meta-label">{{ item.label }}:</span> {{ item.value }}</p>
+{% endfor %}
+</div>
+</div>
+<div class="breakdown-meta-left">
+{% for item in b.meta_left %}<p><span class="breakdown-meta-label">{{ item.label }}:</span> {{ item.value }}</p>
+{% endfor %}
+</div>
+<table class="breakdown-table">
+<thead><tr>
+{% for column in b.columns %}<th>{{ column }}</th>
+{% endfor %}
+</tr></thead>
+<tbody>
+{% for row in b.rows %}<tr>
+{% for cell in row %}<td>{{ cell }}</td>
+{% endfor %}
+</tr>
+{% endfor %}
+</tbody>
+<tfoot>
+{% for total in b.totals %}<tr{% if total.total %} class="total"{% endif %}><td colspan="2">{{ total.label }}</td><td>{{ total.value }}</td></tr>
+{% endfor %}
+</tfoot>
+</table>
+</div>
+{% endif %}
+{% endfor %}
+</section>
+{% endfor %}
+</body>
+</html>

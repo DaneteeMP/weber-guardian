@@ -1,20 +1,21 @@
 """Offer HTTP. Thin: validates, calls service, returns. No SQL here."""
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.security import CurrentUser, get_current_user, require_role
 from app.modules.customers.service import CustomerNotFound
-from app.modules.offers import maintenance, service
+from app.modules.offers import docx_annex, maintenance, service
 from app.modules.offers.schemas import (
     MaintenanceDraftIn,
     MaintenanceDraftOut,
     OfferCalculateIn,
     OfferCalculateOut,
     OfferCreate,
+    OfferDocumentSettingsIn,
     OfferOut,
     OfferStatusUpdate,
     OffersSummaryOut,
@@ -160,6 +161,72 @@ def status_endpoint(
     try:
         offer = service.set_offer_status(db, offer_id, payload.status, subsidiary_id=current.scope_subsidiary_id)
     except service.BadStatus as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    if offer is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Offer not found")
+    return offer
+
+
+@router.patch("/{offer_id}/document", response_model=OfferOut)
+def document_settings_endpoint(
+    offer_id: uuid.UUID,
+    payload: OfferDocumentSettingsIn,
+    db: Session = Depends(get_db),
+    current: CurrentUser = Depends(require_role("admin", "sales")),
+):
+    """Partial save of the print settings (Print PDF modal auto-save).
+
+    Scope, contract language and custom annexes only: pricing and lines are
+    untouched, so the modal never needs the full-edit PUT payload.
+    """
+    offer = service.patch_document_settings(
+        db, offer_id, payload, subsidiary_id=current.scope_subsidiary_id
+    )
+    if offer is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Offer not found")
+    return offer
+
+
+# Hard cap on annex uploads: the parsed HTML is stored in the offers row,
+# so a runaway file must not bloat the database.
+MAX_ANNEX_UPLOAD_BYTES = 5 * 1024 * 1024
+
+
+@router.post("/{offer_id}/document/annexes", response_model=OfferOut)
+async def upload_annex_endpoint(
+    offer_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current: CurrentUser = Depends(require_role("admin", "sales")),
+):
+    """Append one uploaded .docx as a custom annex of the printed contract.
+
+    The file content is parsed here (paragraphs + tables -> sanitized HTML)
+    and stored on the offer; the original Word file is not kept. Only .docx
+    is accepted: the legacy .doc binary format would need a separate parser.
+    """
+    filename = (file.filename or "").strip()
+    if not filename.lower().endswith(".docx"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Only Word .docx files can be attached as annexes.",
+        )
+    content = await file.read(MAX_ANNEX_UPLOAD_BYTES + 1)
+    if len(content) > MAX_ANNEX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Annex files are limited to 5 MB.",
+        )
+    fallback_title = filename.rsplit(".", 1)[0] or "Annex"
+    try:
+        title, body_html = docx_annex.parse_docx_annex(content, fallback_title)
+    except docx_annex.AnnexParseError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    try:
+        offer = service.append_custom_annex(
+            db, offer_id, title, body_html, subsidiary_id=current.scope_subsidiary_id
+        )
+    except service.TooManyAnnexes as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     if offer is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Offer not found")

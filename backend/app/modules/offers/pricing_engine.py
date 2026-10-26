@@ -21,18 +21,20 @@ Offer type mapping (Campaign does not exist in Guardian, removed):
 
     Nearby trips and hotel nights are derived from on-site hours only (work +
     kit), never from report hours: legacy NumeroViajes = HorasGuardian/8, so
-    inspecting more machines does not inflate travel. One hotel night per
-    full 8h block of work + travel, for both nearby and far trips (the report
-    row does not extend the stay). Report hours are derived upstream (2h per
-    inspected machine, legacy ActualizarListadoMaquinas); the service feeds
-    them as an input.
+    inspecting more machines does not inflate travel. Every trip is a ROUND
+    TRIP: the one-way km and trip time from Config are doubled because the
+    technician goes to the site and comes back. One hotel night per full 8h
+    block of work + travel, for both nearby and far trips (the report row does
+    not extend the stay). Report hours are derived upstream (2h per inspected
+    machine, legacy ActualizarListadoMaquinas); the service feeds them as an
+    input.
 
     The billed total is the sum of the rows the breakdown shows (work + kit +
     travel + report) rounded up to whole 8h days, and the rounding padding
     lands on the work row (legacy "Ajuste" and "Reajuste final"). The travel
-    counted here is the one of the breakdown: the repeated legs of a nearby
-    trip, not a single leg. With that, the work row can only be larger than
-    the real work, never smaller.
+    counted here is the one of the breakdown: the round trip per nearby working
+    day (or the single round trip when far), never a single leg. With that, the
+    work row can only be larger than the real work, never smaller.
 """
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP
@@ -123,17 +125,21 @@ def calculate(inp: PricingInput, bk_price: Decimal = Decimal("0")) -> PricingOut
         int(((inp.work_hours + inp.bk_hours) / EIGHT).to_integral_value(rounding=ROUND_CEILING)),
     )
 
+    # Travel is billed as a ROUND TRIP: the technician drives to the customer
+    # and back, so the one-way km and one-way trip time entered in Config are
+    # doubled. Nearby trips repeat once per working day (legacy NumeroViajes =
+    # work/8, so equipment never scales them); a far trip is a single round
+    # trip for the whole contract.
+    round_trip = Decimal("2")
     if inp.km < 200:
-        # Nearby travel: the trip (cost and hours) repeats once per working
-        # day, derived from work hours only so equipment (report hours)
-        # never scales it.
         trips = Decimal(work_days)
-        trip_cost = inp.km * inp.km_rate * trips
-        trip_hours = inp.trip_hours_base * trips
+        trip_cost = inp.km * inp.km_rate * trips * round_trip
+        trip_hours = inp.trip_hours_base * trips * round_trip
         nearby = True
     else:
-        trip_cost = inp.km * inp.km_rate + inp.trip_hours_base * inp.tech_rate
-        trip_hours = inp.trip_hours_base
+        one_way_cost = inp.km * inp.km_rate + inp.trip_hours_base * inp.tech_rate
+        trip_cost = one_way_cost * round_trip
+        trip_hours = inp.trip_hours_base * round_trip
         nearby = False
 
     # The billed total is built with the same travel hours the breakdown

@@ -57,8 +57,8 @@ def test_calculate_is_dry_run_with_fixed_totals():
     out = calculate_price(_pricing())
     assert out.report_hours == Decimal("2.0")
     # Gross (the module lines sum to it) and net (what the client pays).
-    assert out.total == Decimal("1946.00")
-    assert out.total_end == Decimal("1730.00")
+    assert out.total == Decimal("1996.00")
+    assert out.total_end == Decimal("1780.00")
 
 
 def test_create_offer_persists_header_and_items_with_server_totals(db):
@@ -68,8 +68,8 @@ def test_create_offer_persists_header_and_items_with_server_totals(db):
     # Report hours derive from the stored items: both lines share one
     # machine, so 1 x 2h.
     assert offer.report_hours == Decimal("2.0")
-    assert offer.total == Decimal("1946.00")
-    assert offer.total_end == Decimal("1730.00")
+    assert offer.total == Decimal("1996.00")
+    assert offer.total_end == Decimal("1780.00")
     assert len(offer.items) == 2
     assert [i.row_no for i in offer.items] == [1, 2]
     # The lines carry the gross spread over them (legacy "RepartirCostes"),
@@ -211,7 +211,7 @@ def test_update_offer_recomputes_and_replaces_lines(db):
     assert updated.language == "Portuguese"
     # One stored machine -> 2 report hours; totals recompute from items.
     assert updated.report_hours == Decimal("2.0")
-    assert updated.total == Decimal("1946.00")
+    assert updated.total == Decimal("1996.00")
     assert [i.row_no for i in updated.items] == [1]
     assert update_offer(
         db,
@@ -259,3 +259,82 @@ def test_offer_date_is_editable_and_survives_edits(db):
     # The offer date is what the PDF prints, not the audit stamp.
     document = get_offer_document(db, offer.id)
     assert document.offer_date == edited_date
+
+
+def test_custom_annexes_persist_and_survive_full_edits(db):
+    """The annexes belong to the print modal: unrelated edits must not wipe them."""
+    from app.modules.offers.document import CustomAnnex
+    from app.modules.offers.schemas import CustomAnnex as CustomAnnexIn
+    from app.modules.offers.schemas import OfferUpdate
+    from app.modules.offers.service import create_offer, update_offer
+
+    _customer(db)
+    annexes = [CustomAnnexIn(title="SLA Addendum", body="Response in 4h.")]
+    offer = create_offer(db, _offer_data().model_copy(update={"custom_annexes": annexes}))
+    assert offer.custom_annexes == [
+        {"title": "SLA Addendum", "body": "Response in 4h.", "body_html": None}
+    ]
+
+    # The official document carries them to the renderer.
+    document = get_offer_document(db, offer.id)
+    assert document.custom_annexes == (CustomAnnex(title="SLA Addendum", body="Response in 4h."),)
+
+    # A full edit whose form does not send custom_annexes keeps them.
+    updated = update_offer(
+        db,
+        offer.id,
+        OfferUpdate(status="Pending response", pricing=_pricing(), items=[]),
+    )
+    assert updated is not None
+    assert updated.custom_annexes == [
+        {"title": "SLA Addendum", "body": "Response in 4h.", "body_html": None}
+    ]
+
+
+def test_patch_document_settings_updates_only_provided_fields(db):
+    """Print modal auto-save: partial by design, scope-checked like any read."""
+    from app.modules.offers.schemas import OfferDocumentSettingsIn
+    from app.modules.offers.service import create_offer, patch_document_settings
+
+    _customer(db)
+    offer = create_offer(
+        db,
+        _offer_data().model_copy(
+            update={
+                "language": "en",
+                "guardian_selections": ["maintenance_inspection", "inspection"],
+            }
+        ),
+    )
+
+    language_only = patch_document_settings(
+        db, offer.id, OfferDocumentSettingsIn(language="de")
+    )
+    assert language_only is not None
+    assert language_only.language == "de"
+    # Untouched fields keep their values (None means "keep" on every field).
+    assert language_only.guardian_selections == ["maintenance_inspection", "inspection"]
+    assert language_only.custom_annexes == []
+
+    patched = patch_document_settings(
+        db,
+        offer.id,
+        OfferDocumentSettingsIn(
+            guardian_selections=["service_support", "remote_support"],
+            custom_annexes=[{"title": "Annex Z", "body": "Extra terms."}],
+        ),
+    )
+    assert patched is not None
+    assert patched.guardian_selections == ["service_support", "remote_support"]
+    assert patched.custom_annexes == [
+        {"title": "Annex Z", "body": "Extra terms.", "body_html": None}
+    ]
+    assert patched.language == "de"
+
+    # Out-of-scope writes read as missing, same as every other mutation.
+    assert (
+        patch_document_settings(
+            db, offer.id, OfferDocumentSettingsIn(language="es"), subsidiary_id="NOPE"
+        )
+        is None
+    )

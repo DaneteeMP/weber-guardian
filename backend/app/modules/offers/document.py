@@ -20,6 +20,21 @@ class OfferLine:
 
 
 @dataclass(frozen=True)
+class CustomAnnex:
+    """Customer-authored annex appended to the printed contract.
+
+    Pure data: the renderer prints title and body verbatim (no token
+    resolution, no translation) on its own page before the summary.
+    body_html is sanitized HTML extracted from an uploaded .docx; when
+    present it replaces the plain-text body.
+    """
+
+    title: str
+    body: str
+    body_html: str | None = None
+
+
+@dataclass(frozen=True)
 class OfferDocument:
     offer_id: uuid.UUID
     number: str
@@ -50,6 +65,10 @@ class OfferDocument:
     total_end: Decimal
     general_comments: str | None
     guardian_selections: tuple[str, ...] = ()
+    custom_annexes: tuple[CustomAnnex, ...] = field(default_factory=tuple)
+    # Guardian type ("audit" Inspection / "off_guardian" / "guardian" Basic
+    # Kit): prints on the commercial breakdown page.
+    offer_type: str = "audit"
     customer_number: str | None = None
     customer_site: str | None = None
     lines: tuple[OfferLine, ...] = field(default_factory=tuple)

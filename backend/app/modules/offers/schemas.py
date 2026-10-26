@@ -202,6 +202,51 @@ class OfferStatusUpdate(BaseModel):
     status: str = Field(min_length=1, max_length=32)
 
 
+class CustomAnnex(BaseModel):
+    """One customer-authored annex appended to the printed contract.
+
+    Validation is deliberately strict on the title (a headingless annex page
+    would be a silent defect) and permissive on the body: the print modal
+    auto-saves while the user types, so an empty body is a valid transient
+    state. Unknown {{Tokens}} in the body are never resolved: user text
+    reaches the PDF verbatim.
+
+    body_html holds the sanitized HTML extracted from an uploaded .docx
+    (offers.docx_annex); when present it replaces the plain-text body at
+    render time. Both travel in the same JSON entry so the annex list keeps
+    one shape whether it was typed or uploaded.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    title: str = Field(min_length=1, max_length=200)
+    body: str = Field(default="", max_length=20000)
+    body_html: str | None = Field(default=None, max_length=500_000)
+
+
+class OfferDocumentSettingsIn(BaseModel):
+    """Partial update of the print settings (Print PDF modal auto-save).
+
+    Every field is optional: omitted or null keeps the stored value. Scope
+    validation matches OfferCreate/Update so the modal cannot persist a
+    selection the full-edit form would reject. language is only length-checked
+    here (same rule as OfferCreate): app.weber.locales is the single authority
+    on supported contract languages and reports garbage as 422 when the PDF
+    is generated, keeping the core module free of weber imports.
+    """
+
+    guardian_selections: list[str] | None = Field(default=None, max_length=40)
+    language: str | None = Field(default=None, max_length=32)
+    custom_annexes: list[CustomAnnex] | None = Field(default=None, max_length=10)
+
+    @field_validator("guardian_selections")
+    @classmethod
+    def guardian_selections_are_valid(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        return _validate_guardian_selections(value)
+
+
 class StatusCount(BaseModel):
     status: str
     count: int
@@ -237,6 +282,7 @@ class OfferCreate(BaseModel):
     general_comments: str | None = Field(default=None, max_length=2000)
     offer_date: date | None = None
     guardian_selections: list[str] = Field(default_factory=list, max_length=40)
+    custom_annexes: list[CustomAnnex] = Field(default_factory=list, max_length=10)
     pricing: OfferCalculateIn
     items: list[OfferItemCreate] = Field(default_factory=list)
 
@@ -256,6 +302,9 @@ class OfferUpdate(BaseModel):
     general_comments: str | None = Field(default=None, max_length=2000)
     offer_date: date | None = None
     guardian_selections: list[str] = Field(default_factory=list, max_length=40)
+    # None = keep the stored annexes: the full-edit PUT is sent by forms that
+    # do not know about them (and must not wipe what the print modal saved).
+    custom_annexes: list[CustomAnnex] | None = Field(default=None, max_length=10)
     pricing: OfferCalculateIn
     items: list[OfferItemCreate] = Field(default_factory=list)
 
@@ -272,6 +321,7 @@ class OfferOut(BaseModel):
     id_guardian_offer: str
     customer_id: str
     status: str
+    offer_type: str
     responsible_person: str | None
     language: str | None
     inspection_frequency: str | None
@@ -295,4 +345,5 @@ class OfferOut(BaseModel):
     created_at: datetime
     offer_date: date | None
     guardian_selections: list[str]
+    custom_annexes: list[CustomAnnex]
     items: list[OfferItemOut] = Field(default_factory=list)

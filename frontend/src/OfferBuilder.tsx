@@ -5,7 +5,6 @@ import {
   closeOffer,
   createOffer,
   deleteOffer,
-  downloadOfferPdf,
   getCustomerDetail,
   getOffer,
   getOffersSummary,
@@ -27,10 +26,16 @@ import {
 } from "./api";
 import FieldRow from "./components/FieldRow";
 import DataTable from "./components/DataTable";
+import PrintPdfModal from "./components/PrintPdfModal";
 import SectionCard from "./components/SectionCard";
 import { ToastStack, useToasts } from "./components/Toasts";
 import { statusTone } from "./statusTone";
 import { quoteLinesFromDraft, type CatalogQuoteLine } from "./catalogLines";
+import {
+  GUARDIAN_SCOPE,
+  toggleGuardianModule as toggleScopeModule,
+  toggleGuardianOption as toggleScopeOption,
+} from "./guardianScope";
 import { formatHours } from "./workloads/labels";
 import { t, type Lang } from "./i18n";
 
@@ -76,80 +81,23 @@ const todayIso = () => {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 };
 
-// Guardian contract type. Campaign does not exist and was removed. Basic Kit
-// is an option of Guardian itself, not a separate selector: it sends
-// offer_type "guardian" with basic_kit=true, and the bk_hours/bk_price
-// figures come from the maintenance draft aggregates (basic_kit catalog).
-const OFFER_TYPES = ["Guardian", "Inspection", "Off-Guardian", "Basic Kit"];
+// Guardian contract type. Only three types exist: Inspection (internal
+// "audit"), Off-Guardian and Basic Kit. Basic Kit is an option of Guardian
+// itself: it sends offer_type "guardian" with basic_kit=true, and the
+// bk_hours/bk_price figures come from the maintenance draft aggregates.
+const OFFER_TYPES = ["Inspection", "Off-Guardian", "Basic Kit"];
 const OFFER_TYPE_TO_API: Record<string, "guardian" | "audit" | "off_guardian"> = {
-  Guardian: "guardian",
   Inspection: "audit",
   "Off-Guardian": "off_guardian",
   "Basic Kit": "guardian",
 };
+const API_TO_OFFER_TYPE: Record<string, string> = {
+  audit: "Inspection",
+  off_guardian: "Off-Guardian",
+  guardian: "Basic Kit",
+};
 const FREQUENCIES = ["Annual", "Semi-annual", "Biennial"];
 const STATUSES = ["Pending response", "Accepted", "In progress", "Pending invoicing", "Finished", "Rejected", "Cancelled", "Pending Service"];
-const GUARDIAN_SCOPE = [
-  {
-    id: "maintenance_inspection",
-    label: "Maintenance & Inspection",
-    options: [
-      ["inspection", "Inspection / Annual Inspection"],
-      ["machine_checklist", "Machine Checklist"],
-      ["inspection_report", "Inspection Report"],
-      ["preventive_maintenance", "Preventive Maintenance"],
-      ["maintenance_kit", "Spare Parts / Maintenance Kit"],
-    ],
-  },
-  {
-    id: "service_support",
-    label: "Service Support",
-    options: [
-      ["standard_hotline", "Standard Hotline"],
-      ["remote_support", "Remote Support"],
-      ["priority_response", "Priority Response"],
-    ],
-  },
-  {
-    id: "parts_availability",
-    label: "Parts & Availability",
-    options: [
-      ["parts_discount", "Parts Discount"],
-      ["priority_handling", "Priority Handling"],
-      ["recommended_parts_list", "Recommended Parts List"],
-    ],
-  },
-  {
-    id: "blade_solutions",
-    label: "Blade Solutions",
-    options: [
-      ["blade_discount", "Blade Discount"],
-      ["stock_agreement", "Stock Agreement"],
-      ["sharpening_assessment", "Sharpening Assessment"],
-      ["blade_application_review", "Blade Application Review"],
-    ],
-  },
-  {
-    id: "training_optimization",
-    label: "Training & Optimization",
-    options: [
-      ["operator_training", "Operator Training"],
-      ["maintenance_training", "Maintenance Training"],
-      ["line_optimization", "Line Optimization"],
-      ["epip_audit", "EPIP Audit"],
-    ],
-  },
-  {
-    id: "digital_services",
-    label: "Digital Services",
-    options: [
-      ["factory_cockpit", "Factory Cockpit"],
-      ["performance_review", "Performance Review"],
-      ["mro_review", "MRO Review"],
-      ["dedicated_account_team", "Dedicated Account Team"],
-    ],
-  },
-] as const;
 
 type OfferTableRow = {
   id: string;
@@ -306,11 +254,8 @@ export default function OfferBuilder({
         setComments(o.general_comments || "");
         setGuardianSelections(o.guardian_selections || []);
         setTripBase(String(Number(o.trip_hours ?? 0)));
-        // The saved type label is not stored: nonzero kit figures mean this
-        // offer was priced as Basic Kit (other types always send zeroes).
-        if (Number(o.bk_hours ?? 0) > 0 || Number(o.bk_price ?? 0) > 0) {
-          setGuardianType("Basic Kit");
-        }
+        // The stored Guardian type is the source of truth for the selector.
+        setGuardianType(API_TO_OFFER_TYPE[o.offer_type] ?? "Inspection");
         setItems(
           o.items.map((i) => ({
             equipment: i.equipment ?? "",
@@ -366,21 +311,11 @@ export default function OfferBuilder({
   }
 
   function toggleGuardianModule(moduleId: string, optionIds: readonly string[]) {
-    setGuardianSelections((current) => {
-      if (current.includes(moduleId)) {
-        return current.filter((key) => key !== moduleId && !optionIds.includes(key));
-      }
-      return [...current, moduleId];
-    });
+    setGuardianSelections((current) => toggleScopeModule(current, moduleId, optionIds));
   }
 
   function toggleGuardianOption(moduleId: string, optionId: string) {
-    setGuardianSelections((current) => {
-      const next = current.includes(optionId)
-        ? current.filter((key) => key !== optionId)
-        : [...current, optionId];
-      return next.includes(moduleId) ? next : [...next, moduleId];
-    });
+    setGuardianSelections((current) => toggleScopeOption(current, moduleId, optionId));
   }
 
   // Picker drives the quote directly: selecting a machine expands ALL its
@@ -860,20 +795,17 @@ export default function OfferBuilder({
     }
   }
 
-  async function handlePrint() {
+  function handlePrint() {
     if (!savedOffer) return;
-    setError(null);
-    try {
-      await downloadOfferPdf(savedOffer.id);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Print failed");
-    }
+    setPrintOpen(true);
   }
 
   // UI-only state: sidebar tab / visibility and the offers search box.
   const [sideTab, setSideTab] = useState<"offers" | "customers">(editingOfferId ? "offers" : "customers");
   const [sideOpen, setSideOpen] = useState(true);
   const [offerSearch, setOfferSearch] = useState("");
+  // Print PDF dialog: settings (scope, language, annexes) + live preview.
+  const [printOpen, setPrintOpen] = useState(false);
 
   const filteredOffers = useMemo(() => {
     const q = offerSearch.trim().toLowerCase();
@@ -1489,6 +1421,15 @@ export default function OfferBuilder({
           </section>
         </aside>
       </div>
+
+      {printOpen && savedOffer && (
+        <PrintPdfModal
+          open={printOpen}
+          offerId={savedOffer.id}
+          lang={lang}
+          onClose={() => setPrintOpen(false)}
+        />
+      )}
     </div>
   );
 }
