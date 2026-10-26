@@ -547,9 +547,14 @@ export default function OfferBuilder({
   })();
   useEffect(() => {
     if (!customerDetail) return;
-    const rawProvince = (tripSite?.physical_province ?? "").trim();
     const subsidiary = customerDetail.customer.subsidiary_id;
-    if (!rawProvince || !subsidiary) {
+    // Distance catalogs are keyed by a free-text key. Per-customer entries use
+    // the SAP Debitor id (every machine of one client shares its distance);
+    // province entries (Italy, Spain, ...) use the site's province. Try the
+    // customer first, then fall back to the province.
+    const customerKey = (customerDetail.customer.customer_id ?? "").trim();
+    const provinceKey = (tripSite?.physical_province ?? "").trim();
+    if (!subsidiary || (!customerKey && !provinceKey)) {
       setKm("0");
       if (!editingOfferId) setTripBase("0");
       return;
@@ -557,7 +562,10 @@ export default function OfferBuilder({
     let active = true;
     void (async () => {
       try {
-        const match = await lookupDistance(subsidiary, rawProvince);
+        let match = customerKey ? await lookupDistance(subsidiary, customerKey) : null;
+        if (!match && provinceKey) {
+          match = await lookupDistance(subsidiary, provinceKey);
+        }
         if (!active) return;
         setKm(String(match?.km ?? "0"));
         if (!editingOfferId) setTripBase(String(match?.trip_hours ?? "0"));

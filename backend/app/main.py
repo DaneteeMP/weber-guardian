@@ -57,6 +57,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["*"],
     expose_headers=["X-Total-Count", "Content-Disposition", "WWW-Authenticate"],
+    # Cache the CORS preflight for a day: every call carries an Authorization
+    # header, so without this the browser sends an OPTIONS before each request.
+    max_age=86400,
 )
 
 

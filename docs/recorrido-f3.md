@@ -51,3 +51,10 @@ Interfaz `push_offer/pull_customers` con `NotImplementedError`. Reserva la costu
 - **Lookup de distancias** (`GET /distances/lookup?subsidiary=&province=`): resuelve nombre, código o alias (`PROVINCE_ALIASES`, p. ej. `Florence`→Firenze: las 7 provincias SAP vienen en inglés). `resolve_distance()` en `distances/service.py` normaliza con `casefold`; `404` cuando no hay ruta. El frontend lo usa para el viaje desde la ubicación del cliente (`lookupDistance` en `api.ts` rellena km y base del trip sin pisar un trip manual en edición). Tests: `test_distance_lookup_http.py` + servicio en `test_catalogs.py`.
 - **Line Accessories excluidas del draft** (`offers/maintenance.py`): filas instaladas con `component_type` en `LINE_PART_COMPONENT_TYPES` no devuelven filas de módulo aunque el diccionario las conozca — la regla explícita gana sobre la pertenencia instalada (`test_line_accessories_never_become_module_rows`).
 - **`GET /offers/maintenance-draft` sin DB** (`offers/router.py`): `SQLAlchemyError` → `503` con detalle `database unavailable: the schema may be behind, run alembic upgrade head`, en vez de error 500 crudo. Test `test_maintenance_draft_http.py`.
+
+## Distancias por cliente alemán (26/10/2026)
+
+- La tabla `distances` sigue indexada por `subsidiary + province`, pero para Alemania se usa el **SAP Debitor ID canónico (10 dígitos)** como `province` (una fila por cliente): todos los equipos de un cliente comparten su km y tiempo.
+- El builder (`OfferBuilder.tsx`) intenta **primero el `customer_id`** y, si no hay ruta (404), cae a la **provincia del sitio** (Italia/España/Portugal sin cambios).
+- Importado con el importador de rutas existente (`POST /distances/import`, mismo `import_route_csv`), en 4 CSV por `Origen más cercano` (Werther, Wolfertschwenden, Oldenburg, Frankfurt). Provincias (Bundesland) rellenadas desde ciudad/CP: 238 rutas creadas, 0 errores; las 16 rutas por provincia preexistentes se conservan.
+
