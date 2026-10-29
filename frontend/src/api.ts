@@ -856,10 +856,15 @@ export type Prices = {
   band3_rate_with: string | null;
 };
 
-export function getPrices(subsidiary_id: string): Promise<Prices> {
+export function getPrices(subsidiary_id: string): Promise<Prices | null> {
   return fetch(`${BASE}/prices/${encodeURIComponent(subsidiary_id)}`, {
     headers: headers(),
-  }).then((r) => checked(r, "GET prices"));
+  }).then(async (r) => {
+    // A filial without a rate row is a normal state: the form starts empty
+    // and "Guardar cambios" creates the row. Only real failures are errors.
+    if (r.status === 404) return null;
+    return checked(r, "GET prices");
+  });
 }
 
 export function updatePrices(

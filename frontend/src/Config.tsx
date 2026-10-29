@@ -235,7 +235,6 @@ export default function Config({
   useEffect(() => {
     if (!isAdmin) return;
 
-    refreshTables();
     listSubsidiaries()
       .then((subs) => {
         setSubsidiaries(subs);
@@ -249,21 +248,25 @@ export default function Config({
         if (nextSub) {
           getPrices(nextSub)
             .then((p) =>
-              setRates({
-                currency: p.currency ?? "",
-                km_rate: p.km_rate ?? "",
-                tech_rate: p.tech_rate ?? "",
-                diet_full_rate: p.diet_full_rate ?? "",
-                diet_half_rate: p.diet_half_rate ?? "",
-                hotel_rate: p.hotel_rate ?? "",
-                discount_rate: p.discount_rate ?? "",
-                band1_rate_without: p.band1_rate_without ?? "",
-                band1_rate_with: p.band1_rate_with ?? "",
-                band2_rate_without: p.band2_rate_without ?? "",
-                band2_rate_with: p.band2_rate_with ?? "",
-                band3_rate_without: p.band3_rate_without ?? "",
-                band3_rate_with: p.band3_rate_with ?? "",
-              }),
+              setRates(
+                p
+                  ? {
+                      currency: p.currency ?? "",
+                      km_rate: p.km_rate ?? "",
+                      tech_rate: p.tech_rate ?? "",
+                      diet_full_rate: p.diet_full_rate ?? "",
+                      diet_half_rate: p.diet_half_rate ?? "",
+                      hotel_rate: p.hotel_rate ?? "",
+                      discount_rate: p.discount_rate ?? "",
+                      band1_rate_without: p.band1_rate_without ?? "",
+                      band1_rate_with: p.band1_rate_with ?? "",
+                      band2_rate_without: p.band2_rate_without ?? "",
+                      band2_rate_with: p.band2_rate_with ?? "",
+                      band3_rate_without: p.band3_rate_without ?? "",
+                      band3_rate_with: p.band3_rate_with ?? "",
+                    }
+                  : EMPTY_RATES,
+              ),
             )
             .catch((e) => setError(String(e)));
         }
@@ -431,9 +434,9 @@ export default function Config({
   }
 
   useEffect(() => {
-    if (isGlobalAdmin) void loadCountryData();
+    if (isGlobalAdmin && section === "countries") void loadCountryData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isGlobalAdmin]);
+  }, [isGlobalAdmin, section]);
 
   useEffect(() => {
     if (!isGlobalAdmin && section === "countries") setSection("rates");
@@ -444,6 +447,13 @@ export default function Config({
     if (isAdmin && section === "rates") void loadResponsibles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, section, sub]);
+
+  // Routes are only fetched when the tab is opened: loading them on every
+  // Config visit turned a scope problem into an error toast on arrival.
+  useEffect(() => {
+    if (isAdmin && section === "distances") void refreshTables();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, section, scope]);
 
   // Legacy banner states surface as overlay toasts, so call sites stay untouched.
   useEffect(() => {
@@ -874,7 +884,7 @@ export default function Config({
                     const withContract = Number(rates[row.with]);
                     const saving =
                       without > 0 && rates[row.with].trim()
-                        ? ((withContract - without) / without) * 100
+                        ? ((without - withContract) / without) * 100
                         : null;
                     const savingText =
                       saving === null
@@ -914,7 +924,7 @@ export default function Config({
                         </td>
                         <td
                           className={`ui-td text-right text-xs font-semibold ${
-                            saving === null ? "text-muted" : saving <= 0 ? "text-success" : "text-red-600"
+                            saving === null ? "text-muted" : saving >= 0 ? "text-success" : "text-red-600"
                           }`}
                         >
                           {savingText}
@@ -999,6 +1009,7 @@ export default function Config({
           data={visibleDistances}
           columns={distanceColumns}
           getRowId={(d) => `${d.subsidiary_id}:${d.province}`}
+          emptyText={t(lang, "cfg_distances_none")}
           tableClassName="min-w-[1100px]"
           className="min-h-0 flex-1"
         />

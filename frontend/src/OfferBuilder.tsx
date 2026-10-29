@@ -623,7 +623,8 @@ export default function OfferBuilder({
     let active = true;
     getPrices(selectedCustomer.subsidiary_id)
       .then((prices) => {
-        if (!active) return;
+        // No rate row yet: the builder keeps its defaults instead of failing.
+        if (!active || !prices) return;
         setKmRate(prices.km_rate);
         setTechRate(prices.tech_rate);
         setDietFull(prices.diet_full_rate);

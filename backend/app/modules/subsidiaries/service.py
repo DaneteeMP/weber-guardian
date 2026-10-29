@@ -2,7 +2,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.subsidiaries import COUNTRY_ALIASES, _key, normalize_country
+from app.core.subsidiaries import COUNTRY_ALIASES, _key, catalog_subsidiary, normalize_country
 from app.modules.customers.models import Customer
 from app.modules.subsidiaries.models import Subsidiary, SubsidiaryCountry
 from app.modules.subsidiaries.schemas import SubsidiaryStatsOut, UnassignedCountryOut
@@ -91,15 +91,18 @@ def unassigned_countries(db: Session) -> list[UnassignedCountryOut]:
     ]
 
 
-def _require_subsidiary(db: Session, subsidiary: str) -> None:
-    if db.get(Subsidiary, subsidiary) is None:
+def _require_subsidiary(db: Session, subsidiary: str) -> str:
+    """Stored catalog spelling, or raise when the filial is not in the catalog."""
+    name = catalog_subsidiary(db, subsidiary)
+    if name is None:
         raise SubsidiaryNotFound(subsidiary)
+    return name
 
 
 def add_country(db: Session, country: str, subsidiary: str) -> SubsidiaryCountry:
     """Map a new country to a subsidiary. Case-insensitive duplicate check."""
     country = country.strip()
-    _require_subsidiary(db, subsidiary)
+    subsidiary = _require_subsidiary(db, subsidiary)
     existing = db.scalar(
         select(SubsidiaryCountry).where(SubsidiaryCountry.country.ilike(country))
     )
@@ -114,7 +117,7 @@ def add_country(db: Session, country: str, subsidiary: str) -> SubsidiaryCountry
 
 def move_country(db: Session, country: str, subsidiary: str) -> SubsidiaryCountry:
     """Reassign an existing country to another subsidiary."""
-    _require_subsidiary(db, subsidiary)
+    subsidiary = _require_subsidiary(db, subsidiary)
     row = db.scalar(
         select(SubsidiaryCountry).where(SubsidiaryCountry.country.ilike(country.strip()))
     )

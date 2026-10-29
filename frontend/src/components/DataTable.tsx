@@ -6,7 +6,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 
 type DataTableProps<TData> = {
   data: TData[];
@@ -119,9 +119,8 @@ export default function DataTable<TData>({
             const selected = selectedRowId === row.id;
 
             return (
-              <>
+              <Fragment key={row.id}>
                 <tr
-                  key={row.id}
                   onClick={() => onRowClick?.(row.original)}
                   className={[
                     "border-b border-soft last:border-0",
@@ -153,7 +152,7 @@ export default function DataTable<TData>({
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             );
           })}
 

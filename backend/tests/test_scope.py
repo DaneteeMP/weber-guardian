@@ -321,6 +321,33 @@ def test_admin_distance_list_can_show_all_subsidiaries(client):
     }
 
 
+def test_distance_list_accepts_runtime_filial_scope(client):
+    # The scope header arrives as the catalog name; normalize_subsidiary()
+    # would upper-case it, so the catalog lookup has to resolve it first.
+    res = client.get(
+        "/api/v1/distances",
+        headers={
+            "X-Dev-User": "oid-admin",
+            "X-Scope-Subsidiary": "Test%20Mode%20(Germany)",
+        },
+    )
+    assert res.status_code == 200
+    assert res.json() == []
+
+
+def test_distance_list_accepts_runtime_filial_as_query_param(client):
+    res = client.get(
+        "/api/v1/distances",
+        params={"subsidiary_id": "Test Mode (Germany)"},
+        headers={
+            "X-Dev-User": "oid-admin",
+            "X-Scope-Subsidiary": "Test%20Mode%20(Germany)",
+        },
+    )
+    assert res.status_code == 200
+    assert res.json() == []
+
+
 def test_distance_lookup_requires_scope_when_admin_views_all(client):
     res = client.get("/api/v1/distances/Niedersachsen", headers={"X-Dev-User": "oid-admin"})
     assert res.status_code == 422

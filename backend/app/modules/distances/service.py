@@ -10,10 +10,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.subsidiaries import normalize_subsidiary
+from app.core.subsidiaries import catalog_subsidiary
 from app.modules.distances.models import Distance
 from app.modules.distances.schemas import DistanceImportReport, DistanceImportRowError, DistanceUpdate
-from app.modules.subsidiaries.models import Subsidiary
 
 GERMAN_SERVICE_CENTERS = ("Oldenburg", "Werther", "Frankfurt", "Wolfertschwenden")
 MAX_DISTANCE_FILE_BYTES = 2 * 1024 * 1024
@@ -146,8 +145,8 @@ def resolve_distance(db: Session, subsidiary_id: str, province: str | None) -> D
 
 def validate_subsidiary(db: Session, subsidiary_id: str) -> str:
     """Return the canonical subsidiary name or raise a domain error."""
-    canonical = normalize_subsidiary(subsidiary_id)
-    if canonical is None or db.get(Subsidiary, canonical) is None:
+    canonical = catalog_subsidiary(db, subsidiary_id)
+    if canonical is None:
         raise UnknownSubsidiary(subsidiary_id)
     return canonical
 

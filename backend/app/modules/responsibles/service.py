@@ -9,9 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.subsidiaries import catalog_subsidiary
 from app.modules.responsibles.models import Responsible
 from app.modules.responsibles.schemas import ResponsibleCreate, ResponsibleUpdate
-from app.modules.subsidiaries.models import Subsidiary
 
 
 class SubsidiaryNotFound(Exception):
@@ -31,10 +31,12 @@ class ResponsibleAlreadyExists(Exception):
         self.name = name
 
 
-def _require_subsidiary(db: Session, subsidiary_id: str) -> None:
+def _require_subsidiary(db: Session, subsidiary_id: str) -> str:
     """Refuse invented subsidiaries instead of letting the FK fail cryptically."""
-    if db.scalar(select(Subsidiary).where(Subsidiary.name == subsidiary_id)) is None:
+    name = catalog_subsidiary(db, subsidiary_id)
+    if name is None:
         raise SubsidiaryNotFound(subsidiary_id)
+    return name
 
 
 def list_responsibles(db: Session, subsidiary_id: str) -> list[Responsible]:
@@ -55,8 +57,8 @@ def get_responsible(db: Session, responsible_id: uuid.UUID) -> Responsible | Non
 
 def create_responsible(db: Session, data: ResponsibleCreate) -> Responsible:
     """Register a name for a subsidiary. Commits explicitly, rolls back on duplicate."""
-    _require_subsidiary(db, data.subsidiary_id)
-    row = Responsible(subsidiary_id=data.subsidiary_id, name=data.name.strip(), active=True)
+    subsidiary_id = _require_subsidiary(db, data.subsidiary_id)
+    row = Responsible(subsidiary_id=subsidiary_id, name=data.name.strip(), active=True)
     db.add(row)
     try:
         db.commit()

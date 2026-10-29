@@ -7,6 +7,11 @@ import reports them as warnings instead of guessing a filial).
 """
 import re
 
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.modules.subsidiaries.models import Subsidiary
+
 CANONICAL = [
     "Weber Benelux", "Weber Brazil", "Weber Colombia", "Weber Croatia",
     "Weber Czech", "Weber Denmark", "Weber Finland", "Weber France",
@@ -95,6 +100,26 @@ def normalize_subsidiary(value: str | None) -> str | None:
     if short in SUBSIDIARY_ALIASES:
         return SUBSIDIARY_ALIASES[short]
     return SUBSIDIARY_ALIASES.get(lowered, stripped.upper())
+
+
+def catalog_subsidiary(db: Session, value: str | None) -> str | None:
+    """Stored catalog spelling for a filial, or None when it is not there.
+
+    ``normalize_subsidiary`` resolves the legacy aliases and the historical
+    canonical names, but filials created after a release (new countries,
+    demo filials) are not in that static list and come back upper-cased.
+    The catalog table is the real source of truth, so the fallback matches
+    it ignoring case and returns the spelling stored there.
+    """
+    canonical = normalize_subsidiary(value)
+    if canonical is None:
+        return None
+    row = db.get(Subsidiary, canonical)
+    if row is None:
+        row = db.scalar(
+            select(Subsidiary).where(func.lower(Subsidiary.name) == canonical.lower())
+        )
+    return row.name if row is not None else None
 
 
 def short_label(subsidiary: str | None) -> str | None:

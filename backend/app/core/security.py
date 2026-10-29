@@ -16,13 +16,12 @@ from dataclasses import dataclass
 from urllib.parse import unquote
 
 from fastapi import Depends, Header, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import get_db
-from app.core.subsidiaries import normalize_subsidiary
-from app.modules.subsidiaries.models import Subsidiary
+from app.core.subsidiaries import catalog_subsidiary, normalize_subsidiary
 from app.modules.users.models import User
 
 
@@ -35,26 +34,6 @@ class CurrentUser:
     subsidiary_id: str | None
     # Effective data scope (what the person is looking at).
     scope_subsidiary_id: str | None
-
-
-def _catalog_subsidiary(db: Session, requested: str) -> str | None:
-    """Resolve a free-text filial against the catalog table.
-
-    ``normalize_subsidiary`` covers the legacy aliases and the historical
-    canonical names, but filials added after a release (new countries,
-    demo filials) are not in that static list and come back upper-cased.
-    The DB is the real catalog, so the fallback matches it ignoring case
-    and returns the stored spelling.
-    """
-    candidate = normalize_subsidiary(requested)
-    if candidate is None:
-        return None
-    row = db.get(Subsidiary, candidate)
-    if row is None:
-        row = db.scalar(
-            select(Subsidiary).where(func.lower(Subsidiary.name) == candidate.lower())
-        )
-    return row.name if row is not None else None
 
 
 def _resolve_scope(
@@ -72,7 +51,7 @@ def _resolve_scope(
     requested = unquote(header).strip() if isinstance(header, str) else ""
     if not requested:
         return None if role == "admin" else own
-    wanted = _catalog_subsidiary(db, requested)
+    wanted = catalog_subsidiary(db, requested)
     if wanted is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

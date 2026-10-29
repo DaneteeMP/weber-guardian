@@ -6,16 +6,18 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.security import CurrentUser, get_current_user, require_role
-from app.core.subsidiaries import normalize_subsidiary
+from app.core.subsidiaries import catalog_subsidiary
 from app.modules.distances import service
 from app.modules.distances.schemas import DistanceImportReport, DistanceOut, DistanceUpdate
 
 router = APIRouter(prefix="/distances", tags=["distances"])
 
 
-def _target_subsidiary(current: CurrentUser, requested: str | None) -> str | None:
+def _target_subsidiary(
+    db: Session, current: CurrentUser, requested: str | None
+) -> str | None:
     """Resolve an explicit route-table filial without crossing user scope."""
-    wanted = normalize_subsidiary(requested)
+    wanted = catalog_subsidiary(db, requested)
     if current.role == "admin":
         if current.scope_subsidiary_id is not None:
             if wanted is not None and wanted != current.scope_subsidiary_id:
@@ -45,7 +47,7 @@ def list_endpoint(
     db: Session = Depends(get_db),
     current: CurrentUser = Depends(get_current_user),
 ):
-    target = _target_subsidiary(current, subsidiary_id)
+    target = _target_subsidiary(db, current, subsidiary_id)
     if target is not None:
         try:
             service.validate_subsidiary(db, target)
@@ -64,7 +66,7 @@ async def import_endpoint(
     db: Session = Depends(get_db),
     current: CurrentUser = Depends(require_role("admin")),
 ):
-    target = _require_subsidiary(_target_subsidiary(current, subsidiary_id))
+    target = _require_subsidiary(_target_subsidiary(db, current, subsidiary_id))
     try:
         report = service.import_route_csv(
             db,
@@ -92,7 +94,7 @@ def lookup_endpoint(
 ):
     """Resolve a free-text SAP province to its route (name, code or alias).
     404 carries no route: the caller keeps zeroes instead of failing."""
-    target = _require_subsidiary(_target_subsidiary(current, subsidiary_id))
+    target = _require_subsidiary(_target_subsidiary(db, current, subsidiary_id))
     row = service.resolve_distance(db, target, province)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No route for province")
@@ -106,7 +108,7 @@ def get_endpoint(
     db: Session = Depends(get_db),
     current: CurrentUser = Depends(get_current_user),
 ):
-    target = _require_subsidiary(_target_subsidiary(current, subsidiary_id))
+    target = _require_subsidiary(_target_subsidiary(db, current, subsidiary_id))
     row = service.get_distance(db, target, province)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown province for subsidiary")
@@ -121,7 +123,7 @@ def update_endpoint(
     db: Session = Depends(get_db),
     current: CurrentUser = Depends(require_role("admin")),
 ):
-    target = _require_subsidiary(_target_subsidiary(current, subsidiary_id))
+    target = _require_subsidiary(_target_subsidiary(db, current, subsidiary_id))
     try:
         return service.upsert_distance(db, target, province, payload)
     except service.UnknownSubsidiary as exc:
@@ -137,6 +139,6 @@ def delete_endpoint(
     db: Session = Depends(get_db),
     current: CurrentUser = Depends(require_role("admin")),
 ):
-    target = _require_subsidiary(_target_subsidiary(current, subsidiary_id))
+    target = _require_subsidiary(_target_subsidiary(db, current, subsidiary_id))
     if not service.delete_distance(db, target, province):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown province for subsidiary")

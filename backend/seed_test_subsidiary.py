@@ -77,11 +77,48 @@ def _ensure_subsidiary(db: Session) -> None:
         db.flush()
 
 
+def _price_band_columns(db: Session) -> list[str]:
+    """Band columns that exist in the target schema (0031 may not be applied)."""
+    available = set(
+        db.execute(
+            text(
+                "select column_name from information_schema.columns "
+                "where table_name = 'prices'"
+            )
+        ).scalars()
+    )
+    bands = [
+        "band1_rate_without",
+        "band1_rate_with",
+        "band2_rate_without",
+        "band2_rate_with",
+        "band3_rate_without",
+        "band3_rate_with",
+    ]
+    return [name for name in bands if name in available]
+
+
 def _ensure_prices(db: Session) -> None:
+    bands = _price_band_columns(db)
     exists = db.execute(
         text("select 1 from prices where subsidiary_id = :s"), {"s": TEST_SUBSIDIARY}
     ).first()
     if exists:
+        # Already present: only fill band rates that are still empty, so a
+        # later re-run never overwrites values edited in the UI.
+        if bands:
+            assignments = ", ".join(
+                f"{name} = coalesce(demo.{name}, target.{name})" for name in bands
+            )
+            db.execute(
+                text(
+                    f"update prices as demo set {assignments} "
+                    "from prices as target "
+                    "where demo.subsidiary_id = :test "
+                    "and target.subsidiary_id = 'Weber Germany'"
+                ),
+                {"test": TEST_SUBSIDIARY},
+            )
         return
 
     germany = db.execute(
@@ -102,26 +139,9 @@ def _ensure_prices(db: Session) -> None:
         "discount_rate": (germany or {}).get("discount_rate", Decimal("0.15")),
     }
     columns = ["id", "subsidiary_id", "currency", "km_rate", "tech_rate", "diet_full_rate", "diet_half_rate", "hotel_rate", "discount_rate"]
-    available = set(
-        db.execute(
-            text(
-                "select column_name from information_schema.columns "
-                "where table_name = 'prices'"
-            )
-        ).scalars()
-    )
-    bands = [
-        "band1_rate_without",
-        "band1_rate_with",
-        "band2_rate_without",
-        "band2_rate_with",
-        "band3_rate_without",
-        "band3_rate_with",
-    ]
-    if all(name in available for name in bands):
-        for name in bands:
-            values[name] = (germany or {}).get(name)
-            columns.append(name)
+    for name in bands:
+        values[name] = (germany or {}).get(name)
+        columns.append(name)
 
     placeholders = ", ".join(f":{name}" for name in columns)
     db.execute(
