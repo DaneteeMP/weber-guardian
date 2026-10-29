@@ -20,10 +20,11 @@ Conventions
   stable ``id``.
 - Other locales (content/es.py, ...) provide partial ``MESSAGES`` dicts
   keyed by that node id. Missing ids fall back to the English source text.
-- A SECTIONS entry with a ``module`` key is included only when that Guardian
-  module is present in ``OfferDocument.guardian_selections``.
-- A ``{"type": "sub", "option": ...}`` wrapper is included only when that
-  Guardian option is present in the selection.
+- A SECTIONS entry with a ``modules`` tuple is included only when at least
+  one of those Guardian modules is present in
+  ``OfferDocument.guardian_selections``; ``None`` means always included.
+- A ``{"type": "sub", "option"/"options": ...}`` wrapper is included only
+  when one of its Guardian options is present in the selection.
 """
 
 from __future__ import annotations
@@ -53,20 +54,24 @@ from app.weber.content import (
 Block = dict[str, Any]
 _T = TypeVar("_T")
 
-# Ordered customer-facing assembly. "module": None means always included.
+# Ordered customer-facing assembly. ``modules`` lists the Guardian modules
+# that publish the section (any of them); None means always included.
 SECTIONS: tuple[dict[str, Any], ...] = (
-    {"name": "cover", "section": cover, "module": None},
-    {"name": "master", "section": master, "module": None},
-    {"name": "annex1", "section": annex1, "module": None},
-    {"name": "annex2", "section": annex2, "module": "maintenance_inspection"},
-    {"name": "annex3", "section": annex3, "module": "service_support"},
-    {"name": "annex4", "section": annex4, "module": "parts_availability"},
-    {"name": "annex5", "section": annex5, "module": "blade_solutions"},
-    {"name": "annex6", "section": annex6, "module": "training_optimization"},
-    {"name": "annex7", "section": annex7, "module": "digital_services"},
-    {"name": "summary", "section": summary, "module": None},
-    {"name": "breakdown", "section": breakdown, "module": None},
-    {"name": "signatures", "section": signatures, "module": None},
+    {"name": "cover", "section": cover, "modules": None},
+    {"name": "master", "section": master, "modules": None},
+    {"name": "annex1", "section": annex1, "modules": None},
+    # Inspection and its report are always part of the agreement.
+    {"name": "annex2", "section": annex2, "modules": None},
+    {"name": "annex3", "section": annex3, "modules": ("customer_service",)},
+    {"name": "annex4", "section": annex4, "modules": ("spare_parts",)},
+    {"name": "annex5", "section": annex5, "modules": ("blade_solutions",)},
+    # Training lives with optimization in the same annex.
+    {"name": "annex6", "section": annex6, "modules": ("academy", "optimization")},
+    # Performance reviews are optimization; cockpit and monitoring are digital.
+    {"name": "annex7", "section": annex7, "modules": ("optimization", "digital_services")},
+    {"name": "summary", "section": summary, "modules": None},
+    {"name": "breakdown", "section": breakdown, "modules": None},
+    {"name": "signatures", "section": signatures, "modules": None},
 )
 
 # Partial translation catalogs. Locales without an entry simply fall back to
@@ -78,6 +83,13 @@ _CATALOGS: dict[str, dict[str, Any]] = {
     "pt": pt.MESSAGES,
     "it": it.MESSAGES,
 }
+
+
+def _options_of(block: Block) -> frozenset[str]:
+    """Gate keys of a ``sub`` block: ``option`` or ``options`` (any of)."""
+    if "options" in block:
+        return frozenset(block["options"])
+    return frozenset((block["option"],))
 
 
 def document_sections(selections: set[str]) -> list[tuple[str, list[Block]]]:
@@ -92,13 +104,13 @@ def document_sections(selections: set[str]) -> list[tuple[str, list[Block]]]:
     """
     sections: list[tuple[str, list[Block]]] = []
     for entry in SECTIONS:
-        gate = entry["module"]
-        if gate is not None and gate not in selections:
+        modules = entry["modules"]
+        if modules is not None and not any(module in selections for module in modules):
             continue
         blocks = [
             block
             for block in entry["section"].BLOCKS
-            if block.get("type") != "sub" or block["option"] in selections
+            if block.get("type") != "sub" or _options_of(block) & selections
         ]
         sections.append((entry["name"], blocks))
     return sections

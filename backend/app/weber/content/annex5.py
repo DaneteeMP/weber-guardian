@@ -26,7 +26,7 @@ BLOCKS = [
 
     {
         "type": "sub",
-        "option": "blade_discount",
+        "option": "blade_supply_program",
         "blocks": [
             {"type": "h2", "id": "annex5.discount.title", "text": "S603 Blade Supply Partnership"},
             {
@@ -52,7 +52,7 @@ BLOCKS = [
 
     {
         "type": "sub",
-        "option": "stock_agreement",
+        "option": "blade_supply_program",
         "blocks": [
             {"type": "h2", "id": "annex5.stock.title", "text": "Blade Stock Agreement"},
             {
@@ -77,7 +77,7 @@ BLOCKS = [
 
     {
         "type": "sub",
-        "option": "sharpening_assessment",
+        "option": "sharpening",
         "blocks": [
             {"type": "h2", "id": "annex5.sharpening.title", "text": "S602 Sharpening Assessment"},
             {
@@ -94,7 +94,7 @@ BLOCKS = [
 
     {
         "type": "sub",
-        "option": "blade_application_review",
+        "option": "knife_consulting",
         "blocks": [
             {"type": "h2", "id": "annex5.application.title", "text": "S601 Knife Application Consulting"},
             {

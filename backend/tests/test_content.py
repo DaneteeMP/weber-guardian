@@ -14,7 +14,11 @@ from pathlib import Path
 
 import pypdfium2 as pdfium
 
-from app.modules.offers.schemas import GUARDIAN_OPTIONS_BY_MODULE
+from app.modules.offers.schemas import (
+    GUARDIAN_AUTO_SERVICES,
+    GUARDIAN_BASIC_KIT_SERVICES,
+    GUARDIAN_SERVICES,
+)
 from app.weber import content
 from app.weber.content import labels
 
@@ -45,14 +49,20 @@ ALLOWED_TYPES = {
     "sub",
 }
 
-ALL_MODULES = set(GUARDIAN_OPTIONS_BY_MODULE)
-ALL_OPTIONS = {option for options in GUARDIAN_OPTIONS_BY_MODULE.values() for option in options}
-ALL_SELECTIONS = ALL_MODULES | ALL_OPTIONS
+ALL_MODULES = set(GUARDIAN_SERVICES)
+ALL_OPTIONS = {service for services in GUARDIAN_SERVICES.values() for service in services}
+ALL_SELECTIONS = (
+    ALL_MODULES | ALL_OPTIONS | set(GUARDIAN_AUTO_SERVICES) | set(GUARDIAN_BASIC_KIT_SERVICES)
+)
 
 # Tokens introduced after the legacy master template PDF: they have no
 # {{Token}} occurrence in that reference document, so the template check below
 # must exempt them (they are still validated against token_values elsewhere).
-POST_LEGACY_TOKENS = {"Guardian_Type"}
+POST_LEGACY_TOKENS = {
+    "Guardian_Type",
+    "Optimization_Module_Amount",
+    "Selected_Optimization_Options",
+}
 
 
 def _iter_nodes(blocks):
@@ -167,25 +177,27 @@ def test_text_shapes():
 
 def test_sub_gates_belong_to_their_module():
     for entry in content.SECTIONS:
-        module = entry["module"]
+        modules = entry["modules"]
         blocks = entry["section"].BLOCKS
-        if module is None:
-            assert not [b for b in blocks if b["type"] == "sub"], (
-                f"{entry['section']} must not contain gated subs"
-            )
-            continue
-        options = set(GUARDIAN_OPTIONS_BY_MODULE[module])
+        published = {
+            service
+            for module in (modules or ())
+            for service in GUARDIAN_SERVICES[module]
+        }
+        if modules is None:
+            published |= set(GUARDIAN_AUTO_SERVICES) | set(GUARDIAN_BASIC_KIT_SERVICES)
         for block in blocks:
-            if block["type"] == "sub":
-                assert block["option"] in options, (
-                    f"{block['option']} is not an option of {module}"
-                )
+            if block["type"] != "sub":
+                continue
+            gates = block.get("options") or (block["option"],)
+            assert set(gates) <= published, (
+                f"{gates} do not belong to {entry['name']} ({sorted(published)})"
+            )
 
 
 def test_module_gates_are_valid():
     for entry in content.SECTIONS:
-        module = entry["module"]
-        if module is not None:
+        for module in entry["modules"] or ():
             assert module in ALL_MODULES, f"unknown module gate: {module}"
 
 
@@ -206,14 +218,15 @@ def test_document_blocks_gating():
     assert titles == [
         "MAINTENANCE CONTRACT",
         "ANNEX 1 - EQUIPMENT & COMMERCIAL SCHEDULE",
+        "ANNEX 2 - MAINTENANCE & INSPECTION",
         "GUARDIAN CONFIGURATION SUMMARY",
         "ANNEX 1, List of machines and modules",
         "SIGNATURES",
     ]
 
-    module_only = content.document_blocks({"maintenance_inspection"})
+    module_only = content.document_blocks({"customer_service"})
     module_titles = [b["text"] for b in module_only if b["type"] == "h1"]
-    assert "ANNEX 2 - MAINTENANCE & INSPECTION" in module_titles
+    assert "ANNEX 3 - SERVICE SUPPORT" in module_titles
     module_text = " ".join(
         b.get("text", "") for b in _iter_nodes(module_only) if b.get("type") in {"h1", "h2"}
     )
@@ -261,7 +274,8 @@ def test_content_tokens_exist_in_master_template():
 def test_module_and_option_labels_cover_the_domain():
     assert set(labels.MODULE_LABELS) == ALL_MODULES
     assert len(labels.MODULES) == len(ALL_MODULES)
-    assert set(labels.OPTION_LABELS) == ALL_OPTIONS
+    printed = ALL_OPTIONS | set(GUARDIAN_AUTO_SERVICES) | set(GUARDIAN_BASIC_KIT_SERVICES)
+    assert set(labels.OPTION_LABELS) == printed
 
 
 # Nodes that must not appear in the catalogs: container nodes carry no text

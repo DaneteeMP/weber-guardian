@@ -346,7 +346,7 @@ def test_patch_document_settings_updates_only_provided_fields(db):
         _offer_data().model_copy(
             update={
                 "language": "en",
-                "guardian_selections": ["maintenance_inspection", "inspection"],
+                "guardian_selections": ["customer_service", "hotline"],
             }
         ),
     )
@@ -357,19 +357,19 @@ def test_patch_document_settings_updates_only_provided_fields(db):
     assert language_only is not None
     assert language_only.language == "de"
     # Untouched fields keep their values (None means "keep" on every field).
-    assert language_only.guardian_selections == ["maintenance_inspection", "inspection"]
+    assert language_only.guardian_selections == ["customer_service", "hotline"]
     assert language_only.custom_annexes == []
 
     patched = patch_document_settings(
         db,
         offer.id,
         OfferDocumentSettingsIn(
-            guardian_selections=["service_support", "remote_support"],
+            guardian_selections=["customer_service", "remote_support"],
             custom_annexes=[{"title": "Annex Z", "body": "Extra terms."}],
         ),
     )
     assert patched is not None
-    assert patched.guardian_selections == ["service_support", "remote_support"]
+    assert patched.guardian_selections == ["customer_service", "remote_support"]
     assert patched.custom_annexes == [
         {"title": "Annex Z", "body": "Extra terms.", "body_html": None}
     ]
@@ -382,3 +382,30 @@ def test_patch_document_settings_updates_only_provided_fields(db):
         )
         is None
     )
+
+
+def test_guardian_selections_normalize_legacy_keys():
+    from app.modules.offers.schemas import (
+        document_guardian_selections,
+        normalize_guardian_selections,
+    )
+
+    assert set(
+        normalize_guardian_selections(
+            ["service_support", "priority_response", "performance_review"]
+        )
+    ) == {
+        "customer_service",
+        "on_site_assistance",
+        "optimization",
+        "performance_mro_review",
+    }
+    # Inspection moved out of the selectable catalogue: it is automatic.
+    assert normalize_guardian_selections(["maintenance_inspection", "inspection"]) == []
+
+    audit = set(document_guardian_selections(["hotline"], "audit"))
+    assert {"inspection", "machine_checklist", "inspection_report"} <= audit
+    assert "maintenance_kit" not in audit
+
+    basic_kit = set(document_guardian_selections(["hotline"], "guardian"))
+    assert {"preventive_maintenance", "maintenance_kit"} <= basic_kit

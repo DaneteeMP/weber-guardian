@@ -27,7 +27,11 @@ from decimal import Decimal
 
 from app.core.subsidiaries import EXECUTOR_CODES, normalize_subsidiary
 from app.modules.offers.document import OfferDocument, OfferLine
-from app.modules.offers.schemas import GUARDIAN_OPTIONS_BY_MODULE
+from app.modules.offers.schemas import (
+    GUARDIAN_AUTO_SERVICES,
+    GUARDIAN_BASIC_KIT_SERVICES,
+    GUARDIAN_SERVICES,
+)
 from app.weber import contract_es
 from app.weber.content import get_text, labels
 from app.weber.locales import format_date, format_money, normalize_locale
@@ -35,14 +39,19 @@ from app.weber.locales import format_date, format_money, normalize_locale
 DEFAULT_SUBSIDIARY = "ES"
 _TOKEN_PATTERN = re.compile(r"\{\{([A-Za-z0-9_]+)\}\}")
 
-# Tokens for the Selected_*_Options rows of Annex 1 and the summary.
+# Tokens for the Selected_*_Options rows of Annex 1 and the summary, keyed by
+# the services each row covers (inspection is automatic, never selected).
 _SCOPE_TOKENS = {
-    "maintenance_inspection": "Selected_Maintenance_Options",
-    "service_support": "Selected_Service_Support_Options",
-    "parts_availability": "Selected_Parts_Options",
-    "blade_solutions": "Selected_Blade_Options",
-    "training_optimization": "Selected_Training_Options",
-    "digital_services": "Selected_Digital_Options",
+    "Selected_Maintenance_Options": (
+        *GUARDIAN_AUTO_SERVICES,
+        *GUARDIAN_BASIC_KIT_SERVICES,
+    ),
+    "Selected_Service_Support_Options": GUARDIAN_SERVICES["customer_service"],
+    "Selected_Parts_Options": GUARDIAN_SERVICES["spare_parts"],
+    "Selected_Blade_Options": GUARDIAN_SERVICES["blade_solutions"],
+    "Selected_Training_Options": GUARDIAN_SERVICES["academy"],
+    "Selected_Optimization_Options": GUARDIAN_SERVICES["optimization"],
+    "Selected_Digital_Options": GUARDIAN_SERVICES["digital_services"],
 }
 
 
@@ -66,12 +75,12 @@ def machine_groups(lines: tuple[OfferLine, ...]) -> list[tuple[str, list[OfferLi
     return list(groups.items())
 
 
-def selected_scope_text(selections: set[str], module: str) -> str:
-    """Comma-separated English labels of the options selected for a module."""
+def selected_scope_text(selections: set[str], services: tuple[str, ...]) -> str:
+    """Comma-separated English labels of the selected services of a row."""
     return ", ".join(
-        labels.OPTION_LABELS[option]
-        for option in GUARDIAN_OPTIONS_BY_MODULE[module]
-        if option in selections
+        labels.OPTION_LABELS[service]
+        for service in services
+        if service in selections
     )
 
 
@@ -163,6 +172,7 @@ def token_values(doc: OfferDocument, locale: str) -> dict[str, str]:
         "Parts_Module_Amount": "",
         "Blade_Module_Amount": "",
         "Training_Module_Amount": "",
+        "Optimization_Module_Amount": "",
         "Digital_Module_Amount": "",
         "Guardian_Discount": money(doc.discount),
         "Total_Contract_Value": money(doc.total_end),
@@ -196,8 +206,8 @@ def token_values(doc: OfferDocument, locale: str) -> dict[str, str]:
         "MRO_Target": "",
         "Account_Review_Frequency": "",
     }
-    for module, token in _SCOPE_TOKENS.items():
-        values[token] = selected_scope_text(selections, module)
+    for token, services in _SCOPE_TOKENS.items():
+        values[token] = selected_scope_text(selections, services)
     return values
 
 

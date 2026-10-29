@@ -27,6 +27,11 @@ type DataTableProps<TData> = {
 
   // Minimum width of the inner table; wide tables scroll horizontally.
   tableClassName?: string;
+
+  // The rounded frame + border belongs to standalone tables. Inside a card
+  // that already draws its own frame, pass false: otherwise the blue header
+  // gets its own 10px radius inside the card and a seam is visible.
+  bordered?: boolean;
 };
 
 export default function DataTable<TData>({
@@ -41,6 +46,7 @@ export default function DataTable<TData>({
   renderExpandedRow,
   className = "",
   tableClassName = "min-w-[850px]",
+  bordered = true,
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
@@ -68,7 +74,7 @@ export default function DataTable<TData>({
 
   return (
     <div
-      className={`ui-tw min-h-0 flex-1 overflow-auto ${className}`}
+      className={`${bordered ? "ui-tw" : ""} min-h-0 flex-1 overflow-auto ${className}`}
     >
       <table className={`w-full text-sm ${tableClassName}`}>
         <thead className="sticky top-0 z-10">

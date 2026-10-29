@@ -18,6 +18,7 @@ from app.modules.offers.schemas import (
     OfferCreate,
     OfferDocumentSettingsIn,
     OfferUpdate,
+    document_guardian_selections,
 )
 from app.modules.prices.service import get_prices
 
@@ -689,7 +690,9 @@ def get_offer_document(db: Session, offer_id: uuid.UUID, subsidiary_id: str | No
         total=offer.total,
         total_end=offer.total_end,
         general_comments=offer.general_comments,
-        guardian_selections=tuple(offer.guardian_selections or []),
+        guardian_selections=tuple(
+            document_guardian_selections(offer.guardian_selections or [], offer.offer_type)
+        ),
         custom_annexes=tuple(
             CustomAnnex(
                 title=annex["title"],

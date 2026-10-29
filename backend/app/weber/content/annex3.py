@@ -60,7 +60,7 @@ BLOCKS = [
 
     {
         "type": "sub",
-        "option": "standard_hotline",
+        "option": "hotline",
         "blocks": [
             {"type": "h2", "id": "annex3.hotline.title", "text": "S101 Standard Hotline"},
             {
@@ -113,7 +113,7 @@ BLOCKS = [
 
     {
         "type": "sub",
-        "option": "priority_response",
+        "option": "on_site_assistance",
         "blocks": [
             {"type": "h2", "id": "annex3.priority.title", "text": "S104 On-site Service & Priority Response"},
             {

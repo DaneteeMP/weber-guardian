@@ -156,7 +156,7 @@ def test_renderer_uses_only_selected_annex_pages():
     try:
         selected = pdfium.PdfDocument(
             build_offer_pdf(
-                _doc(language="English", guardian_selections=("service_support", "remote_support"))
+                _doc(language="English", guardian_selections=("customer_service", "remote_support"))
             )
         )
         try:
@@ -188,14 +188,15 @@ def test_renderer_renders_every_machine_of_the_offer():
         rendered.close()
 
 
-def test_guardian_options_require_a_known_selected_parent_module():
+def test_guardian_options_carry_their_module_and_unknown_keys_are_rejected():
     pricing = OfferCalculateIn(work_hours=Decimal("0"), equipment_count=0)
-    with pytest.raises(ValueError, match="require module selection"):
-        OfferCreate(
-            customer_id="C-1",
-            guardian_selections=["remote_support"],
-            pricing=pricing,
-        )
+    # A service never needs its module typed by hand: it is derived.
+    offer = OfferCreate(
+        customer_id="C-1",
+        guardian_selections=["remote_support"],
+        pricing=pricing,
+    )
+    assert offer.guardian_selections == ["remote_support", "customer_service"]
 
     with pytest.raises(ValueError, match="unknown Guardian selections"):
         OfferCreate(
@@ -261,7 +262,7 @@ def client(monkeypatch):
             customer_id="C-ES",
             pricing=pricing,
             items=[],
-            guardian_selections=["service_support", "remote_support"],
+            guardian_selections=["customer_service", "remote_support"],
         ),
         created_by=None,
     ).id
@@ -280,7 +281,7 @@ def test_pdf_endpoint_serves_bytes_with_scope(client):
     test_client, ids = client
     offer = test_client.get(f"/api/v1/offers/{ids['es']}", headers={"X-Dev-User": "oid-es"})
     assert offer.status_code == 200
-    assert offer.json()["guardian_selections"] == ["service_support", "remote_support"]
+    assert offer.json()["guardian_selections"] == ["customer_service", "remote_support"]
 
     res = test_client.get(f"/api/v1/offers/{ids['es']}/pdf", headers={"X-Dev-User": "oid-es"})
     assert res.status_code == 200
@@ -307,7 +308,7 @@ def test_document_settings_endpoint_saves_and_renders_the_print_modal_state(clie
         f"/api/v1/offers/{ids['es']}/document",
         json={
             "language": "es",
-            "guardian_selections": ["maintenance_inspection", "inspection"],
+            "guardian_selections": ["customer_service", "hotline"],
             "custom_annexes": [
                 {"title": "ANNEX X - CUSTOM TERMS", "body": "Extra clause line."}
             ],
@@ -317,7 +318,7 @@ def test_document_settings_endpoint_saves_and_renders_the_print_modal_state(clie
     assert saved.status_code == 200
     body = saved.json()
     assert body["language"] == "es"
-    assert body["guardian_selections"] == ["maintenance_inspection", "inspection"]
+    assert body["guardian_selections"] == ["customer_service", "hotline"]
     assert body["custom_annexes"] == [
         {"title": "ANNEX X - CUSTOM TERMS", "body": "Extra clause line.", "body_html": None}
     ]
@@ -334,13 +335,18 @@ def test_document_settings_endpoint_saves_and_renders_the_print_modal_state(clie
     assert "Extra clause line." in text
     assert text.index("ANNEX X - CUSTOM TERMS") < text.index("FIRMAS")
 
-    # Option without its module: rejected exactly like the full-edit PUT.
-    invalid_scope = test_client.patch(
+    # A service carries its own module: the patch is accepted and stored
+    # with the derived parent.
+    service_only = test_client.patch(
         f"/api/v1/offers/{ids['es']}/document",
         json={"guardian_selections": ["remote_support"]},
         headers=headers,
     )
-    assert invalid_scope.status_code == 422
+    assert service_only.status_code == 200
+    assert service_only.json()["guardian_selections"] == [
+        "remote_support",
+        "customer_service",
+    ]
 
     # A headingless annex is a defect: blank titles never persist.
     blank_title = test_client.patch(

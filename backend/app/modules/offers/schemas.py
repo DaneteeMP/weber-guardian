@@ -13,54 +13,150 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 Money = Decimal
 MAX12 = 9999999999.99
 
-GUARDIAN_OPTIONS_BY_MODULE = {
-    "maintenance_inspection": (
-        "inspection",
-        "machine_checklist",
-        "inspection_report",
-        "preventive_maintenance",
-        "maintenance_kit",
+# Guardian service catalog: the real services a salesperson can put in an
+# offer. Commercial conditions (response times, discounts, account team),
+# the content the software already knows (inspection, equipment, prices) and
+# activities owned by another service are NOT selectable and never appear
+# here: they are derived from the offer fields.
+GUARDIAN_SERVICES = {
+    "customer_service": (
+        "hotline",
+        "remote_support",
+        "on_site_assistance",
     ),
-    "service_support": ("standard_hotline", "remote_support", "priority_response"),
-    "parts_availability": ("parts_discount", "priority_handling", "recommended_parts_list"),
-    "blade_solutions": (
-        "blade_discount",
-        "stock_agreement",
-        "sharpening_assessment",
-        "blade_application_review",
+    "spare_parts": (
+        "supply_conditions",
+        "priority_logistics",
+        "parts_recommendations",
     ),
-    "training_optimization": (
+    "academy": (
         "operator_training",
         "maintenance_training",
-        "line_optimization",
+    ),
+    "blade_solutions": (
+        "knife_consulting",
+        "sharpening",
+        "blade_supply_program",
+    ),
+    "optimization": (
         "epip_audit",
+        "line_optimization",
+        "improvement_plan",
+        "performance_mro_review",
     ),
     "digital_services": (
         "factory_cockpit",
-        "performance_review",
-        "mro_review",
-        "dedicated_account_team",
+        "monitoring",
     ),
 }
+
+# Always part of the agreement: the contract states them, nobody ticks them.
+GUARDIAN_AUTO_SERVICES = (
+    "inspection",
+    "machine_checklist",
+    "inspection_report",
+)
+
+# Basic Kit adds these to Annex 2 without asking: they are what the kit is.
+GUARDIAN_BASIC_KIT_SERVICES = ("preventive_maintenance", "maintenance_kit")
+
+# Selections saved before the service catalog was redesigned. They are read,
+# mapped to the current keys and rewritten on the next save, so old offers
+# keep their contract text instead of silently losing services.
+GUARDIAN_LEGACY_MODULES = {
+    "maintenance_inspection": None,  # inspection is automatic now
+    "service_support": "customer_service",
+    "parts_availability": "spare_parts",
+    "training_optimization": "academy",
+    "blade_solutions": "blade_solutions",
+    "digital_services": "digital_services",
+}
+GUARDIAN_LEGACY_OPTIONS = {
+    "standard_hotline": "hotline",
+    "priority_response": "on_site_assistance",
+    "parts_discount": "supply_conditions",
+    "priority_handling": "priority_logistics",
+    "recommended_parts_list": "parts_recommendations",
+    "blade_discount": "blade_supply_program",
+    "stock_agreement": "blade_supply_program",
+    "sharpening_assessment": "sharpening",
+    "blade_application_review": "knife_consulting",
+    "performance_review": "performance_mro_review",
+    "mro_review": "performance_mro_review",
+    "dedicated_account_team": "performance_mro_review",
+    # Options that became automatic or moved to a commercial condition.
+    "inspection": None,
+    "machine_checklist": None,
+    "inspection_report": None,
+    "preventive_maintenance": None,
+    "maintenance_kit": None,
+}
+
+GUARDIAN_MODULE_KEYS = frozenset(GUARDIAN_SERVICES)
+GUARDIAN_SERVICE_KEYS = frozenset(
+    service for services in GUARDIAN_SERVICES.values() for service in services
+)
 GUARDIAN_SELECTION_KEYS = frozenset(
-    key
-    for module, options in GUARDIAN_OPTIONS_BY_MODULE.items()
-    for key in (module, *options)
+    GUARDIAN_MODULE_KEYS
+    | GUARDIAN_SERVICE_KEYS
+    | frozenset(GUARDIAN_LEGACY_MODULES)
+    | frozenset(GUARDIAN_LEGACY_OPTIONS)
 )
 
 
+def normalize_guardian_selections(value: list[str] | tuple[str, ...]) -> list[str]:
+    """Current module/service keys for any selection ever stored.
+
+    Legacy keys are translated key by key, duplicates collapse and options
+    carry their parent module so the stored shape stays consistent. Unknown
+    keys are dropped: they belong to a retired catalog and would only make
+    the offer render empty sections.
+    """
+    mapped: list[str] = []
+    for key in value:
+        if key in GUARDIAN_MODULE_KEYS or key in GUARDIAN_SERVICE_KEYS:
+            mapped.append(key)
+        elif key in GUARDIAN_LEGACY_MODULES:
+            mapped.append(GUARDIAN_LEGACY_MODULES[key])
+        elif key in GUARDIAN_LEGACY_OPTIONS:
+            mapped.append(GUARDIAN_LEGACY_OPTIONS[key])
+    current: list[str] = []
+    for key in mapped:
+        if key is not None and key not in current:
+            current.append(key)
+    for module, services in GUARDIAN_SERVICES.items():
+        if any(service in current for service in services) and module not in current:
+            current.append(module)
+    return current
+
+
+def document_guardian_selections(
+    value: list[str] | tuple[str, ...], offer_type: str | None
+) -> list[str]:
+    """Selections the contract needs: current keys plus the derived services.
+
+    Inspection is always part of the agreement and Basic Kit always brings
+    preventive maintenance and the maintenance kit. Neither is stored on the
+    offer (nobody ticked them), but the PDF has to state them.
+    """
+    selections = normalize_guardian_selections(value)
+    derived = list(GUARDIAN_AUTO_SERVICES)
+    if offer_type == "guardian":
+        derived.extend(GUARDIAN_BASIC_KIT_SERVICES)
+    for key in derived:
+        if key not in selections:
+            selections.append(key)
+    return selections
+
+
 def _validate_guardian_selections(value: list[str]) -> list[str]:
-    """Validate selected module/option keys and require parents for options."""
+    """Accept current or legacy keys and return the canonical stored list."""
     if len(value) != len(set(value)):
         raise ValueError("guardian selections must not contain duplicates")
     unknown = set(value) - GUARDIAN_SELECTION_KEYS
     if unknown:
         raise ValueError(f"unknown Guardian selections: {', '.join(sorted(unknown))}")
-    selected = set(value)
-    for module, options in GUARDIAN_OPTIONS_BY_MODULE.items():
-        if any(option in selected for option in options) and module not in selected:
-            raise ValueError(f"Guardian options require module selection: {module}")
-    return value
+    return normalize_guardian_selections(value)
 
 
 class OfferItemCreate(BaseModel):
@@ -387,3 +483,9 @@ class OfferOut(BaseModel):
     guardian_selections: list[str]
     custom_annexes: list[CustomAnnex]
     items: list[OfferItemOut] = Field(default_factory=list)
+
+    @field_validator("guardian_selections")
+    @classmethod
+    def _current_guardian_selections(cls, value: list[str]) -> list[str]:
+        """Old offers are shown with the current service keys."""
+        return normalize_guardian_selections(value)

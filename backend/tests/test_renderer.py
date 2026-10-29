@@ -18,7 +18,7 @@ from decimal import Decimal
 import pypdfium2 as pdfium
 
 from app.modules.offers.document import CustomAnnex, OfferDocument, OfferLine
-from app.modules.offers.schemas import GUARDIAN_OPTIONS_BY_MODULE
+from app.modules.offers.schemas import GUARDIAN_AUTO_SERVICES, GUARDIAN_BASIC_KIT_SERVICES, GUARDIAN_SERVICES
 from app.weber import content
 from app.weber.pdf import renderer, values
 
@@ -54,10 +54,11 @@ def _doc(**overrides) -> OfferDocument:
         total_end=Decimal("1800"),
         general_comments="Special conditions apply.",
         guardian_selections=(
-            "maintenance_inspection",
+            "customer_service",
+            "hotline",
             "inspection",
-            "service_support",
-            "standard_hotline",
+            "machine_checklist",
+            "inspection_report",
         ),
         customer_number="12345",
         customer_site="Planta Madrid",
@@ -121,7 +122,7 @@ def test_module_and_option_gating():
     assert "ANNEX 3 - SERVICE SUPPORT" in text
     assert "S101 Standard Hotline" in text
     # Module selected but option absent inside it: subsection dropped
-    assert "3. Remote Support" not in text
+    assert "S102 Remote Support" not in text
     assert "S303 Preventive Maintenance" not in text
     # Module not selected: the whole annex is dropped
     assert "ANNEX 4 - PARTS & AVAILABILITY" not in text
@@ -151,10 +152,11 @@ def test_rate_table_heading_hidden_without_band_rates():
 def test_selected_scope_and_checklist_marks():
     text = _pdf_text(renderer.render_document(_doc()))
     # Checklist marks every module, checked only when selected
-    assert "[x] Maintenance & Inspection" in text
+    assert "[x] Customer Service" in text
     assert "[ ] Digital Services" in text
     # Selected_*_Options scope tokens join the selected option labels
-    assert "Inspection / Annual Inspection" in text
+    assert "Hotline" in text
+    assert "Inspection" in text
 
 
 def test_spanish_locale_formats_money_and_titles():
@@ -185,12 +187,17 @@ def test_resolve_tokens_rejects_unknown_token():
 
 
 def test_values_cover_every_content_token():
-    all_options = {
-        option
-        for options in GUARDIAN_OPTIONS_BY_MODULE.values()
-        for option in options
+    all_services = {
+        service
+        for services in GUARDIAN_SERVICES.values()
+        for service in services
     }
-    selections = set(GUARDIAN_OPTIONS_BY_MODULE) | all_options
+    selections = (
+        set(GUARDIAN_SERVICES)
+        | all_services
+        | set(GUARDIAN_AUTO_SERVICES)
+        | set(GUARDIAN_BASIC_KIT_SERVICES)
+    )
     pattern = re.compile(r"\{\{([A-Za-z0-9_]+)\}\}")
     used: set[str] = set()
 

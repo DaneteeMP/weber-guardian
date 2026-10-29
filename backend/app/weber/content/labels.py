@@ -1,18 +1,18 @@
 """English module labels and document order for the Guardian agreement.
 
-Responsibility: single English source for the six Guardian module names, used
-by the Annex 1 checklist, the Configuration Summary table and the renderer.
+Responsibility: single English source for the Guardian module names, used by
+the Annex 1 checklist, the Configuration Summary table and the renderer.
 Translations override them via the ``module.<key>`` message id (see es.py).
 """
 
 from __future__ import annotations
 
 MODULE_LABELS: dict[str, str] = {
-    "maintenance_inspection": "Maintenance & Inspection",
-    "service_support": "Service Support",
-    "parts_availability": "Parts & Availability",
-    "blade_solutions": "Blade Solutions",
-    "training_optimization": "Training & Optimization",
+    "customer_service": "Customer Service",
+    "spare_parts": "Spare Parts & Availability",
+    "academy": "Academy",
+    "blade_solutions": "Knife & Blade Solutions",
+    "optimization": "Optimization & Performance",
     "digital_services": "Digital Services",
 }
 
@@ -28,30 +28,30 @@ GUARDIAN_TYPE_LABELS: dict[str, str] = {
     "guardian": "Basic Kit",
 }
 
-# English option labels, keyed by Guardian option. Used by the token values
+# English service labels, keyed by Guardian service. Used by the token values
 # of the Selected_*_Options scope tokens (see app.weber.pdf.values).
 OPTION_LABELS: dict[str, str] = {
-    "inspection": "Inspection / Annual Inspection",
+    # Automatic content and Basic Kit: never selectable, but printed.
+    "inspection": "Inspection",
     "machine_checklist": "Machine Checklist",
     "inspection_report": "Inspection Report",
     "preventive_maintenance": "Preventive Maintenance",
     "maintenance_kit": "Spare Parts / Maintenance Kit",
-    "standard_hotline": "Standard Hotline",
+    "hotline": "Hotline",
     "remote_support": "Remote Support",
-    "priority_response": "Priority Response",
-    "parts_discount": "Parts Discount",
-    "priority_handling": "Priority Handling",
-    "recommended_parts_list": "Recommended Parts List",
-    "blade_discount": "Blade Discount",
-    "stock_agreement": "Stock Agreement",
-    "sharpening_assessment": "Sharpening Assessment",
-    "blade_application_review": "Blade Application Review",
+    "on_site_assistance": "On-site Assistance",
+    "supply_conditions": "Supply Conditions",
+    "priority_logistics": "Priority Logistics",
+    "parts_recommendations": "Parts Recommendations",
     "operator_training": "Operator Training",
     "maintenance_training": "Maintenance Training",
-    "line_optimization": "Line Optimization",
+    "knife_consulting": "Knife Consulting",
+    "sharpening": "Sharpening",
+    "blade_supply_program": "Blade Supply Programme",
     "epip_audit": "EPIP Audit",
+    "line_optimization": "Line Optimization",
+    "improvement_plan": "Improvement Plan",
+    "performance_mro_review": "Performance & MRO Review",
     "factory_cockpit": "Factory Cockpit",
-    "performance_review": "Performance Review",
-    "mro_review": "MRO Review",
-    "dedicated_account_team": "Dedicated Account Team",
+    "monitoring": "Monitoring",
 }

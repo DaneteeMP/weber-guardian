@@ -14,12 +14,16 @@ from __future__ import annotations
 
 MESSAGES: dict[str, str | list[str]] = {
     # Module labels (labels.MODULE_LABELS)
-    "module.maintenance_inspection": "Manutenção e inspeção",
-    "module.service_support": "Suporte de serviço",
-    "module.parts_availability": "Peças e disponibilidade",
-    "module.blade_solutions": "Soluções de lâminas",
-    "module.training_optimization": "Treinamento e otimização",
+    "module.customer_service": "Apoio ao cliente",
+    "module.spare_parts": "Peças e disponibilidade",
+    "module.academy": "Academia",
+    "module.blade_solutions": "Lâminas e soluções",
+    "module.optimization": "Otimização e desempenho",
     "module.digital_services": "Serviços digitais",
+
+    # Always-on rows of the annex/summary tables
+    "annex1.summary.inspection": "Inspeção e manutenção",
+    "summary.scope.inspection": "Inspeção e manutenção",
 
     # Guardian contract types (labels.GUARDIAN_TYPE_LABELS)
     "guardian_type.audit": "Inspeção",

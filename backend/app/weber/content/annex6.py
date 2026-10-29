@@ -59,7 +59,9 @@ BLOCKS = [
 
     {
         "type": "sub",
-        "option": "line_optimization",
+        # The improvement plan is the deliverable of the same optimization
+        # programme, so both services publish this clause.
+        "options": ("line_optimization", "improvement_plan"),
         "blocks": [
             {"type": "h2", "id": "annex6.optimization.title", "text": "S702 Line Optimization"},
             {

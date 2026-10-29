@@ -28,7 +28,7 @@ BLOCKS = [
 
     {
         "type": "sub",
-        "option": "parts_discount",
+        "option": "supply_conditions",
         "blocks": [
             {"type": "h2", "id": "annex4.discount.title", "text": "S201 Spare Parts Commercial Conditions"},
             {
@@ -50,7 +50,7 @@ BLOCKS = [
 
     {
         "type": "sub",
-        "option": "priority_handling",
+        "option": "priority_logistics",
         "blocks": [
             {"type": "h2", "id": "annex4.handling.title", "text": "S203 Priority Parts Handling"},
             {
@@ -66,7 +66,7 @@ BLOCKS = [
 
     {
         "type": "sub",
-        "option": "recommended_parts_list",
+        "option": "parts_recommendations",
         "blocks": [
             {"type": "h2", "id": "annex4.parts_list.title", "text": "S202 Recommended Spare Parts List"},
             {

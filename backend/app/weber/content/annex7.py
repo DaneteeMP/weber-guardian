@@ -25,7 +25,8 @@ BLOCKS = [
 
     {
         "type": "sub",
-        "option": "factory_cockpit",
+        # Monitoring is delivered through the same cockpit connection.
+        "options": ("factory_cockpit", "monitoring"),
         "blocks": [
             {"type": "h2", "id": "annex7.cockpit.title", "text": "S801 Factory Cockpit / Monitoring"},
             {
@@ -50,7 +51,7 @@ BLOCKS = [
 
     {
         "type": "sub",
-        "option": "performance_review",
+        "option": "performance_mro_review",
         "blocks": [
             {"type": "h2", "id": "annex7.performance.title", "text": "S802 Performance Review & Trend Reporting"},
             {
@@ -76,7 +77,7 @@ BLOCKS = [
 
     {
         "type": "sub",
-        "option": "mro_review",
+        "option": "performance_mro_review",
         "blocks": [
             {"type": "h2", "id": "annex7.mro.title", "text": "S803 Service / Parts MRO Review"},
             {
@@ -101,7 +102,7 @@ BLOCKS = [
 
     {
         "type": "sub",
-        "option": "dedicated_account_team",
+        "option": "performance_mro_review",
         "blocks": [
             {"type": "h2", "id": "annex7.account.title", "text": "S105 Dedicated Account Service Reviews"},
             {

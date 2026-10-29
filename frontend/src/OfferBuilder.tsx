@@ -32,9 +32,11 @@ import { ToastStack, useToasts } from "./components/Toasts";
 import { statusTone } from "./statusTone";
 import { quoteLinesFromDraft, type CatalogQuoteLine } from "./catalogLines";
 import {
-  GUARDIAN_SCOPE,
-  toggleGuardianModule as toggleScopeModule,
-  toggleGuardianOption as toggleScopeOption,
+  GUARDIAN_MODULES,
+  GUARDIAN_SERVICE_COUNT,
+  moduleSelectedCount,
+  selectedServiceCount,
+  toggleGuardianService as toggleScopeService,
 } from "./guardianScope";
 import { formatHours } from "./workloads/labels";
 import { t, type Lang } from "./i18n";
@@ -172,6 +174,14 @@ export default function OfferBuilder({
   }, [responsibleOptions, responsible]);
   const [guardianType, setGuardianType] = useState("Inspection");
   const [guardianSelections, setGuardianSelections] = useState<string[]>([]);
+  // Service modules start folded: the rail shows the whole catalogue at once.
+  const [openModules, setOpenModules] = useState<string[]>([]);
+  const toggleModuleOpen = (moduleId: string) =>
+    setOpenModules((current) =>
+      current.includes(moduleId)
+        ? current.filter((id) => id !== moduleId)
+        : [...current, moduleId],
+    );
   const [comments, setComments] = useState("");
   type QuoteLine = CatalogQuoteLine;
   const [items, setItems] = useState<QuoteLine[]>([]);
@@ -302,24 +312,15 @@ export default function OfferBuilder({
     () => [...new Set(equipList.map((row) => row.equipment_name).filter((name): name is string => !!name))].sort(),
     [equipList],
   );
-  const componentCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const row of equipList) {
-      if (row.equipment_name) counts.set(row.equipment_name, (counts.get(row.equipment_name) ?? 0) + 1);
-    }
-    return counts;
-  }, [equipList]);
 
   function toggleEquip(code: string) {
     setSelectedEquip((p) => (p.includes(code) ? p.filter((c) => c !== code) : [...p, code]));
   }
 
-  function toggleGuardianModule(moduleId: string, optionIds: readonly string[]) {
-    setGuardianSelections((current) => toggleScopeModule(current, moduleId, optionIds));
-  }
-
-  function toggleGuardianOption(moduleId: string, optionId: string) {
-    setGuardianSelections((current) => toggleScopeOption(current, moduleId, optionId));
+  function toggleGuardianService(moduleId: string, serviceId: string) {
+    setGuardianSelections((current) =>
+      toggleScopeService(current, moduleId, serviceId)
+    );
   }
 
   // Picker drives the quote directly: selecting a machine expands ALL its
@@ -910,7 +911,6 @@ export default function OfferBuilder({
     amount: num(calc?.line_amounts?.[index] ?? item.import_amount, 0),
     catalogWarning: item.catalogWarning,
   }));
-  const linesTotal = moduleRows.reduce((sum, r) => sum + r.amount, 0);
   const warningCount = moduleRows.filter((r) => r.catalogWarning).length;
 
   const moduleColumns = useMemo<ColumnDef<OfferTableRow>[]>(
@@ -979,7 +979,7 @@ export default function OfferBuilder({
     [site.physical_street, site.physical_city, site.physical_province].filter((v) => (v ?? "").trim()).join(", ") ||
     site.id;
 
-  const scopeCount = GUARDIAN_SCOPE.filter((module) => guardianSelections.includes(module.id)).length;
+  const scopeCount = selectedServiceCount(guardianSelections);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-canvas text-xs text-ink">
@@ -1007,10 +1007,6 @@ export default function OfferBuilder({
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <div className="mr-2 text-right leading-tight">
-            <div className="text-[11px] text-muted">{t(lang, "ob_total_amount")}</div>
-            <div className="font-mono text-sm font-bold text-primary">{calc ? eur(calc.total_end) : "—"}</div>
-          </div>
           <button onClick={handlePrint} disabled={!savedOffer} title={t(lang, "ob_print")} aria-label={t(lang, "ob_print")} className={btnSoft}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4" aria-hidden="true">
               <path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" strokeLinecap="round" strokeLinejoin="round" />
@@ -1312,9 +1308,6 @@ export default function OfferBuilder({
                       >
                         <input type="checkbox" checked={checked} onChange={() => toggleEquip(code)} className="shrink-0 accent-blue-700" />
                         <span className="min-w-0 flex-1 break-words font-medium">{code}</span>
-                        <span className="shrink-0 rounded-full bg-canvas px-1.5 text-[10px] text-muted">
-                          {componentCounts.get(code) ?? 0}
-                        </span>
                       </label>
                     );
                   })
@@ -1323,7 +1316,7 @@ export default function OfferBuilder({
             </section>
 
             <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-white">
-              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-3 py-1.5">
+              <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-1.5">
                 <span className="font-semibold text-ink">
                   {t(lang, "ob_col_module")} <span className="font-normal text-muted">{moduleRows.length}</span>
                   {warningCount > 0 && (
@@ -1335,9 +1328,6 @@ export default function OfferBuilder({
                     </span>
                   )}
                 </span>
-                <span className="font-mono font-semibold text-ink">
-                  {workHours} h · {eur(linesTotal)}
-                </span>
               </div>
               <DataTable
                 data={moduleRows}
@@ -1346,8 +1336,9 @@ export default function OfferBuilder({
                 loadingText={t(lang, "dash_loading")}
                 emptyText={t(lang, "ob_empty_modules")}
                 getRowId={(row) => row.id}
-                className="min-h-0 flex-1 border-0"
+                className="min-h-0 flex-1"
                 tableClassName=""
+                bordered={false}
               />
             </section>
 
@@ -1389,49 +1380,58 @@ export default function OfferBuilder({
         </main>
         </div>
 
-        {/* ── Right rail: Guardian scope + estimated costs, full height ────── */}
+        {/* ── Right rail: service configuration + estimated costs ──────────── */}
         <aside className="flex min-h-0 w-[280px] shrink-0 flex-col gap-2 overflow-y-auto">
           <section className="flex min-h-0 flex-1 flex-col rounded-xl border border-line bg-white p-2">
             <div className="mb-0.5 font-semibold text-ink">
-              {t(lang, "ob_contract_scope")}{" "}
+              {t(lang, "ob_service_config")}{" "}
               <span className="font-normal text-muted">
-                {scopeCount}/{GUARDIAN_SCOPE.length}
+                {scopeCount}/{GUARDIAN_SERVICE_COUNT}
               </span>
             </div>
             <p className="mb-1 shrink-0 text-[10px] leading-snug text-muted">{t(lang, "ob_scope_help")}</p>
             <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-0.5">
-              {GUARDIAN_SCOPE.map((module) => {
-                const moduleSelected = guardianSelections.includes(module.id);
+              {GUARDIAN_MODULES.map((module) => {
+                const selected = moduleSelectedCount(module, guardianSelections);
+                const open = openModules.includes(module.id);
                 return (
-                  <fieldset
+                  <div
                     key={module.id}
-                    className={`rounded border p-1 ${moduleSelected ? "border-blue-200 bg-blue-50/40" : "border-line bg-white"}`}
+                    className={`rounded border ${selected > 0 ? "border-blue-200 bg-blue-50/40" : "border-line bg-white"}`}
                   >
-                    <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold text-ink">
-                      <input
-                        type="checkbox"
-                        checked={moduleSelected}
-                        onChange={() => toggleGuardianModule(module.id, module.options.map(([id]) => id))}
-                        className="accent-blue-700"
-                      />
-                      {module.label}
-                    </label>
-                    {moduleSelected && (
-                      <div className="ml-4 mt-0.5 space-y-0.5">
-                        {module.options.map(([optionId, optionLabel]) => (
-                          <label key={optionId} className="flex cursor-pointer items-center gap-1.5 text-[10px] text-muted">
+                    <button
+                      type="button"
+                      onClick={() => toggleModuleOpen(module.id)}
+                      aria-expanded={open}
+                      className="flex w-full items-center gap-1.5 rounded p-1 text-left"
+                    >
+                      <span className="w-4 shrink-0 font-mono text-[10px] text-muted">{module.code}</span>
+                      <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+                        <span className="text-[11px] font-semibold text-ink">{module.label}</span>
+                        <span className="text-[10px] text-muted">
+                          {selected} of {module.services.length} selected
+                        </span>
+                      </span>
+                      <span className={`shrink-0 text-[10px] text-muted transition-transform ${open ? "rotate-90" : ""}`}>
+                        ▸
+                      </span>
+                    </button>
+                    {open && (
+                      <div className="ml-5 mr-1 mb-1 space-y-0.5 border-t border-line pt-1">
+                        {module.services.map((service) => (
+                          <label key={service.id} className="flex cursor-pointer items-center gap-1.5 text-[10px] text-muted">
                             <input
                               type="checkbox"
-                              checked={guardianSelections.includes(optionId)}
-                              onChange={() => toggleGuardianOption(module.id, optionId)}
+                              checked={guardianSelections.includes(service.id)}
+                              onChange={() => toggleGuardianService(module.id, service.id)}
                               className="accent-blue-700"
                             />
-                            {optionLabel}
+                            {service.label}
                           </label>
                         ))}
                       </div>
                     )}
-                  </fieldset>
+                  </div>
                 );
               })}
             </div>

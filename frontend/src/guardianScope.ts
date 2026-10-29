@@ -1,99 +1,130 @@
-// Guardian contract scope catalog: the six modules and their service options.
+// Guardian service catalog: the six service modules and the services a
+// salesperson can really sell. Shared by the OfferBuilder rail and the print
+// dialog so the two screens can never drift apart.
 //
-// Shared by the OfferBuilder right rail and the Print PDF modal, so the two
-// screens can never drift apart. The ids are the canonical keys the backend
-// validates (GUARDIAN_OPTIONS_BY_MODULE in offers/schemas.py); the labels
-// stay English, like the rest of the builder UI.
+// Rules encoded here (see backend GUARDIAN_SERVICES for the source of truth):
+// - Only real services have a checkbox. Conditions (response times,
+//   discounts, account team) are configured elsewhere; the software already
+//   knows the inspection content, the equipment and the prices.
+// - A module is never selected on its own: its state is derived from the
+//   services ticked inside it.
+// - Automatic services and the Basic Kit content are shown read-only.
+
+export type GuardianService = {
+  id: string;
+  label: string;
+};
 
 export type GuardianModule = {
   id: string;
+  code: string;
   label: string;
-  options: readonly (readonly [string, string])[];
+  services: readonly GuardianService[];
 };
 
-export const GUARDIAN_SCOPE: readonly GuardianModule[] = [
+export const GUARDIAN_MODULES: readonly GuardianModule[] = [
   {
-    id: "maintenance_inspection",
-    label: "Maintenance & Inspection",
-    options: [
-      ["inspection", "Inspection / Annual Inspection"],
-      ["machine_checklist", "Machine Checklist"],
-      ["inspection_report", "Inspection Report"],
-      ["preventive_maintenance", "Preventive Maintenance"],
-      ["maintenance_kit", "Spare Parts / Maintenance Kit"],
+    id: "customer_service",
+    code: "01",
+    label: "Customer Service",
+    services: [
+      { id: "hotline", label: "Hotline" },
+      { id: "remote_support", label: "Remote support" },
+      { id: "on_site_assistance", label: "On-site assistance" },
     ],
   },
   {
-    id: "service_support",
-    label: "Service Support",
-    options: [
-      ["standard_hotline", "Standard Hotline"],
-      ["remote_support", "Remote Support"],
-      ["priority_response", "Priority Response"],
+    id: "spare_parts",
+    code: "02",
+    label: "Spare Parts & Availability",
+    services: [
+      { id: "supply_conditions", label: "Supply conditions" },
+      { id: "priority_logistics", label: "Priority logistics" },
+      { id: "parts_recommendations", label: "Parts recommendations" },
     ],
   },
   {
-    id: "parts_availability",
-    label: "Parts & Availability",
-    options: [
-      ["parts_discount", "Parts Discount"],
-      ["priority_handling", "Priority Handling"],
-      ["recommended_parts_list", "Recommended Parts List"],
+    id: "academy",
+    code: "03",
+    label: "Academy",
+    services: [
+      { id: "operator_training", label: "Operator training" },
+      { id: "maintenance_training", label: "Maintenance training" },
     ],
   },
   {
     id: "blade_solutions",
-    label: "Blade Solutions",
-    options: [
-      ["blade_discount", "Blade Discount"],
-      ["stock_agreement", "Stock Agreement"],
-      ["sharpening_assessment", "Sharpening Assessment"],
-      ["blade_application_review", "Blade Application Review"],
+    code: "04",
+    label: "Knife & Blade Solutions",
+    services: [
+      { id: "knife_consulting", label: "Knife consulting" },
+      { id: "sharpening", label: "Sharpening" },
+      { id: "blade_supply_program", label: "Blade supply programme" },
     ],
   },
   {
-    id: "training_optimization",
-    label: "Training & Optimization",
-    options: [
-      ["operator_training", "Operator Training"],
-      ["maintenance_training", "Maintenance Training"],
-      ["line_optimization", "Line Optimization"],
-      ["epip_audit", "EPIP Audit"],
+    id: "optimization",
+    code: "05",
+    label: "Optimization & Performance",
+    services: [
+      { id: "epip_audit", label: "EPIP audit" },
+      { id: "line_optimization", label: "Line optimization" },
+      { id: "improvement_plan", label: "Improvement plan" },
+      { id: "performance_mro_review", label: "Performance & MRO review" },
     ],
   },
   {
     id: "digital_services",
+    code: "06",
     label: "Digital Services",
-    options: [
-      ["factory_cockpit", "Factory Cockpit"],
-      ["performance_review", "Performance Review"],
-      ["mro_review", "MRO Review"],
-      ["dedicated_account_team", "Dedicated Account Team"],
+    services: [
+      { id: "factory_cockpit", label: "Factory Cockpit" },
+      { id: "monitoring", label: "Monitoring" },
     ],
   },
 ];
 
-// Pure selection updates that keep the backend invariant: an option always
-// carries its parent module, and deselecting a module drops its options.
+export const GUARDIAN_SERVICE_COUNT = GUARDIAN_MODULES.reduce(
+  (total, module) => total + module.services.length,
+  0,
+);
 
-export function toggleGuardianModule(
-  current: string[],
-  moduleId: string,
-  optionIds: readonly string[],
-): string[] {
-  if (current.includes(moduleId)) {
-    return current.filter((key) => key !== moduleId && !optionIds.includes(key));
-  }
-  return [...current, moduleId];
+// Always part of the agreement: nobody ticks them, the contract states them.
+export const GUARDIAN_AUTO_SERVICES = [
+  "Inspection",
+  "Machine checklist",
+  "Inspection report",
+] as const;
+
+// Basic Kit adds these to the maintenance annex without a checkbox.
+export const GUARDIAN_BASIC_KIT_SERVICES = [
+  "Preventive maintenance",
+  "Spare parts / maintenance kit",
+] as const;
+
+export function moduleSelectedCount(
+  module: GuardianModule,
+  selections: readonly string[],
+): number {
+  return module.services.filter((service) => selections.includes(service.id)).length;
 }
 
-export function toggleGuardianOption(
+export function selectedServiceCount(selections: readonly string[]): number {
+  return GUARDIAN_MODULES.reduce(
+    (total, module) => total + moduleSelectedCount(module, selections),
+    0,
+  );
+}
+
+// Pure selection update: a service always carries its parent module, so the
+// stored shape keeps working with older renders and the backend validator.
+export function toggleGuardianService(
   current: string[],
   moduleId: string,
-  optionId: string,
+  serviceId: string,
 ): string[] {
-  const next = current.includes(optionId)
-    ? current.filter((key) => key !== optionId)
-    : [...current, optionId];
+  const next = current.includes(serviceId)
+    ? current.filter((key) => key !== serviceId)
+    : [...current, serviceId];
   return next.includes(moduleId) ? next : [...next, moduleId];
 }
