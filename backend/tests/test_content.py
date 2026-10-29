@@ -37,6 +37,7 @@ ALLOWED_TYPES = {
     "lines",
     "party",
     "commercial_breakdown",
+    "band_rates",
     "equipment_table",
     "kv_table",
     "module_checklist",
@@ -67,7 +68,17 @@ def _iter_all_nodes(blocks):
         yield block
         if block.get("type") == "sub":
             yield from _iter_all_nodes(block["blocks"])
-        for key in ("headers", "fields", "columns", "rows", "meta_right", "meta_left", "totals"):
+        for key in (
+            "headers",
+            "fields",
+            "columns",
+            "rows",
+            "meta_right",
+            "meta_left",
+            "totals",
+            "matrix_headers",
+            "rate_headers",
+        ):
             for item in block.get(key) or []:
                 yield item
         if "company_label" in block:
@@ -83,7 +94,16 @@ def _collect_ids(blocks):
     for block in _iter_nodes(blocks):
         if "id" in block:
             ids.append(block["id"])
-        for key in ("headers", "fields", "columns", "meta_right", "meta_left", "totals"):
+        for key in (
+            "headers",
+            "fields",
+            "columns",
+            "meta_right",
+            "meta_left",
+            "totals",
+            "matrix_headers",
+            "rate_headers",
+        ):
             for item in block.get(key) or []:
                 ids.append(item["id"])
         if "company_label" in block:
@@ -185,7 +205,6 @@ def test_document_blocks_gating():
     titles = [b["text"] for b in bare if b["type"] == "h1"]
     assert titles == [
         "MAINTENANCE CONTRACT",
-        "WEBER GUARDIAN MASTER AGREEMENT",
         "ANNEX 1 - EQUIPMENT & COMMERCIAL SCHEDULE",
         "GUARDIAN CONFIGURATION SUMMARY",
         "ANNEX 1, List of machines and modules",
@@ -198,14 +217,14 @@ def test_document_blocks_gating():
     module_text = " ".join(
         b.get("text", "") for b in _iter_nodes(module_only) if b.get("type") in {"h1", "h2"}
     )
-    assert "2. Inspection" not in module_text, "option sub must drop without its option"
+    assert "S301 Scheduled Technical Inspection" not in module_text, "option sub must drop without its option"
 
     full = content.document_blocks(ALL_SELECTIONS)
     full_text = " ".join(
         b.get("text", "") for b in _iter_nodes(full) if b.get("type") in {"h1", "h2"}
     )
-    assert "2. Inspection" in full_text
-    assert "4. Priority Response" in full_text
+    assert "S301 Scheduled Technical Inspection" in full_text
+    assert "S104 On-site Service & Priority Response" in full_text
 
 
 def test_content_tokens_exist_in_master_template():
@@ -253,13 +272,12 @@ NON_TRANSLATABLE_NODES = {
     "cover.executor",
     "cover.customer",
     "breakdown",
+    "annex3.rates",
     "annex1.equipment",
     "annex1.modules",
     "annex1.summary",
     "summary.scope",
     "summary.signatures",
-    "master.weber_party",
-    "master.customer_party",
     "annex1.special.conditions",
 }
 

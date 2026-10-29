@@ -75,7 +75,7 @@ export default function RulesPanel({
         header: t(lang, "workload_legacy_code"),
         enableSorting: true,
         cell: ({ row }) => (
-          <span className="font-mono text-gray-600">{row.original.legacy_type_code ?? "—"}</span>
+          <span className="font-mono text-muted">{row.original.legacy_type_code ?? "—"}</span>
         ),
       },
       {
@@ -100,7 +100,7 @@ export default function RulesPanel({
               {t(lang, "workload_needs_review")}
             </span>
           ) : (
-            <span className="text-gray-400">—</span>
+            <span className="text-muted">—</span>
           ),
       },
     ],
@@ -117,7 +117,7 @@ export default function RulesPanel({
           className="min-w-0 flex-1"
         />
 
-        <span className="shrink-0 text-sm text-gray-500">
+        <span className="shrink-0 text-sm text-muted">
           {total.toLocaleString()} {t(lang, "workload_rules_label")}
         </span>
 

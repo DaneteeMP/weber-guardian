@@ -115,18 +115,22 @@ type OfferTableRow = {
 export default function OfferBuilder({
   lang,
   editingOfferId,
+  initialCustomerId,
   onDone,
   onEdit,
   onNew,
 }: {
   lang: Lang;
   editingOfferId: string | null;
+  initialCustomerId?: string | null;
   onDone: () => void;
   onEdit?: (offerId: string) => void;
   onNew?: () => void;
 }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customerId, setCustomerId] = useState("");
+  const [customerId, setCustomerId] = useState(() =>
+    editingOfferId ? "" : initialCustomerId ?? ""
+  );
   const [clientSearch, setClientSearch] = useState("");
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [customerDetail, setCustomerDetail] = useState<CustomerDetail | null>(null);
@@ -380,6 +384,30 @@ export default function OfferBuilder({
     resetOfferFields();
     if (editingOfferId) onNew?.();
   }
+
+  // "New offer" from the nav clears editingOfferId; blank the offer-specific
+  // fields so the next save creates a new offer instead of reusing the edited
+  // offer's number (the backend rejects the duplicate with 409).
+  const wasEditingOffer = useRef<string | null>(null);
+  useEffect(() => {
+    if (wasEditingOffer.current && !editingOfferId) {
+      resetOfferFields();
+    }
+    wasEditingOffer.current = editingOfferId;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingOfferId]);
+
+  // Opening a new offer from a customer click hands the customer to the
+  // builder. Only react to a real prop change: a manual customer pick keeps
+  // its own state and must not be overwritten by the stale prop.
+  useEffect(() => {
+    if (editingOfferId || !initialCustomerId) return;
+    if (initialCustomerId !== customerIdRef.current) {
+      setCustomerId(initialCustomerId);
+      resetOfferFields();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCustomerId, editingOfferId]);
 
   useEffect(() => {
     const prev = prevSelected.current;
@@ -768,6 +796,9 @@ export default function OfferBuilder({
         });
         setOfferNumber(created.id_guardian_offer);
         setSavedOffer({ id: created.id, status });
+        // Switch the form to edit mode: a second save must update this offer,
+        // never POST the same number again (409 duplicate).
+        onEdit?.(created.id);
       }
       setSaved(t(lang, "ob_saved"));
       await refreshOffers();
@@ -849,17 +880,17 @@ export default function OfferBuilder({
 
   // Shared dense styles.
   const ctl =
-    "h-7 w-full rounded border border-slate-300 bg-white px-1.5 text-xs focus:border-weber-blue focus:outline-none focus:ring-1 focus:ring-weber-blue";
+    "h-8 w-full rounded-lg border border-line-strong bg-white px-2 text-xs text-ink outline-none transition focus:border-primary focus:ring-[3px] focus:ring-focus/70";
   const btn =
-    "inline-flex h-7 items-center gap-1.5 rounded border px-2.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40";
-  const btnSoft = `${btn} border-slate-300 bg-white text-slate-700 hover:bg-slate-50`;
-  const btnPrimary = `${btn} border-weber-blue bg-weber-blue text-white hover:opacity-90`;
+    "inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+  const btnSoft = `${btn} border-line-strong bg-white text-ink hover:bg-canvas`;
+  const btnPrimary = `${btn} border-primary bg-primary text-white hover:bg-primary/90`;
   const btnDanger = `${btn} border-red-200 bg-white text-red-700 hover:bg-red-50`;
 
   // Plain function (not a component) so inputs are not remounted on each render.
   const field = (label: string, control: ReactNode, span = "") => (
     <div className={`flex min-w-0 flex-col gap-0.5 ${span}`}>
-      <span className="truncate text-[11px] font-medium text-slate-500">{label}</span>
+      <span className="truncate text-[11px] font-medium text-muted">{label}</span>
       {control}
     </div>
   );
@@ -914,7 +945,7 @@ export default function OfferBuilder({
         accessorKey: "workload",
         header: () => <span className="block text-right">{t(lang, "ob_col_workload")}</span>,
         cell: ({ getValue }) => (
-          <span className="block text-right font-mono text-slate-600">
+          <span className="block text-right font-mono text-muted">
             {formatHours(String(getValue() ?? ""))}
           </span>
         ),
@@ -950,34 +981,34 @@ export default function OfferBuilder({
   const scopeCount = GUARDIAN_SCOPE.filter((module) => guardianSelections.includes(module.id)).length;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-slate-100 text-xs text-slate-800">
+    <div className="flex h-full min-h-0 flex-col bg-canvas text-xs text-ink">
       {/* ── Top bar: identity, live total and actions ─────────────────────── */}
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 py-1.5 shadow-sm">
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-white px-3 py-1.5">
         <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
             onClick={() => setSideOpen((v) => !v)}
             aria-label="Toggle sidebar"
             aria-pressed={sideOpen}
-            className="hidden h-7 w-7 items-center justify-center rounded border border-slate-300 text-slate-600 hover:bg-slate-50 lg:inline-flex"
+            className="hidden h-7 w-7 items-center justify-center rounded border border-line-strong text-muted hover:bg-canvas lg:inline-flex"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4" aria-hidden="true">
               <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
             </svg>
           </button>
-          <h1 className="truncate text-base font-bold tracking-tight text-slate-900">Guardian Offers</h1>
+          <h1 className="truncate text-base font-bold tracking-tight text-ink">Guardian Offers</h1>
           {editingOfferId && (
-            <span className="truncate text-slate-500">
-              {t(lang, "ob_editing")} <span className="font-mono font-semibold text-slate-700">{offerNumber}</span>
+            <span className="truncate text-muted">
+              {t(lang, "ob_editing")} <span className="font-mono font-semibold text-ink">{offerNumber}</span>
             </span>
           )}
-          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold ${statusTone(status)}`}>{status}</span>
+          <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[12px] font-semibold leading-none ${statusTone(status)}`}>{status}</span>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
           <div className="mr-2 text-right leading-tight">
-            <div className="text-[11px] text-slate-500">{t(lang, "ob_total_amount")}</div>
-            <div className="font-mono text-sm font-bold text-blue-700">{calc ? eur(calc.total_end) : "—"}</div>
+            <div className="text-[11px] text-muted">{t(lang, "ob_total_amount")}</div>
+            <div className="font-mono text-sm font-bold text-primary">{calc ? eur(calc.total_end) : "—"}</div>
           </div>
           <button onClick={handlePrint} disabled={!savedOffer} title={t(lang, "ob_print")} aria-label={t(lang, "ob_print")} className={btnSoft}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4" aria-hidden="true">
@@ -1015,8 +1046,8 @@ export default function OfferBuilder({
         <div className="flex min-h-0 min-w-0 flex-1 gap-2">
         {/* ── Sidebar: one list at a time, each gets the full height ──────── */}
         {sideOpen && (
-          <aside className="hidden min-h-0 w-[250px] shrink-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm lg:flex">
-            <div className="flex shrink-0 border-b border-slate-200 text-xs font-semibold">
+          <aside className="hidden min-h-0 w-[250px] shrink-0 flex-col overflow-hidden rounded-xl border border-line bg-white lg:flex">
+            <div className="flex shrink-0 border-b border-line text-xs font-semibold">
               {(
                 [
                   ["offers", t(lang, "home_list"), offerList.length],
@@ -1030,10 +1061,10 @@ export default function OfferBuilder({
                   className={`flex-1 border-b-2 px-2 py-2 transition-colors ${
                     sideTab === id
                       ? "border-weber-blue text-weber-blue"
-                      : "border-transparent text-slate-500 hover:bg-slate-50"
+                      : "border-transparent text-muted hover:bg-canvas"
                   }`}
                 >
-                  {label} <span className="font-normal text-slate-400">{count}</span>
+                  {label} <span className="font-normal text-muted">{count}</span>
                 </button>
               ))}
             </div>
@@ -1062,9 +1093,9 @@ export default function OfferBuilder({
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
                   {offerListLoading ? (
-                    <p className="px-2 py-5 text-center text-slate-400">{t(lang, "dash_loading")}</p>
+                    <p className="px-2 py-5 text-center text-muted">{t(lang, "dash_loading")}</p>
                   ) : filteredOffers.length === 0 ? (
-                    <p className="px-2 py-5 text-center text-slate-400">{t(lang, "home_no_results")}</p>
+                    <p className="px-2 py-5 text-center text-muted">{t(lang, "home_no_results")}</p>
                   ) : (
                     filteredOffers.map((o) => {
                       const selected = o.id === editingOfferId;
@@ -1076,19 +1107,19 @@ export default function OfferBuilder({
                           title={`${day(o.offer_date) || day(o.created_at)}`}
                           className={`mb-0.5 w-full rounded-md border-l-[3px] px-2 py-1.5 text-left transition-colors ${
                             selected
-                              ? "border-weber-blue bg-blue-50 text-slate-900"
-                              : "border-transparent text-slate-700 hover:bg-slate-50"
+                              ? "border-weber-blue bg-blue-50 text-ink"
+                              : "border-transparent text-ink hover:bg-canvas"
                           }`}
                         >
                           <span className="flex items-center justify-between gap-1">
                             <span className="truncate font-mono text-xs font-semibold">{o.id_guardian_offer}</span>
-                            <span className={`shrink-0 rounded px-1 py-0.5 text-[10px] font-semibold ${statusTone(o.status)}`}>
+                            <span className={`shrink-0 rounded-md px-1 py-0.5 text-[11px] font-semibold leading-none ${statusTone(o.status)}`}>
                               {o.status || "Pending response"}
                             </span>
                           </span>
-                          <span className="flex items-center justify-between gap-1 text-[11px] text-slate-500">
+                          <span className="flex items-center justify-between gap-1 text-[11px] text-muted">
                             <span className="truncate">{customerNames[o.customer_id] ?? o.customer_id}</span>
-                            <span className="shrink-0 font-mono text-slate-600">{money(o.total_end)}</span>
+                            <span className="shrink-0 font-mono text-muted">{money(o.total_end)}</span>
                           </span>
                         </button>
                       );
@@ -1116,19 +1147,19 @@ export default function OfferBuilder({
                         onClick={() => selectCustomer(c.customer_id)}
                         className={`mb-0.5 w-full rounded-md border-l-[3px] px-2 py-1.5 text-left transition-colors ${
                           selected
-                            ? "border-weber-blue bg-blue-50 text-slate-900"
-                            : "border-transparent text-slate-700 hover:bg-slate-50"
+                            ? "border-weber-blue bg-blue-50 text-ink"
+                            : "border-transparent text-ink hover:bg-canvas"
                         }`}
                       >
                         <span className="block truncate text-xs font-semibold">{c.account_name}</span>
-                        <span className="block truncate text-[11px] text-slate-500">
+                        <span className="block truncate text-[11px] text-muted">
                           {[c.city, c.province, c.country].filter(Boolean).join(", ") || c.customer_id}
                         </span>
                       </button>
                     );
                   })}
                   {filteredCustomers.length === 0 && (
-                    <p className="px-2 py-5 text-center text-slate-400">{t(lang, "home_no_results")}</p>
+                    <p className="px-2 py-5 text-center text-muted">{t(lang, "home_no_results")}</p>
                   )}
                 </div>
               </>
@@ -1138,7 +1169,7 @@ export default function OfferBuilder({
 
         <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
           {/* ── Header card: customer + offer fields in two compact rows ─── */}
-          <div className="shrink-0 rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+          <div className="shrink-0 rounded-xl border border-line bg-white p-2">
             <div className="grid grid-cols-[minmax(220px,1fr)_minmax(0,2.4fr)] gap-3">
               <div className="flex min-w-0 flex-col gap-1">
                 <select
@@ -1154,9 +1185,9 @@ export default function OfferBuilder({
                   ))}
                 </select>
                 {customer ? (
-                  <div className="flex-1 rounded border border-slate-200 bg-slate-50 px-2 py-1.5">
+                  <div className="flex-1 rounded border border-line bg-canvas px-2 py-1.5">
                     <div className="flex items-center gap-2">
-                      <span className="shrink-0 rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[11px]">
+                      <span className="shrink-0 rounded border border-line bg-white px-1.5 py-0.5 font-mono text-[11px]">
                         {customer.customer_id}
                       </span>
                       <span className="truncate text-sm font-bold">{customer.account_name}</span>
@@ -1166,7 +1197,7 @@ export default function OfferBuilder({
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 line-clamp-2 text-slate-600" title={customerAddress}>
+                    <div className="mt-1 line-clamp-2 text-muted" title={customerAddress}>
                       {customerAddress}
                     </div>
                     {(customerDetail?.sites.length ?? 0) > 1 && (
@@ -1185,7 +1216,7 @@ export default function OfferBuilder({
                     )}
                   </div>
                 ) : (
-                  <div className="flex min-h-[56px] flex-1 items-center justify-center rounded border border-dashed border-slate-300 px-2 text-center text-slate-400">
+                  <div className="flex min-h-[56px] flex-1 items-center justify-center rounded border border-dashed border-line-strong px-2 text-center text-muted">
                     {t(lang, "ob_select_client")}
                   </div>
                 )}
@@ -1199,7 +1230,7 @@ export default function OfferBuilder({
                     onChange={(e) => setOfferNumber(e.target.value)}
                     placeholder="W-02-2026-0001"
                     readOnly={!!editingOfferId}
-                    className={`${ctl} font-mono ${editingOfferId ? "bg-slate-100 text-slate-500" : ""}`}
+                    className={`${ctl} font-mono ${editingOfferId ? "bg-canvas text-muted" : ""}`}
                   />,
                 )}
                 {field(
@@ -1241,7 +1272,7 @@ export default function OfferBuilder({
                   </select>,
                 )}
                 {editingOfferId && (
-                  <p className="col-span-3 text-[11px] leading-snug text-slate-500">{t(lang, "ob_pricing_note")}</p>
+                  <p className="col-span-3 text-[11px] leading-snug text-muted">{t(lang, "ob_pricing_note")}</p>
                 )}
               </div>
             </div>
@@ -1249,25 +1280,25 @@ export default function OfferBuilder({
 
           {/* ── Work area: machines | lines table │ notes + totals below ─── */}
           <div className="grid min-h-0 flex-1 grid-cols-[180px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] gap-2">
-            <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-              <div className="flex shrink-0 items-center justify-between gap-1 border-b border-slate-200 px-2 py-1.5">
-                <span className="font-semibold text-slate-700">
+            <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-white">
+              <div className="flex shrink-0 items-center justify-between gap-1 border-b border-line px-2 py-1.5">
+                <span className="font-semibold text-ink">
                   {t(lang, "ob_machines")} ({selectedEquip.length}/{equipmentCodes.length})
                 </span>
                 <div className="flex gap-2 text-[11px]">
-                  <button type="button" onClick={() => setSelectedEquip(equipmentCodes)} className="text-blue-700 hover:underline">
+                  <button type="button" onClick={() => setSelectedEquip(equipmentCodes)} className="text-primary hover:underline">
                     {t(lang, "ob_all")}
                   </button>
-                  <button type="button" onClick={() => setSelectedEquip([])} className="text-slate-600 hover:underline">
+                  <button type="button" onClick={() => setSelectedEquip([])} className="text-muted hover:underline">
                     {t(lang, "ob_none")}
                   </button>
                 </div>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {equipmentLoading ? (
-                  <p className="p-3 text-slate-500">{t(lang, "dash_loading")}</p>
+                  <p className="p-3 text-muted">{t(lang, "dash_loading")}</p>
                 ) : equipmentCodes.length === 0 ? (
-                  <p className="p-3 text-slate-400">{t(lang, "ob_empty_modules")}</p>
+                  <p className="p-3 text-muted">{t(lang, "ob_empty_modules")}</p>
                 ) : (
                   equipmentCodes.map((code) => {
                     const checked = selectedEquip.includes(code);
@@ -1280,7 +1311,7 @@ export default function OfferBuilder({
                       >
                         <input type="checkbox" checked={checked} onChange={() => toggleEquip(code)} className="shrink-0 accent-blue-700" />
                         <span className="min-w-0 flex-1 break-words font-medium">{code}</span>
-                        <span className="shrink-0 rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500">
+                        <span className="shrink-0 rounded-full bg-canvas px-1.5 text-[10px] text-muted">
                           {componentCounts.get(code) ?? 0}
                         </span>
                       </label>
@@ -1290,10 +1321,10 @@ export default function OfferBuilder({
               </div>
             </section>
 
-            <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 px-3 py-1.5">
-                <span className="font-semibold text-slate-700">
-                  {t(lang, "ob_col_module")} <span className="font-normal text-slate-400">{moduleRows.length}</span>
+            <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-white">
+              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-3 py-1.5">
+                <span className="font-semibold text-ink">
+                  {t(lang, "ob_col_module")} <span className="font-normal text-muted">{moduleRows.length}</span>
                   {warningCount > 0 && (
                     <span
                       title={t(lang, "workload_title")}
@@ -1303,7 +1334,7 @@ export default function OfferBuilder({
                     </span>
                   )}
                 </span>
-                <span className="font-mono font-semibold text-slate-700">
+                <span className="font-mono font-semibold text-ink">
                   {workHours} h · {eur(linesTotal)}
                 </span>
               </div>
@@ -1321,34 +1352,34 @@ export default function OfferBuilder({
 
             <div className="col-span-2 flex min-h-0 gap-2">
               {/* Wide comments take the row; compact totals sit on the right. */}
-              <section className="flex min-h-[72px] min-w-0 flex-1 flex-col rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
-                <div className="mb-1 font-semibold text-slate-700">{t(lang, "ob_comments")}</div>
+              <section className="flex min-h-[72px] min-w-0 flex-1 flex-col rounded-xl border border-line bg-white p-2">
+                <div className="mb-1 font-semibold text-ink">{t(lang, "ob_comments")}</div>
                 <textarea
                   value={comments}
                   onChange={(e) => setComments(e.target.value)}
                   placeholder={t(lang, "ob_comments_ph")}
-                  className="w-full flex-1 resize-none rounded border border-slate-300 p-1.5 text-sm focus:border-weber-blue focus:outline-none focus:ring-1 focus:ring-weber-blue"
+                  className="w-full flex-1 resize-none rounded border border-line-strong p-1.5 text-sm focus:border-weber-blue focus:outline-none focus:ring-1 focus:ring-weber-blue"
                 />
               </section>
 
-              <section className="w-[260px] shrink-0 rounded-lg border border-blue-200 bg-blue-50/50 p-3 shadow-sm">
-                <div className="mb-1.5 text-sm font-bold text-slate-800">{t(lang, "ob_total_amount")}</div>
+              <section className="w-[260px] shrink-0 rounded-xl border border-blue-200 bg-blue-50/50 p-3">
+                <div className="mb-1.5 text-sm font-bold text-ink">{t(lang, "ob_total_amount")}</div>
                 <div className="space-y-1 text-sm">
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-slate-600">{t(lang, "ob_total")}</span>
+                    <span className="text-muted">{t(lang, "ob_total")}</span>
                     <span className="font-mono text-[15px] font-semibold">{calc ? eur(calc.total) : "—"}</span>
                   </div>
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-slate-600">{t(lang, "ob_spare")}</span>
+                    <span className="text-muted">{t(lang, "ob_spare")}</span>
                     <span className="font-mono text-[15px]">{calc ? eur(calc.bk_price) : "—"}</span>
                   </div>
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-slate-600">{t(lang, "ob_discount")}</span>
+                    <span className="text-muted">{t(lang, "ob_discount")}</span>
                     <span className="font-mono text-[15px] text-red-600">{calc ? eur(calc.discount) : "—"}</span>
                   </div>
                   <div className="flex items-baseline justify-between gap-2 border-t-2 border-blue-200 pt-1.5">
-                    <span className="font-bold text-slate-800">{t(lang, "ob_total_amount")}</span>
-                    <span className="font-mono text-2xl font-extrabold text-blue-700">{calc ? eur(calc.total_end) : "—"}</span>
+                    <span className="font-bold text-ink">{t(lang, "ob_total_amount")}</span>
+                    <span className="font-mono text-2xl font-extrabold text-primary">{calc ? eur(calc.total_end) : "—"}</span>
                   </div>
                 </div>
               </section>
@@ -1359,23 +1390,23 @@ export default function OfferBuilder({
 
         {/* ── Right rail: Guardian scope + estimated costs, full height ────── */}
         <aside className="flex min-h-0 w-[280px] shrink-0 flex-col gap-2 overflow-y-auto">
-          <section className="flex min-h-0 flex-1 flex-col rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
-            <div className="mb-0.5 font-semibold text-slate-700">
+          <section className="flex min-h-0 flex-1 flex-col rounded-xl border border-line bg-white p-2">
+            <div className="mb-0.5 font-semibold text-ink">
               {t(lang, "ob_contract_scope")}{" "}
-              <span className="font-normal text-slate-400">
+              <span className="font-normal text-muted">
                 {scopeCount}/{GUARDIAN_SCOPE.length}
               </span>
             </div>
-            <p className="mb-1 shrink-0 text-[10px] leading-snug text-slate-500">{t(lang, "ob_scope_help")}</p>
+            <p className="mb-1 shrink-0 text-[10px] leading-snug text-muted">{t(lang, "ob_scope_help")}</p>
             <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-0.5">
               {GUARDIAN_SCOPE.map((module) => {
                 const moduleSelected = guardianSelections.includes(module.id);
                 return (
                   <fieldset
                     key={module.id}
-                    className={`rounded border p-1 ${moduleSelected ? "border-blue-200 bg-blue-50/40" : "border-slate-200 bg-white"}`}
+                    className={`rounded border p-1 ${moduleSelected ? "border-blue-200 bg-blue-50/40" : "border-line bg-white"}`}
                   >
-                    <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold text-slate-800">
+                    <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-semibold text-ink">
                       <input
                         type="checkbox"
                         checked={moduleSelected}
@@ -1387,7 +1418,7 @@ export default function OfferBuilder({
                     {moduleSelected && (
                       <div className="ml-4 mt-0.5 space-y-0.5">
                         {module.options.map(([optionId, optionLabel]) => (
-                          <label key={optionId} className="flex cursor-pointer items-center gap-1.5 text-[10px] text-slate-600">
+                          <label key={optionId} className="flex cursor-pointer items-center gap-1.5 text-[10px] text-muted">
                             <input
                               type="checkbox"
                               checked={guardianSelections.includes(optionId)}
@@ -1405,8 +1436,8 @@ export default function OfferBuilder({
             </div>
           </section>
 
-          <section className="shrink-0 rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
-            <div className="mb-0.5 font-semibold text-slate-700">{t(lang, "ob_estimated_costs")}</div>
+          <section className="shrink-0 rounded-xl border border-line bg-white p-2">
+            <div className="mb-0.5 font-semibold text-ink">{t(lang, "ob_estimated_costs")}</div>
             <div className="space-y-0.5 text-[11px]">
               <FieldRow label={t(lang, "ob_f_trip")}>€{calc?.trip_cost ?? "—"}</FieldRow>
               <FieldRow label={t(lang, "ob_f_diets")}>€{calc?.diets ?? "—"}</FieldRow>

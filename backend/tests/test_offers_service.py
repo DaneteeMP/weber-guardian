@@ -172,6 +172,50 @@ def test_summary_counts_and_ranking(db):
     assert top["customer_id"] == "0001012933" and top["count"] == 2
 
 
+def test_summary_dashboard_rollups(db):
+    from app.modules.offers.service import offers_summary, set_offer_status
+
+    _customer(db, "0001012933")
+    _customer(db, "0001052941")
+    _customer(db, "0001000000")  # still has no offer
+    create_offer(db, _offer_data(cid="0001012933", number="W-02-2026-0001"))
+    second = create_offer(db, _offer_data(cid="0001012933", number="W-02-2026-0002"))
+    create_offer(db, _offer_data(cid="0001052941", number="W-02-2026-0003"))
+    set_offer_status(db, second.id, "Finished")
+
+    summary = offers_summary(db)
+
+    assert summary["total"] == 3
+    assert summary["customers_total"] == 3
+    assert summary["customers_with_offers_total"] == 2
+    assert summary["customers_without_offers_total"] == 1
+    assert summary["customers_without_offers"][0]["customer_id"] == "0001000000"
+    assert summary["customers_without_offers"][0]["count"] == 0
+    assert summary["pending_total"] == 2
+    assert summary["realized_total"] == 1
+
+    pending = {row["customer_id"]: row for row in summary["pending_customers"]}
+    assert pending["0001012933"]["count"] == 1
+    assert pending["0001052941"]["count"] == 1
+
+    realized = {row["customer_id"]: row for row in summary["realized_customers"]}
+    assert realized["0001012933"]["count"] == 1
+    assert realized["0001012933"]["total_end"] == Decimal("1780.00")
+
+    finished = next(row for row in summary["status_details"] if row["status"] == "Finished")
+    assert finished["count"] == 1
+    assert finished["total_end"] == Decimal("1780.00")
+    assert finished["customers"][0]["customer_id"] == "0001012933"
+
+    cancelled = next(row for row in summary["status_details"] if row["status"] == "Cancelled")
+    assert cancelled["count"] == 0 and cancelled["customers"] == []
+
+    assert summary["by_area"][0]["area"] == "Lithuania"
+    assert summary["by_area"][0]["count"] == 3
+    assert summary["ranking"][0]["customer_id"] == "0001012933"
+    assert summary["ranking"][0]["account_name"] == "UAB Riela servisas"
+
+
 def test_summary_groups_monthly_by_business_date(db):
     """The monthly chart must follow offer_date, not the creation stamp."""
     from app.modules.offers.service import create_offer, offers_summary

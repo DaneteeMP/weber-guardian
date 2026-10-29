@@ -19,7 +19,7 @@
     <p class="draft-banner">{{ draft_banner }}</p>
     {% endif %}
 {% elif b.type == "h2" %}
-<h2>{{ b.text }}</h2>
+<h2{% if b.page_break %} class="page-break"{% endif %}>{{ b.text }}</h2>
 {% elif b.type == "p" %}
 <p{% if b.class %} class="{{ b.class }}"{% endif %}>{{ b.text }}</p>
 {% elif b.type == "ul" %}
@@ -131,6 +131,32 @@
 {% for total in b.totals %}<tr{% if total.total %} class="total"{% endif %}><td colspan="2">{{ total.label }}</td><td>{{ total.value }}</td></tr>
 {% endfor %}
 </tfoot>
+</table>
+</div>
+{% elif b.type == "band_rates" %}
+<div class="band-rates">
+<table class="band-rates-table">
+<thead><tr>
+{% for header in b.matrix_headers %}<th>{{ header }}</th>
+{% endfor %}
+</tr></thead>
+<tbody>
+{% for row in b.matrix_rows %}<tr>
+{% for cell in row %}<td>{{ cell }}</td>
+{% endfor %}
+</tr>
+{% endfor %}
+</tbody>
+</table>
+<table class="band-rates-table">
+<thead><tr>
+{% for header in b.rate_headers %}<th>{{ header }}</th>
+{% endfor %}
+</tr></thead>
+<tbody>
+{% for row in b.rate_rows %}<tr><td>{{ row.band }}</td><td>{{ row.without }}</td><td>{{ row.with }}</td></tr>
+{% endfor %}
+</tbody>
 </table>
 </div>
 {% endif %}

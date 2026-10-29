@@ -257,17 +257,57 @@ class MonthCount(BaseModel):
     count: int
 
 
-class RankingRow(BaseModel):
+class CustomerOfferRow(BaseModel):
+    """One customer rollup, shared by the dashboard lists and the ranking."""
+
     customer_id: str
+    account_name: str
     count: int
     total_end: Decimal
+    last_offer_id: str | None = None
+    last_offer_date: date | None = None
+    last_status: str | None = None
+
+
+class StatusDetailRow(BaseModel):
+    status: str
+    count: int
+    total_end: Decimal
+    customers: list[CustomerOfferRow]
+
+
+class AreaRow(BaseModel):
+    area: str
+    count: int
+    total_end: Decimal
+
+
+class RankingRow(BaseModel):
+    customer_id: str
+    account_name: str | None = None
+    count: int
+    total_end: Decimal
+    last_offer_id: str | None = None
+    last_status: str | None = None
+    last_offer_date: date | None = None
 
 
 class OffersSummaryOut(BaseModel):
     total: int
     by_status: list[StatusCount]
+    status_details: list[StatusDetailRow]
     monthly: list[MonthCount]
     ranking: list[RankingRow]
+    customers_total: int
+    customers: list[CustomerOfferRow]
+    customers_with_offers_total: int
+    customers_without_offers_total: int
+    customers_without_offers: list[CustomerOfferRow]
+    pending_total: int
+    pending_customers: list[CustomerOfferRow]
+    realized_total: int
+    realized_customers: list[CustomerOfferRow]
+    by_area: list[AreaRow]
 
 
 class OfferCreate(BaseModel):

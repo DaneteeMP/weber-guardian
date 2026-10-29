@@ -61,14 +61,14 @@ export default function DataTable<TData>({
       <div
         className={`flex min-h-0 flex-1 items-center justify-center ${className}`}
       >
-        <p className="text-sm text-gray-500">{loadingText}</p>
+        <p className="text-sm text-muted">{loadingText}</p>
       </div>
     );
   }
 
   return (
     <div
-      className={`min-h-0 flex-1 overflow-auto border ${className}`}
+      className={`ui-tw min-h-0 flex-1 overflow-auto ${className}`}
     >
       <table className={`w-full text-sm ${tableClassName}`}>
         <thead className="sticky top-0 z-10">
@@ -84,7 +84,7 @@ export default function DataTable<TData>({
                 return (
                   <th
                     key={header.id}
-                    className="px-3 py-1.5 font-semibold"
+                    className="border-b border-weber-blue px-3 py-2 text-[11.5px] font-semibold"
                   >
                     {header.isPlaceholder ? null : (
                       <button
@@ -95,7 +95,7 @@ export default function DataTable<TData>({
                           "flex items-center gap-1",
                           canSort
                             ? "cursor-pointer select-none hover:opacity-80"
-                            : "cursor-default",
+                            : "",
                         ].join(" ")}
                       >
                         {flexRender(
@@ -115,7 +115,7 @@ export default function DataTable<TData>({
         </thead>
 
         <tbody>
-          {table.getRowModel().rows.map((row, index) => {
+          {table.getRowModel().rows.map((row) => {
             const selected = selectedRowId === row.id;
 
             return (
@@ -124,20 +124,16 @@ export default function DataTable<TData>({
                   key={row.id}
                   onClick={() => onRowClick?.(row.original)}
                   className={[
-                    "border-b last:border-0",
+                    "border-b border-soft last:border-0",
                     onRowClick ? "cursor-pointer" : "",
-                    selected
-                      ? "bg-blue-100"
-                      : index % 2
-                        ? "bg-gray-50"
-                        : "bg-white",
-                    "hover:bg-blue-50",
+                    selected ? "bg-chip-1" : "bg-white",
+                    "hover:bg-canvas",
                   ].join(" ")}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td
                       key={cell.id}
-                      className="px-3 py-1.5"
+                      className="px-3 py-2"
                     >
                       {flexRender(
                         cell.column.columnDef.cell,
@@ -148,7 +144,7 @@ export default function DataTable<TData>({
                 </tr>
 
                 {selected && renderExpandedRow && (
-                  <tr className="border-b bg-blue-50/40">
+                  <tr className="border-b border-soft bg-canvas">
                     <td
                       colSpan={row.getVisibleCells().length}
                       className="px-3 py-3"
@@ -165,7 +161,7 @@ export default function DataTable<TData>({
             <tr>
               <td
                 colSpan={columns.length}
-                className="px-3 py-8 text-center text-gray-400"
+                className="px-3 py-8 text-center text-muted"
               >
                 {emptyText}
               </td>

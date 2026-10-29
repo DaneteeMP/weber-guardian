@@ -35,6 +35,15 @@ class CustomAnnex:
 
 
 @dataclass(frozen=True)
+class BandRate:
+    """Customer-facing service rate for one contract time band (I/II/III)."""
+
+    band: int
+    rate_without_contract: Decimal
+    rate_with_contract: Decimal
+
+
+@dataclass(frozen=True)
 class OfferDocument:
     offer_id: uuid.UUID
     number: str
@@ -69,6 +78,9 @@ class OfferDocument:
     # Guardian type ("audit" Inspection / "off_guardian" / "guardian" Basic
     # Kit): prints on the commercial breakdown page.
     offer_type: str = "audit"
+    # Customer-facing service rates for the three contract time bands. Empty
+    # when the subsidiary has not configured them: the PDF omits the block.
+    band_rates: tuple[BandRate, ...] = field(default_factory=tuple)
     customer_number: str | None = None
     customer_site: str | None = None
     lines: tuple[OfferLine, ...] = field(default_factory=tuple)

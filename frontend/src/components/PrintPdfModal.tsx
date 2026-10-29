@@ -31,11 +31,11 @@ function langCodeOf(raw: string | null | undefined): Lang {
 }
 
 const inputClass =
-  "w-full rounded border border-slate-300 bg-white px-1.5 py-1 text-xs focus:border-weber-blue focus:outline-none focus:ring-1 focus:ring-weber-blue";
+  "h-8 w-full rounded-lg border border-line-strong bg-white px-2 text-xs text-ink outline-none transition focus:border-primary focus:ring-[3px] focus:ring-focus/70";
 const softBtn =
-  "inline-flex h-7 items-center rounded border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex h-8 items-center rounded-lg border border-line-strong bg-white px-2.5 text-xs font-medium text-ink transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-40";
 const primaryBtn =
-  "inline-flex h-7 items-center rounded bg-weber-blue px-3 text-xs font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex h-8 items-center rounded-lg border border-primary bg-primary px-3 text-xs font-medium text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40";
 
 // Print settings dialog: contract language and custom annexes on the left,
 // live PDF preview on the right. Scope (Guardian modules) is edited only in

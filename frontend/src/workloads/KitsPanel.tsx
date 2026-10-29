@@ -113,7 +113,7 @@ export default function KitsPanel({ lang, canEdit }: { lang: Lang; canEdit: bool
   return (
     <>
       <div className="mb-2 shrink-0 space-y-1.5">
-        <p className="text-xs text-gray-600">{t(lang, "workload_kits_help")}</p>
+        <p className="text-xs text-muted">{t(lang, "workload_kits_help")}</p>
         <div className="flex items-center gap-2">
           <SearchInput
             value={search}
@@ -121,7 +121,7 @@ export default function KitsPanel({ lang, canEdit }: { lang: Lang; canEdit: bool
             placeholder={t(lang, "workload_search")}
             className="min-w-0 flex-1"
           />
-          <span className="shrink-0 text-sm text-gray-500">
+          <span className="shrink-0 text-sm text-muted">
             {search.trim() ? `${filtered.length} / ${kits.length}` : kits.length}
           </span>
           {canEdit && (
@@ -149,13 +149,13 @@ export default function KitsPanel({ lang, canEdit }: { lang: Lang; canEdit: bool
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={canEdit ? 4 : 3} className="px-3 py-4 text-center text-gray-500">
+                <td colSpan={canEdit ? 4 : 3} className="px-3 py-4 text-center text-muted">
                   {t(lang, "dash_loading")}
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={canEdit ? 4 : 3} className="px-3 py-4 text-center text-gray-500">
+                <td colSpan={canEdit ? 4 : 3} className="px-3 py-4 text-center text-muted">
                   {t(lang, "workload_no_results")}
                 </td>
               </tr>
@@ -206,7 +206,7 @@ export default function KitsPanel({ lang, canEdit }: { lang: Lang; canEdit: bool
                 disabled={!editing.isNew}
                 placeholder="304 CCL"
                 onChange={(e) => setEditing({ ...editing, model: e.target.value })}
-                className="w-full rounded border px-2 py-1 text-sm disabled:bg-gray-100"
+                className="w-full rounded border px-2 py-1 text-sm"
               />
             </label>
             <label className="block text-xs">
@@ -217,7 +217,7 @@ export default function KitsPanel({ lang, canEdit }: { lang: Lang; canEdit: bool
                 step="0.01"
                 value={editing.hours}
                 onChange={(e) => setEditing({ ...editing, hours: e.target.value })}
-                className="w-full rounded border px-2 py-1 text-sm"
+                className="ui-input w-full"
               />
             </label>
             <label className="block text-xs">
@@ -228,7 +228,7 @@ export default function KitsPanel({ lang, canEdit }: { lang: Lang; canEdit: bool
                 step="0.01"
                 value={editing.spares}
                 onChange={(e) => setEditing({ ...editing, spares: e.target.value })}
-                className="w-full rounded border px-2 py-1 text-sm"
+                className="ui-input w-full"
               />
             </label>
             <div className="flex justify-end gap-2 pt-2">

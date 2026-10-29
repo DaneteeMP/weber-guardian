@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from urllib.parse import unquote
 
 from fastapi import Depends, Header, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -37,6 +37,26 @@ class CurrentUser:
     scope_subsidiary_id: str | None
 
 
+def _catalog_subsidiary(db: Session, requested: str) -> str | None:
+    """Resolve a free-text filial against the catalog table.
+
+    ``normalize_subsidiary`` covers the legacy aliases and the historical
+    canonical names, but filials added after a release (new countries,
+    demo filials) are not in that static list and come back upper-cased.
+    The DB is the real catalog, so the fallback matches it ignoring case
+    and returns the stored spelling.
+    """
+    candidate = normalize_subsidiary(requested)
+    if candidate is None:
+        return None
+    row = db.get(Subsidiary, candidate)
+    if row is None:
+        row = db.scalar(
+            select(Subsidiary).where(func.lower(Subsidiary.name) == candidate.lower())
+        )
+    return row.name if row is not None else None
+
+
 def _resolve_scope(
     db: Session, role: str, own: str | None, header: str | None
 ) -> str | None:
@@ -52,18 +72,19 @@ def _resolve_scope(
     requested = unquote(header).strip() if isinstance(header, str) else ""
     if not requested:
         return None if role == "admin" else own
-    wanted = normalize_subsidiary(requested)
-    if role != "admin":
-        if wanted != own:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Scope limited to subsidiary {own}",
-            )
-        return own
-    if db.get(Subsidiary, wanted) is None:
+    wanted = _catalog_subsidiary(db, requested)
+    if wanted is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Unknown subsidiary in scope header: {wanted}",
+            detail=(
+                "Unknown subsidiary in scope header: "
+                f"{normalize_subsidiary(requested)}"
+            ),
+        )
+    if role != "admin" and wanted != own:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Scope limited to subsidiary {own}",
         )
     return wanted
 

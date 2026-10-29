@@ -84,7 +84,7 @@ BLOCKS = [
     },
 
     # 5. Billing
-    {"type": "h2", "id": "annex1.billing.title", "text": "5. Billing"},
+    {"type": "h2", "id": "annex1.billing.title", "text": "5. Billing", "requires_any": ["Billing_Frequency", "Payment_Terms", "Price_Adjustment_Rule", "Travel_Conditions", "Freight_Conditions"]},
     {"type": "kv", "id": "annex1.billing.frequency", "label": "Billing Frequency", "token": "Billing_Frequency"},
     {"type": "kv", "id": "annex1.billing.terms", "label": "Payment Terms", "token": "Payment_Terms"},
     {"type": "kv", "id": "annex1.billing.adjustment", "label": "Price Adjustment", "token": "Price_Adjustment_Rule"},
@@ -92,7 +92,7 @@ BLOCKS = [
     {"type": "kv", "id": "annex1.billing.freight", "label": "Freight Conditions", "token": "Freight_Conditions"},
 
     # 6. Special Commercial Conditions
-    {"type": "h2", "id": "annex1.special.title", "text": "6. Special Commercial Conditions"},
+    {"type": "h2", "id": "annex1.special.title", "text": "6. Special Commercial Conditions", "requires_any": ["Special_Commercial_Conditions"]},
     {
         "type": "p",
         "id": "annex1.special.conditions",

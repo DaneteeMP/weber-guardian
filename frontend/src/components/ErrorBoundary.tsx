@@ -23,14 +23,14 @@ export default class ErrorBoundary extends Component<
       const message =
         this.state.error instanceof Error ? this.state.error.message : String(this.state.error);
       return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
-          <div className="max-w-sm rounded-lg border border-red-200 bg-white p-4 text-center shadow-sm">
-            <p className="text-sm font-bold text-gray-900">{t(this.props.lang, "err_crash_title")}</p>
-            <p className="mt-1 break-words text-xs text-gray-500">{message}</p>
+        <div className="flex min-h-screen items-center justify-center bg-canvas p-4">
+          <div className="max-w-sm rounded-xl border border-red-200 bg-white p-5 text-center">
+            <p className="text-sm font-bold text-ink">{t(this.props.lang, "err_crash_title")}</p>
+            <p className="mt-1 break-words text-xs text-muted">{message}</p>
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="mt-3 rounded-md bg-weber-blue px-4 py-2 text-sm font-bold text-white hover:opacity-90"
+              className="mt-3 h-9 rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-white transition hover:bg-primary/90"
             >
               {t(this.props.lang, "err_crash_retry")}
             </button>

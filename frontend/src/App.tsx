@@ -30,6 +30,7 @@ export default function App() {
   const [scope, setScopeState] = useState<string | null>(() => getScopeSubsidiary());
   const [identity, setIdentity] = useState<Me | null>(null);
   const [editingOffer, setEditingOffer] = useState<string | null>(null);
+  const [newOfferCustomerId, setNewOfferCustomerId] = useState<string | null>(null);
   const [gateBlocked, setGateBlocked] = useState(false);
   const [gateChecked, setGateChecked] = useState(false);
   // Brand splash, shown only right after the Gate password passes.
@@ -37,13 +38,15 @@ export default function App() {
   const [epoch, setEpoch] = useState(0);
   const finishSplash = useCallback(() => setSplash(false), []);
 
-  function openNewOffer() {
+  function openNewOffer(customerId?: string) {
     setEditingOffer(null);
+    setNewOfferCustomerId(customerId ?? null);
     setTab("offers");
   }
 
   function openOffer(offerId: string) {
     setEditingOffer(offerId);
+    setNewOfferCustomerId(null);
     setTab("offers");
   }
 
@@ -87,7 +90,7 @@ export default function App() {
   }
 
   if (!gateChecked) {
-    return <div className="min-h-screen bg-gray-100" />;
+    return <div className="min-h-screen bg-canvas" />;
   }
 
   if (gateBlocked) {
@@ -102,11 +105,12 @@ export default function App() {
 
   return (
     <ErrorBoundary lang={lang}>
-    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-gray-100">
+    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-canvas">
       <div className="shrink-0">
         <TopBar
           tab={tab}
           setTab={setTab}
+          onNew={openNewOffer}
           lang={lang}
           setLang={setLang}
           identity={identity}
@@ -124,12 +128,14 @@ export default function App() {
             lang={lang}
             onNew={openNewOffer}
             onEdit={openOffer}
+            onNewForCustomer={openNewOffer}
           />
         ) : tab === "offers" ? (
           <OfferBuilder
             key={contentKey}
             lang={lang}
             editingOfferId={editingOffer}
+            initialCustomerId={newOfferCustomerId}
             onDone={() => setTab("home")}
             onEdit={openOffer}
             onNew={openNewOffer}

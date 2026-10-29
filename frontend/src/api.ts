@@ -644,11 +644,45 @@ export function updateOffer(
   }).then((r) => checked(r, "PUT offer"));
 }
 
+export type CustomerOfferRow = {
+  customer_id: string;
+  account_name: string;
+  count: number;
+  total_end: string;
+  last_offer_id: string | null;
+  last_offer_date: string | null;
+  last_status: string | null;
+};
+
+export type StatusDetailRow = {
+  status: string;
+  count: number;
+  total_end: string;
+  customers: CustomerOfferRow[];
+};
+
+export type AreaRow = {
+  area: string;
+  count: number;
+  total_end: string;
+};
+
 export type OffersSummary = {
   total: number;
   by_status: { status: string; count: number }[];
+  status_details: StatusDetailRow[];
   monthly: { month: string; count: number }[];
-  ranking: { customer_id: string; count: number; total_end: string }[];
+  ranking: CustomerOfferRow[];
+  customers_total: number;
+  customers: CustomerOfferRow[];
+  customers_with_offers_total: number;
+  customers_without_offers_total: number;
+  customers_without_offers: CustomerOfferRow[];
+  pending_total: number;
+  pending_customers: CustomerOfferRow[];
+  realized_total: number;
+  realized_customers: CustomerOfferRow[];
+  by_area: AreaRow[];
 };
 
 export function getOffersSummary(): Promise<OffersSummary> {
@@ -814,6 +848,12 @@ export type Prices = {
   diet_half_rate: string;
   hotel_rate: string;
   discount_rate: string;
+  band1_rate_without: string | null;
+  band1_rate_with: string | null;
+  band2_rate_without: string | null;
+  band2_rate_with: string | null;
+  band3_rate_without: string | null;
+  band3_rate_with: string | null;
 };
 
 export function getPrices(subsidiary_id: string): Promise<Prices> {
@@ -832,6 +872,12 @@ export function updatePrices(
     diet_half_rate: string;
     hotel_rate: string;
     discount_rate: string;
+    band1_rate_without: string | null;
+    band1_rate_with: string | null;
+    band2_rate_without: string | null;
+    band2_rate_with: string | null;
+    band3_rate_without: string | null;
+    band3_rate_with: string | null;
   }
 ): Promise<Prices> {
   return fetch(`${BASE}/prices/${encodeURIComponent(subsidiary_id)}`, {

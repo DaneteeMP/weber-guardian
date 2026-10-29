@@ -107,11 +107,12 @@ export default function Customers({ lang }: { lang: Lang }) {
   }, [search]);
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-3 p-4">
+    <div className="flex h-full min-h-0 w-full flex-col gap-3.5 px-4 pb-4 pt-3.5">
       <PageHeader
         title={t(lang, "cust_title")}
         action={
           <Button
+            size="sm"
             onClick={() => setShowCreateModal(true)}
           >
             + {t(lang, "cust_create")}
@@ -125,10 +126,7 @@ export default function Customers({ lang }: { lang: Lang }) {
         </ErrorMessage>
       )}
 
-      <SectionCard
-        className="flex min-h-0 flex-1 flex-col"
-        title={`${t(lang, "nav_customers")} (${total.toLocaleString()})`}
-      >
+      <SectionCard className="flex min-h-0 flex-1 flex-col">
         <CustomerTable
           lang={lang}
           data={rows}

@@ -14,12 +14,12 @@ export default function PageHeader({
   return (
     <div className="flex items-center justify-between">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">
+        <h1 className="text-[22px] font-bold leading-tight text-ink">
           {title}
         </h1>
 
         {count !== undefined && (
-          <span className="text-sm text-gray-500">
+          <span className="text-[12.5px] text-muted">
             {count.toLocaleString()}
           </span>
         )}

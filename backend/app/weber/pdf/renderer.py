@@ -17,6 +17,7 @@ tests/test_renderer.py.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -105,22 +106,46 @@ def _insert_custom_annexes(sections: list[dict], doc: OfferDocument) -> None:
     sections[position:position] = views
 
 
+_TOKEN_RE = re.compile(r"\{\{([A-Za-z0-9_]+)\}\}")
+_ROMAN_BANDS = {1: "I", 2: "II", 3: "III"}
+
+
+def _missing_tokens(text: str, values: dict[str, str]) -> bool:
+    """True when a {{Token}} in the text has no value.
+
+    Annex content is filtered per paragraph/row/item: a block that would print
+    a blank value is dropped instead of leaving a broken sentence.
+    """
+    return any(values.get(name, "") == "" for name in _TOKEN_RE.findall(text))
+
+
 def _resolve_sections(doc, locale, values, selections) -> list[dict]:
     """Resolve every section of the gated document, in order.
 
     The very first block of the document must not force a page break; every
     later h1 (section title) starts a new page, like the master template.
+    Annexes drop any block whose tokens have no value; an annex left with only
+    its title is not printed at all.
     """
     sections: list[dict] = []
     seen_block = False
     for name, blocks in content.document_sections(selections):
+        filter_data = name.startswith("annex")
         resolved = []
         for block in _flatten(blocks):
-            view = _resolve_block(block, doc, locale, values, selections)
+            view = _resolve_block(block, doc, locale, values, selections, filter_data)
+            if view is None:
+                continue
             if view["type"] == "h1":
                 view["page_break"] = seen_block
+            elif block.get("page_break"):
+                # Explicit break (e.g. the first clause of a legacy section
+                # whose heading is an h2, so it must start on a new page).
+                view["page_break"] = True
             seen_block = True
             resolved.append(view)
+        if filter_data and not any(view["type"] != "h1" for view in resolved):
+            continue
         sections.append({"name": name, "blocks": resolved})
     return sections
 
@@ -136,35 +161,57 @@ def _flatten(blocks: list[content.Block]) -> list[content.Block]:
     return flat
 
 
-def _resolve_block(block, doc, locale, values, selections) -> dict:
-    """Build the template view model for one content node."""
+def _resolve_block(block, doc, locale, values, selections, filter_data: bool) -> dict | None:
+    """Build the template view model for one content node (None = drop it)."""
     kind = block["type"]
 
+    if block.get("requires_band_rates") and not doc.band_rates:
+        # The heading of the rate table disappears with the table itself.
+        return None
+
+    if block.get("requires_any") and all(
+        values.get(token, "") == "" for token in block["requires_any"]
+    ):
+        # A section heading with no printable rows disappears too, instead of
+        # leaving a title with nothing under it.
+        return None
+
     if kind in {"h1", "h2", "p"}:
-        text = resolve_tokens(content.node_text(locale, block), values)
-        view = {"type": kind, "text": text}
+        translated = content.node_text(locale, block)
+        if filter_data and _missing_tokens(translated, values):
+            return None
+        view = {"type": kind, "text": resolve_tokens(translated, values)}
         if "class" in block:
             view["class"] = block["class"]
         return view
 
     if kind in {"ul", "ol", "lines"}:
-        return {"type": kind, "items": _translated_items(locale, block, values)}
+        items = _translated_items(locale, block, values, filter_data)
+        if not items:
+            return None
+        return {"type": kind, "items": items}
 
     if kind == "dl":
         items = []
-        for raw in _translated_items(locale, block, values):
+        for raw in _translated_items(locale, block, values, filter_data):
             term, separator, definition = raw.partition(": ")
             if not separator:
                 raise ValueError(f"definition without term separator: {raw!r}")
             items.append({"term": term, "definition": resolve_tokens(definition, values)})
+        if not items:
+            return None
         return {"type": "dl", "items": items}
 
     if kind == "kv":
         label = content.get_text(locale, block["id"], block["label"])
         if "token" in block:
+            if filter_data and values.get(block["token"], "") == "":
+                return None
             value = values[block["token"]]
         else:
             raw = content.get_text(locale, f"{block['id']}.value", block["value"])
+            if filter_data and _missing_tokens(raw, values):
+                return None
             value = resolve_tokens(raw, values)
         return {"type": "kv", "label": label, "value": value}
 
@@ -173,7 +220,10 @@ def _resolve_block(block, doc, locale, values, selections) -> dict:
             content.get_text(locale, header["id"], header["text"])
             for header in block["headers"]
         ]
-        return {"type": kind, "headers": headers, "rows": _equipment_rows(doc, values)}
+        rows = _equipment_rows(doc, values)
+        if filter_data and not rows:
+            return None
+        return {"type": kind, "headers": headers, "rows": rows}
 
     if kind == "kv_table":
         headers = [
@@ -188,13 +238,18 @@ def _resolve_block(block, doc, locale, values, selections) -> dict:
                 )
             else:
                 label = content.get_text(locale, row["id"], row["label"])
+            value = values[row["token"]]
+            if filter_data and value == "":
+                continue
             rows.append(
                 {
                     "label": label,
-                    "value": values[row["token"]],
+                    "value": value,
                     "total": row.get("total", False),
                 }
             )
+        if not rows:
+            return None
         return {"type": kind, "headers": headers, "rows": rows}
 
     if kind == "module_checklist":
@@ -274,14 +329,40 @@ def _resolve_block(block, doc, locale, values, selections) -> dict:
             ],
         }
 
+    if kind == "band_rates":
+        if not doc.band_rates:
+            return None
+        return {
+            "type": kind,
+            "matrix_headers": [
+                content.get_text(locale, header["id"], header["text"])
+                for header in block["matrix_headers"]
+            ],
+            "matrix_rows": block["matrix_rows"],
+            "rate_headers": [
+                content.get_text(locale, header["id"], header["text"])
+                for header in block["rate_headers"]
+            ],
+            "rate_rows": [
+                {
+                    "band": _ROMAN_BANDS.get(rate.band, str(rate.band)),
+                    "without": format_money(rate.rate_without_contract, locale, doc.currency),
+                    "with": format_money(rate.rate_with_contract, locale, doc.currency),
+                }
+                for rate in doc.band_rates
+            ],
+        }
+
     raise ValueError(f"unknown block type: {kind!r}")
 
 
-def _translated_items(locale, block, values) -> list[str]:
+def _translated_items(locale, block, values, filter_data: bool = False) -> list[str]:
     """Translate a whole list node (single override per list) and resolve tokens."""
     translated = content.get_text(locale, block["id"], block["items"])
     if isinstance(translated, str):
         raise ValueError(f"list override must be a list of strings: {block['id']!r}")
+    if filter_data:
+        translated = [item for item in translated if not _missing_tokens(item, values)]
     return [resolve_tokens(item, values) for item in translated]
 
 

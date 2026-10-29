@@ -7,7 +7,7 @@ export default function Modal({
   onClose,
   children,
   widthClass = "max-w-md",
-  bodyClass = "p-4",
+  bodyClass = "p-5",
 }: {
   title: string;
   onClose: () => void;
@@ -27,10 +27,10 @@ export default function Modal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className={`bg-white rounded-lg shadow-xl w-full ${widthClass}`} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 py-2 border-b">
-          <h3 className="text-sm font-bold text-gray-700">{title}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none" aria-label="Close">
+      <div className={`w-full rounded-xl border border-line bg-white shadow-xl ${widthClass}`} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
+          <h3 className="text-[15px] font-semibold text-ink">{title}</h3>
+          <button onClick={onClose} className="text-lg leading-none text-muted transition hover:text-ink" aria-label="Close">
             ×
           </button>
         </div>

@@ -12,7 +12,7 @@ export default function Input({
   const input = (
     <input
       {...props}
-      className={`border rounded px-3 py-2 text-sm w-full outline-none focus:border-weber-blue focus:ring-1 focus:ring-weber-blue/20 ${className}`}
+      className={`ui-input w-full ${className}`}
     />
   );
 
@@ -22,9 +22,7 @@ export default function Input({
 
   return (
     <label className="block">
-      <span className="block text-sm font-medium text-gray-700 mb-1">
-        {label}
-      </span>
+      <span className="ui-label">{label}</span>
 
       {input}
     </label>

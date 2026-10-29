@@ -51,8 +51,11 @@ def client(monkeypatch):
             User(external_id="oid-es", role="sales", subsidiary_id="Weber Iberica"),
             User(external_id="oid-de", role="sales", subsidiary_id="Weber Germany"),
             User(external_id="oid-viewer", role="viewer", subsidiary_id="Weber Iberica"),
+            User(external_id="oid-test", role="sales", subsidiary_id="Test Mode (Germany)"),
             Subsidiary(name="Weber Iberica", short_label="Iberica"),
             Subsidiary(name="Weber Germany", short_label="Germany"),
+            # Filial created at runtime: it is not in the static CANONICAL list.
+            Subsidiary(name="Test Mode (Germany)", short_label="Test DE"),
         ]
     )
     seed.commit()
@@ -260,6 +263,33 @@ def test_non_admin_cannot_scope_elsewhere(client):
     )
     assert res.status_code == 403
     assert "limited" in res.json()["detail"]
+
+
+def test_admin_scope_accepts_filial_created_after_release(client):
+    # Runtime filials are not in the static CANONICAL list, so the header
+    # arrives upper-cased by normalize_subsidiary; the catalog lookup must
+    # still resolve it to the stored spelling instead of rejecting it.
+    res = client.get(
+        "/api/v1/users/me",
+        headers={
+            "X-Dev-User": "oid-admin",
+            "X-Scope-Subsidiary": "Test%20Mode%20(Germany)",
+        },
+    )
+    assert res.status_code == 200
+    assert res.json()["scope_subsidiary_id"] == "Test Mode (Germany)"
+
+
+def test_non_admin_own_runtime_filial_is_accepted(client):
+    res = client.get(
+        "/api/v1/users/me",
+        headers={
+            "X-Dev-User": "oid-test",
+            "X-Scope-Subsidiary": "Test%20Mode%20(Germany)",
+        },
+    )
+    assert res.status_code == 200
+    assert res.json()["scope_subsidiary_id"] == "Test Mode (Germany)"
 
 
 def test_non_admin_own_scope_header_is_accepted(client):

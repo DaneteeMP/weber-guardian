@@ -32,37 +32,37 @@ export default function Gate({ lang, onPass }: { lang: Lang; onPass: () => void 
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+    <div className="flex min-h-screen items-center justify-center bg-canvas p-4">
       <form
         onSubmit={submit}
-        className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 w-full max-w-sm space-y-3"
+        className="w-full max-w-sm space-y-3 rounded-xl border border-line bg-white p-6"
       >
-        <h1 className="text-lg font-bold text-gray-900">{t(lang, "gate_title")}</h1>
-        <p className="text-xs text-gray-500">{t(lang, "gate_hint")}</p>
+        <h1 className="text-lg font-bold text-ink">{t(lang, "gate_title")}</h1>
+        <p className="text-xs text-muted">{t(lang, "gate_hint")}</p>
         <label className="block text-sm">
-          <span className="text-gray-600">{t(lang, "gate_user")}</span>
+          <span className="ui-label">{t(lang, "gate_user")}</span>
           <input
             value={user}
             onChange={(e) => setUser(e.target.value)}
             autoComplete="username"
-            className="mt-1 border rounded px-2 py-1.5 text-sm w-full"
+            className="ui-input w-full"
           />
         </label>
         <label className="block text-sm">
-          <span className="text-gray-600">{t(lang, "gate_password")}</span>
+          <span className="ui-label">{t(lang, "gate_password")}</span>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
-            className="mt-1 border rounded px-2 py-1.5 text-sm w-full"
+            className="ui-input w-full"
           />
         </label>
-        {error && <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">{error}</p>}
+        {error && <p className="rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-sm text-red-700">{error}</p>}
         <button
           type="submit"
           disabled={busy}
-          className="w-full px-4 py-2 rounded-md text-sm font-bold bg-weber-blue text-white hover:opacity-90 disabled:opacity-50"
+          className="h-9 w-full rounded-lg border border-primary bg-primary px-4 text-sm font-medium text-white transition hover:bg-primary/90 disabled:opacity-50"
         >
           {t(lang, "gate_enter")}
         </button>

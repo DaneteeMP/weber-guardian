@@ -23,11 +23,11 @@ export default function IconButton({
       onClick={onClick}
       disabled={disabled}
       className={[
-        "inline-flex h-7 w-7 items-center justify-center rounded border",
+        "inline-flex h-8 w-8 items-center justify-center rounded-lg border",
         "transition-colors disabled:cursor-not-allowed disabled:opacity-50",
         variant === "danger"
           ? "border-red-200 text-red-600 hover:bg-red-50"
-          : "border-gray-200 text-gray-600 hover:bg-gray-100",
+          : "border-line text-muted hover:bg-canvas hover:text-ink",
       ].join(" ")}
     >
       {icon}

@@ -113,7 +113,7 @@ export default function MaterialLookup({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t(lang, "workload_material_placeholder")}
-          className="min-w-0 flex-1 rounded border px-3 py-1.5 text-sm"
+          className="ui-input min-w-0 flex-1"
         />
         <button
           type="submit"
@@ -124,14 +124,14 @@ export default function MaterialLookup({
         </button>
       </form>
 
-      {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-      {info && <div className="rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">{info}</div>}
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {info && <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">{info}</div>}
 
       {resolution && (
         <div className="space-y-3 rounded border p-4 text-sm">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-base font-semibold">{resolution.material_no}</span>
-            <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+            <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-ink">
               {t(lang, stateKey(resolution.state))}
             </span>
             {resolution.has_conflict && (
@@ -142,15 +142,15 @@ export default function MaterialLookup({
           </div>
 
           <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-xs">
-            <dt className="text-gray-500">{t(lang, "workload_material_no")}</dt>
+            <dt className="text-muted">{t(lang, "workload_material_no")}</dt>
             <dd className="font-mono">{resolution.dictionary_material_no ?? "—"}</dd>
-            <dt className="text-gray-500">{t(lang, "workload_material_name")}</dt>
+            <dt className="text-muted">{t(lang, "workload_material_name")}</dt>
             <dd>{resolution.name_en ?? "—"}</dd>
-            <dt className="text-gray-500">{t(lang, "workload_legacy_code")}</dt>
+            <dt className="text-muted">{t(lang, "workload_legacy_code")}</dt>
             <dd className="font-mono">{resolution.type_code ?? "—"}</dd>
-            <dt className="text-gray-500">{t(lang, "workload_customers")}</dt>
+            <dt className="text-muted">{t(lang, "workload_customers")}</dt>
             <dd className="font-mono">{resolution.customers}</dd>
-            <dt className="text-gray-500">{t(lang, "workload_current_rule")}</dt>
+            <dt className="text-muted">{t(lang, "workload_current_rule")}</dt>
             <dd>
               {resolution.rule ? (
                 <>
@@ -163,7 +163,7 @@ export default function MaterialLookup({
                   )}
                 </>
               ) : (
-                <span className="text-gray-500">
+                <span className="text-muted">
                   {resolution.state === "not_in_dictionary"
                     ? t(lang, reasonKey("not_in_dictionary"))
                     : t(lang, "workload_state_no_rule")}
@@ -177,7 +177,7 @@ export default function MaterialLookup({
               <select
                 value={targetRuleId}
                 onChange={(event) => setTargetRuleId(event.target.value)}
-                className="min-w-0 flex-1 rounded border px-2 py-1.5 text-sm"
+                className="ui-input min-w-0 flex-1"
               >
                 <option value="">{t(lang, "workload_select_rule")}</option>
                 {rules.map((rule) => (

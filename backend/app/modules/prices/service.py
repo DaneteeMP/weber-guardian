@@ -33,6 +33,12 @@ def update_prices(db: Session, subsidiary_id: str, data: PriceUpdate) -> PriceLi
         row.diet_half_rate = data.diet_half_rate
         row.hotel_rate = data.hotel_rate
         row.discount_rate = data.discount_rate
+        row.band1_rate_without = data.band1_rate_without
+        row.band1_rate_with = data.band1_rate_with
+        row.band2_rate_without = data.band2_rate_without
+        row.band2_rate_with = data.band2_rate_with
+        row.band3_rate_without = data.band3_rate_without
+        row.band3_rate_with = data.band3_rate_with
     try:
         db.commit()
     except IntegrityError:

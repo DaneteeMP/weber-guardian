@@ -1,8 +1,8 @@
-"""Annex 5 - Blade Solutions (master pages 19-21).
+"""Annex 5 - Blade Solutions (Global Appendix 6 content, gated by options).
 
-Responsibility: English source of the blade annex, gated by the
-``blade_solutions`` module in content.SECTIONS. Every numbered subsection is
-gated by its Guardian option; the module introduction is always included.
+Responsibility: English source of the blade annex. The module is gated by
+``blade_solutions`` in content.SECTIONS; each clause is gated by its Guardian
+option. Only data the system currently holds is printed.
 """
 
 from __future__ import annotations
@@ -12,15 +12,15 @@ BLOCKS = [
     {
         "type": "p",
         "id": "annex5.tagline",
-        "text": "Commercial, availability and technical support for Weber blade programs.",
+        "text": "Blade application consulting, sharpening and the blade programme.",
     },
     {
         "type": "p",
         "id": "annex5.intro",
         "text": (
-            "The Blade Solutions module is intended to support the correct selection, "
-            "availability, use and management of Weber blades, including the principle "
-            "\"Right Blade, Right Application\"."
+            "The Blade Solutions module supports the correct selection, availability, use and "
+            "management of Weber blades, including the \u201cright blade, right application\u201d "
+            "principle."
         ),
     },
 
@@ -28,35 +28,23 @@ BLOCKS = [
         "type": "sub",
         "option": "blade_discount",
         "blocks": [
-            {"type": "h2", "id": "annex5.discount.title", "text": "1. Blade Discount"},
+            {"type": "h2", "id": "annex5.discount.title", "text": "S603 Blade Supply Partnership"},
             {
                 "type": "p",
                 "id": "annex5.discount.p1",
-                "text": "The Customer shall receive the following Guardian discount on eligible Weber blades:",
+                "text": (
+                    "If the Customer selects the Blade Partnership option, the parties agree a "
+                    "defined catalogue of blade references, quantities, prices, order schedule and "
+                    "commercial term in the Blade Programme Schedule."
+                ),
             },
-            {"type": "p", "id": "annex5.discount.amount", "text": "Blade Discount {{Blade_Discount}} %"},
             {
                 "type": "p",
                 "id": "annex5.discount.p2",
                 "text": (
-                    "The applicable blades, Customer locations, machines, committed quantities "
-                    "and any special pricing shall be listed in the commercial schedule where required."
-                ),
-            },
-            {
-                "type": "p",
-                "id": "annex5.discount.p3",
-                "text": (
-                    "Blade discounts are not cumulative with other blade promotions or special "
-                    "prices unless expressly agreed."
-                ),
-            },
-            {
-                "type": "p",
-                "id": "annex5.discount.p4",
-                "text": (
-                    "Where fixed-term blade pricing is agreed, the applicable term and pricing "
-                    "conditions shall be stated in Annex 1."
+                    "Any fixed monthly budget or instalment plan, consumption forecast, minimum "
+                    "commitment, price-lock term, rebate, release order, return programme or "
+                    "special delivery arrangement applies only if specified in that schedule."
                 ),
             },
         ],
@@ -66,44 +54,22 @@ BLOCKS = [
         "type": "sub",
         "option": "stock_agreement",
         "blocks": [
-            {"type": "h2", "id": "annex5.stock.title", "text": "2. Stock Agreement"},
+            {"type": "h2", "id": "annex5.stock.title", "text": "Blade Stock Agreement"},
             {
                 "type": "p",
                 "id": "annex5.stock.p1",
-                "text": "Weber and the Customer may establish an agreed blade stock concept based on expected consumption.",
-            },
-            {"type": "p", "id": "annex5.stock.p2", "text": "The stock agreement shall define, where applicable:"},
-            {
-                "type": "ul",
-                "id": "annex5.stock.defines",
-                "items": [
-                    "blade references;",
-                    "agreed stock quantity;",
-                    "minimum stock;",
-                    "maximum stock;",
-                    "expected annual consumption;",
-                    "replenishment method;",
-                    "stock location;",
-                    "ownership of stock;",
-                    "delivery conditions; and",
-                    "treatment of obsolete or unused stock.",
-                ],
-            },
-            {
-                "type": "p",
-                "id": "annex5.stock.p3",
                 "text": (
-                    "The Customer shall provide reasonably accurate consumption information and "
-                    "notify Weber of material changes in production or blade demand."
+                    "Where a blade stock agreement is selected, the parties define the references, "
+                    "quantities, replenishment method, stock location and ownership in the signed "
+                    "schedule."
                 ),
             },
             {
                 "type": "p",
-                "id": "annex5.stock.p4",
+                "id": "annex5.stock.p2",
                 "text": (
-                    "The stock arrangement is intended to improve availability but does not "
-                    "constitute an unconditional guarantee of uninterrupted supply in "
-                    "circumstances outside Weber's reasonable control."
+                    "Purchased or delivered quantities must be accounted for distinctly from "
+                    "estimated usage or internal blade stock."
                 ),
             },
         ],
@@ -113,36 +79,14 @@ BLOCKS = [
         "type": "sub",
         "option": "sharpening_assessment",
         "blocks": [
-            {"type": "h2", "id": "annex5.sharpening.title", "text": "3. Sharpening Assessment"},
+            {"type": "h2", "id": "annex5.sharpening.title", "text": "S602 Sharpening Assessment"},
             {
                 "type": "p",
                 "id": "annex5.sharpening.p1",
-                "text": "Weber shall assess the Customer's blade sharpening process and capability as agreed.",
-            },
-            {"type": "p", "id": "annex5.sharpening.p2", "text": "The assessment may include:"},
-            {
-                "type": "ul",
-                "id": "annex5.sharpening.includes",
-                "items": [
-                    "sharpening equipment;",
-                    "sharpening process;",
-                    "blade handling;",
-                    "blade condition;",
-                    "grinding parameters;",
-                    "maintenance practices;",
-                    "blade storage;",
-                    "process consistency; and",
-                    "opportunities for improvement.",
-                ],
-            },
-            {"type": "p", "id": "annex5.sharpening.p3", "text": "Weber may issue recommendations following the assessment."},
-            {
-                "type": "p",
-                "id": "annex5.sharpening.p4",
                 "text": (
-                    "Unless specifically included, implementation of those recommendations, "
-                    "repairs or modifications to sharpening equipment and additional training "
-                    "are not included."
+                    "Weber evaluates the Customer's current sharpening approach, processes, "
+                    "machine parameters and potential quality-control or handling improvements "
+                    "within the agreed scope."
                 ),
             },
         ],
@@ -152,22 +96,23 @@ BLOCKS = [
         "type": "sub",
         "option": "blade_application_review",
         "blocks": [
-            {"type": "h2", "id": "annex5.application.title", "text": "4. Blade Application Review"},
+            {"type": "h2", "id": "annex5.application.title", "text": "S601 Knife Application Consulting"},
             {
                 "type": "p",
                 "id": "annex5.application.p1",
                 "text": (
-                    "Where included in the selected Blade Program, Weber may review the "
-                    "blade-to-product combination with the objective of supporting the principle "
-                    "\"Right Blade, Right Application\"."
+                    "Weber reviews the selected slicing application, product characteristics, "
+                    "cutting configuration and relevant knife geometry or specification with the "
+                    "Customer."
                 ),
             },
             {
                 "type": "p",
                 "id": "annex5.application.p2",
                 "text": (
-                    "Recommendations may consider product type, slicing conditions, machine "
-                    "configuration, blade geometry and operational requirements."
+                    "Deliverable: a documented set of technical recommendations for a suitable "
+                    "knife/application combination, subject to verification in the real "
+                    "application."
                 ),
             },
         ],

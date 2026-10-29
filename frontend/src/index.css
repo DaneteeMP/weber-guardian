@@ -1,7 +1,131 @@
 @import "tailwindcss";
 
 @theme {
-  --color-weber-blue: #1d4f91;
+  --color-weber-blue: #1f4e8c;
+  --color-primary: #1f4e8c;
+  --color-ink: #16202e;
+  --color-muted: #566274;
+  --color-label: #3d4959;
+  --color-line: #e1e6ee;
+  --color-line-strong: #c3ccd9;
+  --color-canvas: #f3f5f8;
+  --color-focus: #d6e4f7;
+  --color-soft: #eef1f5;
+  --color-head: #f7f9fb;
+  --color-chip-1: #e3edf9;
+  --color-chip-2: #a9c4e8;
+  --color-chip-ink: #12365f;
+  --color-success: #14532d;
+}
+
+@layer base {
+  html {
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  body {
+    @apply bg-canvas text-ink;
+    font-size: 13.5px;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@layer components {
+  .ui-label {
+    @apply mb-1.5 block text-xs font-medium text-label;
+  }
+
+  .ui-input {
+    @apply h-[38px] rounded-lg border border-line-strong bg-white px-2.5 text-sm text-ink outline-none transition;
+  }
+
+  .ui-input:focus {
+    @apply border-primary ring-[3px] ring-focus/70;
+  }
+
+  .ui-input:disabled {
+    @apply bg-canvas text-muted;
+  }
+
+  .ui-input-wrap {
+    @apply flex h-[38px] items-center gap-1.5 rounded-lg border border-line-strong bg-white px-2.5 transition;
+  }
+
+  .ui-input-wrap:focus-within {
+    @apply border-primary ring-[3px] ring-focus/70;
+  }
+
+  .ui-input-plain {
+    @apply w-0 min-w-0 flex-1 border-0 bg-transparent p-0 text-right text-sm tabular-nums text-ink outline-none;
+  }
+
+  .ui-unit {
+    @apply shrink-0 whitespace-nowrap text-[12.5px] text-muted;
+  }
+
+  .ui-tab {
+    @apply mr-6 h-[38px] cursor-pointer border-0 border-b-2 border-transparent bg-transparent px-0.5 text-sm font-medium text-muted transition-colors hover:text-ink;
+  }
+
+  .ui-tab-active {
+    @apply border-primary text-primary;
+  }
+
+  .ui-sec {
+    @apply mb-2.5 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-muted;
+  }
+
+  .ui-tw {
+    @apply overflow-hidden rounded-[10px] border border-line;
+  }
+
+  .ui-tw tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .ui-th {
+    @apply border-b border-line bg-head px-3 py-2 text-left text-[11.5px] font-semibold text-muted;
+  }
+
+  .ui-td {
+    @apply border-b border-soft px-3 py-2 align-middle;
+  }
+
+  .ui-dropzone {
+    @apply rounded-xl border-2 border-dashed border-[#b4c0d1] bg-[#f9fbfd] p-[18px] text-center;
+  }
+
+  .ui-chip {
+    @apply inline-block rounded-full px-2.5 py-[3px] text-xs font-semibold;
+  }
+
+  .ui-chip-1 {
+    @apply bg-chip-1 text-primary;
+  }
+
+  .ui-chip-2 {
+    @apply bg-chip-2 text-chip-ink;
+  }
+
+  .ui-chip-3 {
+    @apply bg-primary text-white;
+  }
+
+  .ui-cols span {
+    @apply mr-1 mb-1 inline-block rounded-md bg-[#eef2f7] px-1.5 py-[3px] text-[11.5px] text-[#2c3746];
+  }
+
+  .ui-empty {
+    @apply rounded-[10px] border border-dashed border-line-strong px-3 py-3.5 text-center text-[12.5px] text-muted;
+  }
 }
 
 /* Toast motion: rise from below on entry, sink back on exit. */

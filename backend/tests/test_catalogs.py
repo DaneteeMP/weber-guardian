@@ -98,6 +98,35 @@ def test_price_update_replaces_whole_row(db):
     )
 
 
+def test_price_bands_are_optional_and_persisted(db):
+    _seed(db)
+    seeded = get_prices(db, "Weber Iberica")
+    assert seeded is not None and seeded.band1_rate_without is None
+    updated = update_prices(
+        db,
+        "Weber Iberica",
+        PriceUpdate(
+            currency="EUR",
+            km_rate=Decimal("0.5"),
+            tech_rate=Decimal("60"),
+            diet_full_rate=Decimal("40"),
+            diet_half_rate=Decimal("20"),
+            hotel_rate=Decimal("80"),
+            discount_rate=Decimal("0.15"),
+            band1_rate_without=Decimal("120"),
+            band1_rate_with=Decimal("98"),
+            band2_rate_without=Decimal("210"),
+            band2_rate_with=Decimal("171.5"),
+            band3_rate_without=Decimal("270"),
+            band3_rate_with=Decimal("220.5"),
+        ),
+    )
+    assert updated is not None
+    assert updated.band1_rate_without == Decimal("120")
+    assert updated.band2_rate_with == Decimal("171.5")
+    assert updated.band3_rate_with == Decimal("220.5")
+
+
 def test_price_update_creates_missing_row_only_for_registered_subsidiary(db):
     _seed(db)
     assert get_prices(db, "Weber Italy") is None

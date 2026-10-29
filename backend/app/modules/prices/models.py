@@ -26,6 +26,14 @@ class PriceList(Base):
     diet_full_rate: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
     diet_half_rate: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
     hotel_rate: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=Decimal("0"))
+    # Customer-facing rates for the three contract time bands (annex table).
+    # NULL = not configured: the PDF omits the whole rates block.
+    band1_rate_without: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    band1_rate_with: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    band2_rate_without: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    band2_rate_with: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    band3_rate_without: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    band3_rate_with: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     # Client discount on hours, per subsidiary. Legacy WeberAssistant kept one
     # constant (0.15); each filial now sets its own from Settings.
     discount_rate: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False, default=Decimal("0.15"))

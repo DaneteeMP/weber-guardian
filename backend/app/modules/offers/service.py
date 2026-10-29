@@ -3,13 +3,13 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal, ROUND_DOWN, ROUND_FLOOR
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.modules.customers.models import Customer
 from app.modules.equipment.models import CustomerSite, Equipment
-from app.modules.offers.document import CustomAnnex, OfferDocument, OfferLine
+from app.modules.offers.document import BandRate, CustomAnnex, OfferDocument, OfferLine
 from app.modules.offers.models import Offer, OfferItem
 from app.modules.offers.pricing_engine import PricingInput, calculate
 from app.modules.offers.schemas import (
@@ -19,6 +19,7 @@ from app.modules.offers.schemas import (
     OfferDocumentSettingsIn,
     OfferUpdate,
 )
+from app.modules.prices.service import get_prices
 
 
 class UnknownCustomer(Exception):
@@ -238,49 +239,193 @@ def list_offers(
     return list(db.scalars(stmt.limit(limit).offset(offset)))
 
 
-def offers_summary(db: Session, subsidiary_id: str | None = None) -> dict:
-    """Dense home-screen figures, all through the subsidiary scope.
+STATUS_ORDER = (
+    "Pending response",
+    "Cancelled",
+    "Accepted",
+    "Pending Service",
+    "In progress",
+    "Pending invoicing",
+    "Finished",
+)
 
-    Returns totals, per-status counts, monthly counts (YYYY-MM) and the
-    top customers by offer count with summed net totals.
+# Open offers: everything that still needs a commercial or operational action.
+# Finished, Cancelled and Rejected are terminal and excluded from "pending".
+PENDING_STATUSES = frozenset(
+    {
+        "Pending response",
+        "Accepted",
+        "Pending Service",
+        "In progress",
+        "Pending invoicing",
+    }
+)
+
+
+def offers_summary(db: Session, subsidiary_id: str | None = None) -> dict:
+    """Dashboard aggregates, all through the subsidiary scope.
+
+    One query feeds every panel: customer lists, pending/realized splits,
+    status boards, monthly bars, area performance and the ranking. The rows
+    are aggregated in Python because the dashboard also needs the latest
+    customer/status pair, which is awkward to express in a single grouped
+    query without losing readability.
     """
-    base = select(Offer)
-    if subsidiary_id is not None:
-        base = base.join(Customer, Offer.customer_id == Customer.customer_id).where(
-            Customer.subsidiary_id == subsidiary_id
+    stmt = (
+        select(
+            Offer.id,
+            Offer.customer_id,
+            Customer.account_name,
+            Customer.country,
+            Offer.status,
+            Offer.total_end,
+            Offer.offer_date,
+            Offer.created_at,
         )
-    sub = base.subquery()
-    total = db.scalar(select(func.count()).select_from(sub)) or 0
-    by_status = [
-        {"status": status, "count": count}
-        for status, count in db.execute(
-            select(sub.c.status, func.count()).group_by(sub.c.status)
-        ).all()
-    ]
+        .join(Customer, Offer.customer_id == Customer.customer_id)
+        .order_by(Offer.offer_date.desc().nullslast(), Offer.created_at.desc())
+    )
+    if subsidiary_id is not None:
+        stmt = stmt.where(Customer.subsidiary_id == subsidiary_id)
+    rows = db.execute(stmt).all()
+
+    def add_customer(
+        bucket: dict[str, dict],
+        offer_id: uuid.UUID,
+        customer_id: str,
+        account_name: str | None,
+        amount: Decimal,
+        day: date | None,
+        status: str,
+    ) -> None:
+        row = bucket.get(customer_id)
+        if row is None:
+            row = {
+                "customer_id": customer_id,
+                "account_name": account_name or customer_id,
+                "count": 0,
+                "total_end": Decimal("0"),
+                "last_offer_id": str(offer_id),
+                "last_offer_date": day,
+                "last_status": status,
+            }
+            bucket[customer_id] = row
+        row["count"] += 1
+        row["total_end"] += amount
+
+    def ordered(bucket: dict[str, dict]) -> list[dict]:
+        return sorted(
+            bucket.values(),
+            key=lambda row: (-row["count"], -row["total_end"], row["account_name"].lower()),
+        )
+
+    customers: dict[str, dict] = {}
+    pending_customers: dict[str, dict] = {}
+    realized_customers: dict[str, dict] = {}
+    status_customers: dict[str, dict[str, dict]] = {
+        status: {} for status in STATUS_ORDER
+    }
+    area_totals: dict[str, dict] = {}
     monthly_counts: dict[str, int] = {}
-    # Group by the business date so the chart agrees with the date column and
-    # the date printed on the PDF. Rows without offer_date fall back to the day
-    # the row was created.
-    date_column = select(Offer.offer_date, Offer.created_at)
-    if subsidiary_id is not None:
-        date_column = date_column.join(Customer, Offer.customer_id == Customer.customer_id).where(
-            Customer.subsidiary_id == subsidiary_id
-        )
-    for offer_date, created_at in db.execute(date_column).all():
+    status_counts: dict[str, int] = {}
+    status_amounts: dict[str, Decimal] = {}
+    total = 0
+
+    for offer_id, customer_id, account_name, country, status, total_end, offer_date, created_at in rows:
+        total += 1
+        amount = total_end or Decimal("0")
         day = offer_date or (created_at.date() if created_at else None)
+
         month = day.strftime("%Y-%m") if day else "unknown"
         monthly_counts[month] = monthly_counts.get(month, 0) + 1
-    monthly = [{"month": month, "count": monthly_counts[month]} for month in sorted(monthly_counts)]
-    ranking = [
-        {"customer_id": cid, "count": count, "total_end": str(total_end)}
-        for cid, count, total_end in db.execute(
-            select(sub.c.customer_id, func.count(), func.sum(sub.c.total_end))
-            .group_by(sub.c.customer_id)
-            .order_by(func.count().desc())
-            .limit(15)
-        ).all()
+
+        add_customer(customers, offer_id, customer_id, account_name, amount, day, status)
+        status_counts[status] = status_counts.get(status, 0) + 1
+        status_amounts[status] = status_amounts.get(status, Decimal("0")) + amount
+        status_customers.setdefault(status, {})
+        add_customer(status_customers[status], offer_id, customer_id, account_name, amount, day, status)
+
+        if status in PENDING_STATUSES:
+            add_customer(pending_customers, offer_id, customer_id, account_name, amount, day, status)
+        if status == "Finished":
+            add_customer(realized_customers, offer_id, customer_id, account_name, amount, day, status)
+
+        area = (country or "").strip() or "Unknown"
+        area_row = area_totals.get(area)
+        if area_row is None:
+            area_row = {"area": area, "count": 0, "total_end": Decimal("0")}
+            area_totals[area] = area_row
+        area_row["count"] += 1
+        area_row["total_end"] += amount
+
+    extra_statuses = [status for status in status_counts if status not in STATUS_ORDER]
+    ordered_statuses = [*STATUS_ORDER, *extra_statuses]
+
+    by_status = [
+        {"status": status, "count": status_counts[status]}
+        for status in ordered_statuses
+        if status_counts.get(status, 0) > 0
     ]
-    return {"total": total, "by_status": by_status, "monthly": monthly, "ranking": ranking}
+    status_details = [
+        {
+            "status": status,
+            "count": status_counts.get(status, 0),
+            "total_end": status_amounts.get(status, Decimal("0")),
+            "customers": ordered(status_customers.get(status, {}))[:20],
+        }
+        for status in ordered_statuses
+    ]
+
+    ranking = ordered(customers)[:15]
+    by_area = sorted(
+        area_totals.values(),
+        key=lambda row: (-row["total_end"], row["area"].lower()),
+    )
+
+    # Customers that exist in the scope but still have no offer. They are the
+    # commercial follow-up list, so they are returned alphabetically and
+    # without the offer rollup fields.
+    customer_stmt = select(Customer.customer_id, Customer.account_name).order_by(
+        Customer.account_name
+    )
+    if subsidiary_id is not None:
+        customer_stmt = customer_stmt.where(Customer.subsidiary_id == subsidiary_id)
+    all_customers = db.execute(customer_stmt).all()
+    customers_with_offers = set(customers)
+    customers_without_offers = [
+        {
+            "customer_id": customer_id,
+            "account_name": account_name,
+            "count": 0,
+            "total_end": Decimal("0"),
+            "last_offer_id": None,
+            "last_offer_date": None,
+            "last_status": None,
+        }
+        for customer_id, account_name in all_customers
+        if customer_id not in customers_with_offers
+    ]
+
+    return {
+        "total": total,
+        "by_status": by_status,
+        "status_details": status_details,
+        "monthly": [
+            {"month": month, "count": monthly_counts[month]}
+            for month in sorted(monthly_counts)
+        ],
+        "ranking": ranking,
+        "customers_total": len(all_customers),
+        "customers": ordered(customers)[:20],
+        "customers_with_offers_total": len(customers),
+        "customers_without_offers_total": len(customers_without_offers),
+        "customers_without_offers": customers_without_offers,
+        "pending_total": sum(status_counts.get(status, 0) for status in PENDING_STATUSES),
+        "pending_customers": ordered(pending_customers)[:20],
+        "realized_total": status_counts.get("Finished", 0),
+        "realized_customers": ordered(realized_customers)[:20],
+        "by_area": by_area,
+    }
 
 
 def get_offer(db: Session, offer_id: uuid.UUID, subsidiary_id: str | None = None) -> Offer | None:
@@ -451,6 +596,29 @@ def append_custom_annex(
     return offer
 
 
+def _band_rates_for(db: Session, subsidiary_id: str | None) -> tuple[BandRate, ...]:
+    """Customer-facing band rates for the subsidiary, or () when unconfigured.
+
+    The PDF omits the whole rates block unless all three bands are set.
+    """
+    if subsidiary_id is None:
+        return ()
+    row = get_prices(db, subsidiary_id)
+    if row is None:
+        return ()
+    bands = (
+        (1, row.band1_rate_without, row.band1_rate_with),
+        (2, row.band2_rate_without, row.band2_rate_with),
+        (3, row.band3_rate_without, row.band3_rate_with),
+    )
+    if any(without is None or with_ is None for _, without, with_ in bands):
+        return ()
+    return tuple(
+        BandRate(band=band, rate_without_contract=without, rate_with_contract=with_)
+        for band, without, with_ in bands
+    )
+
+
 def get_offer_document(db: Session, offer_id: uuid.UUID, subsidiary_id: str | None = None) -> OfferDocument | None:
     """Load the official document data (offer + customer + lines), or None."""
     offer = get_offer(db, offer_id, subsidiary_id=subsidiary_id)
@@ -496,6 +664,7 @@ def get_offer_document(db: Session, offer_id: uuid.UUID, subsidiary_id: str | No
         offer_date=offer.offer_date or (offer.created_at.date() if offer.created_at else None),
         status=offer.status,
         offer_type=offer.offer_type,
+        band_rates=_band_rates_for(db, customer.subsidiary_id),
         language=offer.language or "Spanish",
         inspection_frequency=offer.inspection_frequency,
         responsible_person=offer.responsible_person,

@@ -20,7 +20,7 @@ export default function SearchInput({
     <div className={`relative ${className}`}>
       <svg
         viewBox="0 0 24 24"
-        className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+        className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
         fill="none"
         stroke="currentColor"
         strokeWidth="2"
@@ -34,7 +34,7 @@ export default function SearchInput({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="w-full rounded border py-1.5 pl-8 pr-3 text-sm focus:border-weber-blue focus:outline-none"
+        className="ui-input w-full pl-8 pr-3"
       />
     </div>
   );

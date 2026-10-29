@@ -121,6 +121,8 @@ def token_values(doc: OfferDocument, locale: str) -> dict[str, str]:
     def money(value: Decimal) -> str:
         return format_money(value, locale, doc.currency)
 
+    bands = {rate.band: rate for rate in doc.band_rates}
+
     values = {
         "Agreement_Number": "",
         "Offer_Number": doc.number,
@@ -141,6 +143,14 @@ def token_values(doc: OfferDocument, locale: str) -> dict[str, str]:
         "Customer_Postcode_City": customer_city,
         "Customer_Country": doc.account_country or "",
         "Currency": doc.currency,
+        # Contract time-band rates (with / without maintenance contract). Empty
+        # when the subsidiary has not configured them.
+        "Band1_Rate_Without": money(bands[1].rate_without_contract) if 1 in bands else "",
+        "Band1_Rate_With": money(bands[1].rate_with_contract) if 1 in bands else "",
+        "Band2_Rate_Without": money(bands[2].rate_without_contract) if 2 in bands else "",
+        "Band2_Rate_With": money(bands[2].rate_with_contract) if 2 in bands else "",
+        "Band3_Rate_Without": money(bands[3].rate_without_contract) if 3 in bands else "",
+        "Band3_Rate_With": money(bands[3].rate_with_contract) if 3 in bands else "",
         "Number_Of_Machines": str(len(machine_names)),
         "Number_Of_Lines": str(len(machine_names)),
         "Inspection_Amount": money(line_total),

@@ -190,6 +190,13 @@ td {{
     font-weight: 700;
 }}
 
+/* Legacy contract definition term (bold, no list) */
+.clause-subheading {{
+    font-weight: 700;
+    text-align: left;
+    margin: 3mm 0 1mm 0;
+}}
+
 /* Module checklist (Annex 1 section 3) */
 .checklist {{
     list-style: none;
@@ -301,5 +308,43 @@ tr.total td {{
 .notes-title {{
     font-weight: 700;
     margin-top: 3mm;
+}}
+
+/* Contract time-band rate tables (Service Support annex) */
+.band-rates {{
+    margin-top: 4mm;
+}}
+
+.band-rates-title {{
+    font-weight: 700;
+    margin: 0 0 2mm 0;
+}}
+
+.band-rates-table {{
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 3mm;
+    font-size: 8.5pt;
+}}
+
+.band-rates-table th,
+.band-rates-table td {{
+    border: 0.3pt solid #b9c2cc;
+    padding: 1.2mm 2mm;
+}}
+
+.band-rates-table th {{
+    background-color: #064477;
+    color: #ffffff;
+    text-align: left;
+    font-weight: 700;
+}}
+
+.band-rates-table td:first-child {{
+    font-weight: 700;
+}}
+
+.band-rates-table td:not(:first-child) {{
+    text-align: center;
 }}
 """

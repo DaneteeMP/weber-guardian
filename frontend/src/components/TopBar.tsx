@@ -19,6 +19,7 @@ export type Tab =
 export default function TopBar({
   tab,
   setTab,
+  onNew,
   lang,
   setLang,
   identity,
@@ -29,6 +30,7 @@ export default function TopBar({
 }: {
   tab: Tab;
   setTab: (t: Tab) => void;
+  onNew: () => void;
   lang: Lang;
   setLang: (l: Lang) => void;
   identity: {
@@ -65,11 +67,11 @@ export default function TopBar({
   if (showConfig) tabs.push({ id: "config", label: t(lang, "nav_config") });
 
   return (
-    <header className="border-b-2 border-weber-blue bg-white">
-      <div className="flex min-h-0 items-stretch gap-3 px-4 pt-2">
-        <img src="/guardian-logo.png" alt={APP_NAME} className="h-8 w-auto shrink-0 self-center mb-1" />
+    <header className="border-b border-line bg-white">
+      <div className="flex min-h-0 items-stretch gap-3 px-4">
+        <img src="/guardian-logo.png" alt={APP_NAME} className="h-8 w-auto shrink-0 self-center" />
         <span
-          className="max-w-[180px] shrink-0 truncate self-center text-base font-bold text-gray-800"
+          className="max-w-[180px] shrink-0 truncate self-center text-base font-bold text-ink"
           title={currentScopeLabel}
         >
           {currentScopeLabel}
@@ -78,11 +80,11 @@ export default function TopBar({
           {tabs.map((item) => (
             <button
               key={item.id}
-              onClick={() => setTab(item.id)}
-              className={`flex items-center whitespace-nowrap border-t-[3px] px-3 text-sm font-medium transition-colors ${
+              onClick={() => (item.id === "offers" ? onNew() : setTab(item.id))}
+              className={`flex items-center whitespace-nowrap border-b-2 px-3 pt-1 text-sm font-medium transition-colors ${
                 tab === item.id
-                  ? "border-weber-blue bg-blue-100 font-semibold text-weber-blue"
-                  : "border-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted hover:text-ink"
               }`}
             >
               {item.label}
@@ -91,12 +93,12 @@ export default function TopBar({
         </nav>
         <div className="ml-auto flex shrink-0 items-center gap-4 whitespace-nowrap py-2">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-gray-600">{t(lang, "scope_filial")}:</span>
+            <span className="text-xs font-medium text-muted">{t(lang, "scope_filial")}:</span>
             {isAdmin ? (
               <select
                 value={scope ?? ""}
                 onChange={(e) => setScope(e.target.value || null)}
-                className="border rounded px-2 py-1 text-sm font-medium bg-white"
+                className="ui-input h-8 text-sm font-medium"
                 title={t(lang, "scope_filial")}
               >
                 <option value="">{t(lang, "scope_admin_all")}</option>
@@ -107,7 +109,7 @@ export default function TopBar({
                 ))}
               </select>
             ) : (
-              <span className="text-sm font-medium text-gray-700">
+              <span className="text-sm font-medium text-ink">
                 {identity?.subsidiary_short ?? identity?.subsidiary_id ?? "—"}
               </span>
             )}
@@ -118,20 +120,20 @@ export default function TopBar({
               fill="none"
               stroke="currentColor"
               strokeWidth={1.8}
-              className="h-4 w-4 text-gray-600"
+              className="h-4 w-4 text-muted"
               aria-hidden="true"
             >
               <circle cx="12" cy="12" r="9" />
               <path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" />
             </svg>
-            <label htmlFor="language-select" className="text-xs font-semibold text-gray-600">
+            <label htmlFor="language-select" className="text-xs font-medium text-muted">
               {t(lang, "language_label")}:
             </label>
             <select
               id="language-select"
               value={lang}
               onChange={(e) => setLang(e.target.value as Lang)}
-              className="border rounded px-2 py-1 text-sm font-medium bg-white"
+              className="ui-input h-8 text-sm font-medium"
               aria-label={t(lang, "language_label")}
             >
               {LANGS.map((l) => (

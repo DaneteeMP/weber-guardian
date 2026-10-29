@@ -78,7 +78,76 @@ type Editing =
     }
   | null;
 
-const EMPTY_RATES = { currency: "", km_rate: "", tech_rate: "", diet_full_rate: "", diet_half_rate: "", hotel_rate: "", discount_rate: "" };
+const EMPTY_RATES = { currency: "", km_rate: "", tech_rate: "", diet_full_rate: "", diet_half_rate: "", hotel_rate: "", discount_rate: "", band1_rate_without: "", band1_rate_with: "", band2_rate_without: "", band2_rate_with: "", band3_rate_without: "", band3_rate_with: "" };
+
+// Core rates stay as the labelled grid; the three contract time bands are a
+// separate table (fixed band matrix + editable with/without-contract rates).
+const BAND_ROWS = [
+  { band: 1, label: "I", without: "band1_rate_without", with: "band1_rate_with" },
+  { band: 2, label: "II", without: "band2_rate_without", with: "band2_rate_with" },
+  { band: 3, label: "III", without: "band3_rate_without", with: "band3_rate_with" },
+] as const;
+
+// Fixed time-band matrix shared by every subsidiary: hours x day type -> band.
+const TIME_BAND_MATRIX = [
+  { hours: "06:00 - 18:00", weekdays: "I", saturday: "II", sunday: "III" },
+  { hours: "18:00 - 06:00", weekdays: "II", saturday: "III", sunday: "III" },
+] as const;
+
+function BandPill({ label, band }: { label: string; band: string }) {
+  const tone =
+    band === "I"
+      ? "ui-chip ui-chip-1"
+      : band === "II"
+        ? "ui-chip ui-chip-2"
+        : "ui-chip ui-chip-3";
+  return (
+    <span className={tone}>
+      {label} {band}
+    </span>
+  );
+}
+
+// The API returns Decimal columns with their stored scale (0.5000). Trim to
+// two decimals for display only; the raw value stays untouched in state.
+function trimRate(value: string): string {
+  const match = /^(-?\d+)\.(\d{3,})$/.exec(value.trim());
+  return match ? `${match[1]}.${match[2].slice(0, 2)}` : value;
+}
+
+function RateField({
+  label,
+  value,
+  unit,
+  onChange,
+  type = "number",
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  onChange: (value: string) => void;
+  type?: "text" | "number";
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <label className="block min-w-0">
+      <span className="ui-label">{label}</span>
+      <div className="ui-input-wrap">
+        <input
+          type={type}
+          min={type === "number" ? "0" : undefined}
+          step={type === "number" ? "any" : undefined}
+          value={type === "number" && !focused ? trimRate(value) : value}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onChange={(event) => onChange(event.target.value)}
+          className="ui-input-plain"
+        />
+        {unit && <span className="ui-unit">{unit}</span>}
+      </div>
+    </label>
+  );
+}
 
 function formatClock(value: string | number | null | undefined): string {
   if (value === null || value === undefined || value === "") return "";
@@ -126,7 +195,6 @@ export default function Config({
   const [rates, setRates] = useState(EMPTY_RATES);
 
   const [distances, setDistances] = useState<Distance[]>([]);
-  const [distanceSubsidiary, setDistanceSubsidiary] = useState(scope ?? "");
   const [importOpen, setImportOpen] = useState(false);
 
   const [responsibles, setResponsibles] = useState<Responsible[]>([]);
@@ -154,7 +222,7 @@ export default function Config({
   // Free-text search over country and subsidiary names in the country view.
   const [countrySearch, setCountrySearch] = useState("");
 
-  const input = "border rounded px-2 py-1 text-sm";
+  const input = "ui-input";
 
   async function refreshTables() {
     try {
@@ -189,6 +257,12 @@ export default function Config({
                 diet_half_rate: p.diet_half_rate ?? "",
                 hotel_rate: p.hotel_rate ?? "",
                 discount_rate: p.discount_rate ?? "",
+                band1_rate_without: p.band1_rate_without ?? "",
+                band1_rate_with: p.band1_rate_with ?? "",
+                band2_rate_without: p.band2_rate_without ?? "",
+                band2_rate_with: p.band2_rate_with ?? "",
+                band3_rate_without: p.band3_rate_without ?? "",
+                band3_rate_with: p.band3_rate_with ?? "",
               }),
             )
             .catch((e) => setError(String(e)));
@@ -198,34 +272,33 @@ export default function Config({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, scope]);
 
-  async function loadRates() {
-    setError(null);
-    setRates(EMPTY_RATES);
-    try {
-      if (!sub) throw new Error(t(lang, "cfg_select_subsidiary"));
-      const p = await getPrices(sub);
-      setRates({
-        currency: p.currency ?? "",
-        km_rate: p.km_rate ?? "",
-        tech_rate: p.tech_rate ?? "",
-        diet_full_rate: p.diet_full_rate ?? "",
-        diet_half_rate: p.diet_half_rate ?? "",
-        hotel_rate: p.hotel_rate ?? "",
-        discount_rate: p.discount_rate ?? "",
-      });
-    } catch (e) {
-      setError(String(e));
-    }
-  }
-
   async function saveRates() {
     setError(null);
     setOk(null);
     try {
       if (!sub) throw new Error(t(lang, "cfg_select_subsidiary"));
-      if (Object.values(rates).some((value) => !String(value ?? "").trim()))
+      const required = [
+        "currency",
+        "km_rate",
+        "tech_rate",
+        "diet_full_rate",
+        "diet_half_rate",
+        "hotel_rate",
+        "discount_rate",
+      ] as const;
+      if (required.some((key) => !String(rates[key] ?? "").trim()))
         throw new Error(t(lang, "cfg_rates_required"));
-      await updatePrices(sub, rates);
+      // Band rates are optional: an empty field is sent as null so the PDF can
+      // omit the whole rates block when the subsidiary has not configured it.
+      await updatePrices(sub, {
+        ...rates,
+        band1_rate_without: rates.band1_rate_without.trim() || null,
+        band1_rate_with: rates.band1_rate_with.trim() || null,
+        band2_rate_without: rates.band2_rate_without.trim() || null,
+        band2_rate_with: rates.band2_rate_with.trim() || null,
+        band3_rate_without: rates.band3_rate_without.trim() || null,
+        band3_rate_with: rates.band3_rate_with.trim() || null,
+      });
       setOk("OK");
     } catch (e) {
       setError(String(e));
@@ -423,25 +496,6 @@ export default function Config({
     }
   }
 
-  function newDistance() {
-    setEditing({
-      kind: "distance",
-      subsidiary_id: scope ?? distanceSubsidiary,
-      province: "",
-      province_code: "",
-      region: "",
-      capital: "",
-      reference_city: "",
-      service_center: "",
-      origin_city: "",
-      km: "",
-      driving: "",
-      trip: "",
-      itinerary: "",
-      route_date: "",
-    });
-  }
-
   function editDistance(d: Distance) {
     setEditing({
       kind: "distance",
@@ -466,9 +520,8 @@ export default function Config({
     await refreshTables();
   }
 
-  const distanceColumns = useMemo<ColumnDef<Distance, any>[]>(
-    () => [
-      { accessorKey: "subsidiary_id", header: t(lang, "cfg_subsidiary") },
+  const distanceColumns = useMemo<ColumnDef<Distance, any>[]>(() => {
+    const columns: ColumnDef<Distance, any>[] = [
       { accessorKey: "province", header: t(lang, "cfg_province") },
       {
         accessorKey: "province_code",
@@ -541,9 +594,12 @@ export default function Config({
           </div>
         ),
       },
-    ],
-    [lang],
-  );
+    ];
+    if (!scope) {
+      columns.unshift({ accessorKey: "subsidiary_id", header: t(lang, "cfg_subsidiary") });
+    }
+    return columns;
+  }, [lang, scope]);
 
   const countryStatsColumns: ColumnDef<SubsidiaryStats>[] = useMemo(
     () => [
@@ -554,7 +610,7 @@ export default function Config({
         cell: ({ row }) => (
           <span>
             <span className="font-semibold">{row.original.short_label}</span>{" "}
-            <span className="text-xs text-gray-500">{row.original.name}</span>
+            <span className="text-xs text-muted">{row.original.name}</span>
           </span>
         ),
       },
@@ -633,7 +689,7 @@ export default function Config({
           <select
             value={row.original.subsidiary}
             onChange={(event) => changeCountrySubsidiary(row.original.country, event.target.value)}
-            className={input}
+            className={`${input} w-full`}
           >
             {subsidiaries.map((s) => (
               <option key={s.name} value={s.name}>{s.name}</option>
@@ -646,14 +702,13 @@ export default function Config({
     [lang, subsidiaries],
   );
 
-  if (!isAdmin) return <p className="p-4 text-sm text-gray-500">{t(lang, "cfg_admin_only")}</p>;
+  if (!isAdmin) return <p className="p-4 text-sm text-muted">{t(lang, "cfg_admin_only")}</p>;
 
-  const tab = (active: boolean) =>
-    `px-3 py-1 rounded text-sm font-medium ${active ? "bg-weber-blue text-white" : "bg-gray-200 hover:bg-gray-300"}`;
+  const tab = (active: boolean) => `ui-tab ${active ? "ui-tab-active" : ""}`;
 
   const modalTitle = t(lang, "cfg_distances");
-  const visibleDistances = distanceSubsidiary
-    ? distances.filter((distance) => distance.subsidiary_id === distanceSubsidiary)
+  const visibleDistances = scope
+    ? distances.filter((distance) => distance.subsidiary_id === scope)
     : distances;
   // Same filter shape as distances: pick a subsidiary to list its countries,
   // then narrow the list by free text (country or subsidiary name).
@@ -673,58 +728,208 @@ export default function Config({
     ? ["rates", "distances", "countries"]
     : ["rates", "distances"];
 
+  // The API stores the discount as a fraction (0.15); the form shows 15 %.
+  const discountPercent = (() => {
+    const value = Number(rates.discount_rate);
+    return Number.isFinite(value) ? String(Math.round(value * 1000) / 10) : "";
+  })();
+
   return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-3 p-4">
-      <h1 className="shrink-0 text-2xl font-bold text-gray-900">{t(lang, "cfg_title")}</h1>
-      <div className="flex shrink-0 gap-2">
-        {visibleSections.map((s) => (
-          <button key={s} onClick={() => setSection(s)} className={tab(section === s)}>
-            {sectionLabel[s]}
-          </button>
-        ))}
+    <div className="flex h-full min-h-0 w-full flex-col gap-2 p-4">
+      <h1 className="shrink-0 text-[22px] font-bold leading-tight text-ink">{t(lang, "cfg_title")}</h1>
+      <div className="flex shrink-0 items-end justify-between gap-4 border-b border-line">
+        <div className="flex min-w-0 overflow-x-auto">
+          {visibleSections.map((s) => (
+            <button key={s} onClick={() => setSection(s)} className={tab(section === s)}>
+              {sectionLabel[s]}
+            </button>
+          ))}
+        </div>
+        {section === "rates" && (
+          <div className="shrink-0 pb-1.5">
+            <Button size="sm" onClick={saveRates}>{t(lang, "cfg_save_changes")}</Button>
+          </div>
+        )}
+        {section === "distances" && (
+          <div className="shrink-0 pb-1.5">
+            <Button
+              size="sm"
+              onClick={() => setImportOpen(true)}
+              disabled={!scope}
+              title={!scope ? t(lang, "cfg_select_subsidiary") : undefined}
+            >
+              {t(lang, "cfg_distance_import")}
+            </Button>
+          </div>
+        )}
       </div>
       <ToastStack toasts={toasts} onClose={dismiss} />
 
       {section === "rates" && (
         <div className="min-h-0 flex-1 overflow-y-auto pb-1">
-        <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start">
+        <div className="grid items-start gap-3 xl:grid-cols-[380px_minmax(0,1fr)_340px]">
         <SectionCard
-          title={t(lang, "cfg_rates")}
-          className="min-w-0 md:flex-[2]"
+          title={t(lang, "cfg_rates_general")}
+          subtitle={t(lang, "cfg_rates_general_hint")}
+          className="min-w-0"
         >
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-700">{sub}</span>
-            <Button variant="secondary" size="sm" onClick={loadRates}>
-              {t(lang, "cfg_load")}
-            </Button>
-            <Button size="sm" onClick={saveRates}>
-              {t(lang, "cfg_save")}
-            </Button>
-          </div>
-          <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-            {(Object.keys(rates) as (keyof typeof rates)[]).map((k) => (
-              <label key={k} className="flex items-center justify-between gap-3 text-xs">
-                <span className="truncate text-gray-600">
-                  {t(lang, `cfg_${k}` as "cfg_currency" | "cfg_km_rate" | "cfg_tech_rate" | "cfg_diet_full_rate" | "cfg_diet_half_rate" | "cfg_hotel_rate" | "cfg_discount_rate")}
-                </span>
-                <input
-                  type={k === "currency" ? "text" : "number"}
-                  min={k === "currency" ? undefined : "0"}
-                  step={k === "currency" ? undefined : "any"}
-                  value={rates[k]}
-                  onChange={(e) => setRates({ ...rates, [k]: e.target.value })}
-                  className={`${input} w-28 shrink-0 text-right`}
+          <div className="space-y-5">
+            <div>
+              <p className="ui-sec">{t(lang, "cfg_labour")}</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3.5">
+                <RateField
+                  label={t(lang, "cfg_field_currency")}
+                  value={rates.currency}
+                  type="text"
+                  onChange={(value) => setRates({ ...rates, currency: value })}
                 />
-              </label>
-            ))}
+                <RateField
+                  label={t(lang, "cfg_field_discount")}
+                  value={discountPercent}
+                  unit="%"
+                  onChange={(value) => setRates({ ...rates, discount_rate: String(Number(value) / 100) })}
+                />
+                <div className="col-span-2">
+                  <RateField
+                    label={t(lang, "cfg_field_tech")}
+                    value={rates.tech_rate}
+                    unit={t(lang, "cfg_unit_hour")}
+                    onChange={(value) => setRates({ ...rates, tech_rate: value })}
+                  />
+                </div>
+              </div>
+            </div>
+            <div>
+              <p className="ui-sec">{t(lang, "cfg_travel_diets")}</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3.5">
+                <RateField
+                  label={t(lang, "cfg_field_km")}
+                  value={rates.km_rate}
+                  unit={t(lang, "cfg_unit_km")}
+                  onChange={(value) => setRates({ ...rates, km_rate: value })}
+                />
+                <RateField
+                  label={t(lang, "cfg_field_hotel")}
+                  value={rates.hotel_rate}
+                  unit={t(lang, "cfg_unit_night")}
+                  onChange={(value) => setRates({ ...rates, hotel_rate: value })}
+                />
+                <RateField
+                  label={t(lang, "cfg_field_diet_full")}
+                  value={rates.diet_full_rate}
+                  unit="€"
+                  onChange={(value) => setRates({ ...rates, diet_full_rate: value })}
+                />
+                <RateField
+                  label={t(lang, "cfg_field_diet_half")}
+                  value={rates.diet_half_rate}
+                  unit="€"
+                  onChange={(value) => setRates({ ...rates, diet_half_rate: value })}
+                />
+              </div>
+            </div>
           </div>
         </SectionCard>
 
-        <SectionCard
-          title={t(lang, "cfg_responsibles")}
-          className="min-w-0 md:flex-1"
-        >
+        <div className="flex flex-col gap-3">
+          <SectionCard title={t(lang, "cfg_band_schedule")} subtitle={t(lang, "cfg_band_schedule_hint")}>
+            <div className="ui-tw">
+              <table className="w-full table-fixed border-collapse text-xs">
+                <thead>
+                  <tr>
+                    <th className="ui-th">{t(lang, "cfg_band_hours")}</th>
+                    <th className="ui-th">{t(lang, "cfg_band_weekdays")}</th>
+                    <th className="ui-th">{t(lang, "cfg_band_saturday")}</th>
+                    <th className="ui-th">{t(lang, "cfg_band_sunday")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {TIME_BAND_MATRIX.map((row) => (
+                    <tr key={row.hours}>
+                      <td className="ui-td font-medium text-ink">{row.hours}</td>
+                      <td className="ui-td"><BandPill label={t(lang, "cfg_band_band")} band={row.weekdays} /></td>
+                      <td className="ui-td"><BandPill label={t(lang, "cfg_band_band")} band={row.saturday} /></td>
+                      <td className="ui-td"><BandPill label={t(lang, "cfg_band_band")} band={row.sunday} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </SectionCard>
+
+          <SectionCard title={t(lang, "cfg_band_price")} subtitle={t(lang, "cfg_band_price_hint")}>
+            <div className="ui-tw">
+              <table className="w-full table-fixed border-collapse text-xs">
+                <thead>
+                  <tr>
+                    <th className="ui-th w-24">{t(lang, "cfg_band_band")}</th>
+                    <th className="ui-th">{t(lang, "cfg_band_rate_without")}</th>
+                    <th className="ui-th">{t(lang, "cfg_band_rate_with")}</th>
+                    <th className="ui-th w-20 text-right">{t(lang, "cfg_saving")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {BAND_ROWS.map((row) => {
+                    const without = Number(rates[row.without]);
+                    const withContract = Number(rates[row.with]);
+                    const saving =
+                      without > 0 && rates[row.with].trim()
+                        ? ((withContract - without) / without) * 100
+                        : null;
+                    const savingText =
+                      saving === null
+                        ? "—"
+                        : `${saving > 0 ? "+" : "−"}${Math.abs(saving).toLocaleString(lang, {
+                            minimumFractionDigits: 1,
+                            maximumFractionDigits: 1,
+                          })} %`;
+                    return (
+                      <tr key={row.band}>
+                        <td className="ui-td"><BandPill label={t(lang, "cfg_band_band")} band={row.label} /></td>
+                        <td className="ui-td">
+                          <div className="ui-input-wrap">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={rates[row.without]}
+                              onChange={(e) => setRates({ ...rates, [row.without]: e.target.value })}
+                              className="ui-input-plain"
+                            />
+                            <span className="ui-unit">€</span>
+                          </div>
+                        </td>
+                        <td className="ui-td">
+                          <div className="ui-input-wrap">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={rates[row.with]}
+                              onChange={(e) => setRates({ ...rates, [row.with]: e.target.value })}
+                              className="ui-input-plain"
+                            />
+                            <span className="ui-unit">€</span>
+                          </div>
+                        </td>
+                        <td
+                          className={`ui-td text-right text-xs font-semibold ${
+                            saving === null ? "text-muted" : saving <= 0 ? "text-success" : "text-red-600"
+                          }`}
+                        >
+                          {savingText}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </SectionCard>
+        </div>
+
+        <div className="flex flex-col gap-3">
+        <SectionCard title={t(lang, "cfg_responsibles")}>
           <div className="flex gap-2 items-center">
             <input
               value={newResponsible}
@@ -735,7 +940,12 @@ export default function Config({
             />
             <Button size="sm" onClick={addResponsible}>{t(lang, "cfg_add")}</Button>
           </div>
-          <ul className="mt-2 space-y-1">
+          {responsibles.length === 0 && (
+            <p className="ui-empty mt-3">
+              {t(lang, "cfg_no_responsibles")}
+            </p>
+          )}
+          <ul className="mt-3 space-y-1.5">
             {responsibles.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center gap-2 text-sm">
                 {renamingId === r.id ? (
@@ -756,9 +966,9 @@ export default function Config({
                       checked={r.active}
                       onChange={() => toggleResponsible(r)}
                       title={t(lang, "cfg_active")}
-                      className="accent-blue-700"
+                      className="accent-[#1f4e8c]"
                     />
-                    <span className={`min-w-0 flex-1 truncate ${r.active ? "text-gray-900" : "text-gray-400 line-through"}`}>{r.name}</span>
+                    <span className={`min-w-0 flex-1 truncate ${r.active ? "text-ink" : "text-muted line-through"}`}>{r.name}</span>
                     <Button
                       size="sm"
                       variant="secondary"
@@ -778,51 +988,20 @@ export default function Config({
             ))}
           </ul>
         </SectionCard>
-        </div>
-
-        {/* Import panel below the rates: it shares the screen but keeps its
-            own full-width card, because the format help needs the room. */}
         <ImportData lang={lang} scope={scope} />
+        </div>
         </div>
         </div>
       )}
 
       {section === "distances" && (
-        <SectionCard className="flex min-h-0 flex-1 flex-col" title={t(lang, "cfg_distances")}>
-          <div className="mb-2 flex shrink-0 flex-wrap items-center gap-2">
-            <label className="text-xs font-medium text-gray-600">
-              Subsidiary
-              <select
-                value={distanceSubsidiary}
-                onChange={(e) => setDistanceSubsidiary(e.target.value)}
-                disabled={scope !== null}
-                className={`${input} ml-2 disabled:bg-gray-100`}
-              >
-                <option value="">All subsidiaries</option>
-                {subsidiaries.map((subsidiary) => (
-                  <option key={subsidiary.name} value={subsidiary.name}>
-                    {subsidiary.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button size="sm" onClick={newDistance}>
-              {t(lang, "cfg_add")}
-            </Button>
-            {distanceSubsidiary === "Weber Italy" && (
-              <Button size="sm" variant="secondary" onClick={() => setImportOpen(true)}>
-                {t(lang, "cfg_distance_import")}
-              </Button>
-            )}
-          </div>
-          <DataTable
-            data={visibleDistances}
-            columns={distanceColumns}
-            getRowId={(d) => `${d.subsidiary_id}:${d.province}`}
-            tableClassName="min-w-[1250px]"
-            className="min-h-0 flex-1"
-          />
-        </SectionCard>
+        <DataTable
+          data={visibleDistances}
+          columns={distanceColumns}
+          getRowId={(d) => `${d.subsidiary_id}:${d.province}`}
+          tableClassName="min-w-[1100px]"
+          className="min-h-0 flex-1"
+        />
       )}
 
       {section === "countries" && isGlobalAdmin && (
@@ -838,7 +1017,7 @@ export default function Config({
                 className={`px-3 py-1.5 ${
                   countryView === "subsidiary"
                     ? "bg-weber-blue font-semibold text-white"
-                    : "bg-white hover:bg-gray-50"
+                    : "bg-white hover:bg-canvas"
                 }`}
               >
                 {t(lang, "cfg_country_view_subsidiary")}
@@ -849,7 +1028,7 @@ export default function Config({
                 className={`px-3 py-1.5 ${
                   countryView === "country"
                     ? "bg-weber-blue font-semibold text-white"
-                    : "bg-white hover:bg-gray-50"
+                    : "bg-white hover:bg-canvas"
                 }`}
               >
                 {t(lang, "cfg_country_view_country")}
@@ -865,7 +1044,7 @@ export default function Config({
               />
             ) : (
               <>
-                <p className="mb-2 shrink-0 text-xs text-gray-500">{t(lang, "cfg_countries_hint")}</p>
+                <p className="mb-2 shrink-0 text-xs text-muted">{t(lang, "cfg_countries_hint")}</p>
                 <div className="mb-2 flex shrink-0 items-center gap-2">
                   <select
                     value={countryFilter}
@@ -878,7 +1057,7 @@ export default function Config({
                       <option key={s.name} value={s.name}>{s.name}</option>
                     ))}
                   </select>
-                  <span className="text-sm text-gray-500">
+                  <span className="text-sm text-muted">
                     {countryFilter || countryQuery
                       ? `${visibleCountries.length} / ${countries.length}`
                       : countries.length}
@@ -910,7 +1089,7 @@ export default function Config({
             className="flex min-h-0 min-w-0 flex-1 flex-col"
           >
             <div className="mb-2 flex shrink-0 items-center gap-2">
-              <span className="shrink-0 text-xs text-gray-500">
+              <span className="shrink-0 text-xs text-muted">
                 {t(lang, "cfg_country_subsidiary")}
               </span>
               <select
@@ -947,7 +1126,7 @@ export default function Config({
                     value={editing.subsidiary_id}
                     disabled={scope !== null}
                     onChange={(e) => setEditing({ ...editing, subsidiary_id: e.target.value })}
-                    className={`${input} w-full disabled:bg-gray-100`}
+                    className={`${input} w-full`}
                   >
                     <option value="">Select subsidiary</option>
                     {subsidiaries.map((subsidiary) => (
@@ -1047,7 +1226,7 @@ export default function Config({
         >
           <DistanceImport
             lang={lang}
-            subsidiaryId={distanceSubsidiary}
+            subsidiaryId={scope ?? ""}
             onImported={refreshTables}
           />
         </Modal>

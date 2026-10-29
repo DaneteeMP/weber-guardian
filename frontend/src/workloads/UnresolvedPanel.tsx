@@ -76,13 +76,13 @@ export default function UnresolvedPanel({
         accessorKey: "name_en",
         header: t(lang, "workload_material_name"),
         enableSorting: true,
-        cell: ({ row }) => <span className="text-gray-700">{row.original.name_en ?? "—"}</span>,
+        cell: ({ row }) => <span className="text-ink">{row.original.name_en ?? "—"}</span>,
       },
       {
         accessorKey: "type_code",
         header: t(lang, "workload_legacy_code"),
         enableSorting: true,
-        cell: ({ row }) => <span className="font-mono text-gray-600">{row.original.type_code ?? "—"}</span>,
+        cell: ({ row }) => <span className="font-mono text-muted">{row.original.type_code ?? "—"}</span>,
       },
       {
         accessorKey: "reason",
@@ -123,7 +123,7 @@ export default function UnresolvedPanel({
   return (
     <>
       <div className="mb-2 shrink-0 space-y-1.5">
-        <p className="text-xs text-gray-600">{t(lang, "workload_unresolved_help")}</p>
+        <p className="text-xs text-muted">{t(lang, "workload_unresolved_help")}</p>
         <div className="flex items-center gap-2">
           <SearchInput
             value={search}
@@ -131,7 +131,7 @@ export default function UnresolvedPanel({
             placeholder={t(lang, "workload_search")}
             className="min-w-0 flex-1"
           />
-          <span className="shrink-0 text-sm text-gray-500">
+          <span className="shrink-0 text-sm text-muted">
             {search.trim() ? `${filtered.length} / ${total}` : total.toLocaleString()}
           </span>
         </div>

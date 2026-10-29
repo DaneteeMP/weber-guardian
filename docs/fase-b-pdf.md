@@ -58,12 +58,17 @@ El «Tipo» del desglose es el **Guardian type** de la oferta: `Inspection` (val
 
 ## Traducciones
 
-El texto de origen del contrato es **inglés** y vive **inline** en los módulos de `app/weber/content/` (`cover`, `master`, `annex1`-`annex7`, `summary`), con un `id` estable por nodo. Cada idioma añade un catálogo `MESSAGES` en `content/{es,de,pt,it}.py`:
+El texto de origen del contrato es **inglés** y vive **inline** en los módulos de `app/weber/content/` (`cover`, `master`, `annex1`-`annex7`, `summary`, `breakdown`, `signatures`), con un `id` estable por nodo. Cada idioma añade un catálogo `MESSAGES` en `content/{es,de,pt,it}.py`:
 
 - `content/__init__.py` mantiene `_CATALOGS` (`es`/`de`/`pt`/`it`) y `get_text(locale, node_id, default)`: si falta el `id`, cae al inglés. `node_text` traduce nodos `id`/`text`; las listas (`ul`/`ol`/`dl`/`lines`) se traducen como listas.
-- El renderer traduce **todo** el documento: portada, 19 cláusulas del acuerdo marco, anexos 1-7, resumen y firmas (365 `id` por idioma). Después resuelve los tokens `{{...}}`.
-- No se traducen los nodos que contienen **solo** tokens (`master.weber_party`, `master.customer_party`, `annex1.special.conditions`) ni los nodos contenedores (`annex1.equipment`, `annex1.modules`, `annex1.summary`, `summary.scope`, `summary.signatures`): sus `{{...}}` deben sobrevivir verbatim y su contenido traducible vive en los nodos anidados.
+- El renderer traduce **todo** el documento: portada, el **contrato legacy** (0 + I–IX), los seis anexos de módulo con sus servicios Sxxx, el desglose comercial, el resumen y las firmas. Después resuelve los tokens `{{...}}`.
+- No se traducen los nodos que contienen **solo** tokens (`annex1.special.conditions`) ni los contenedores (`cover.executor`, `cover.customer`, `breakdown`, `annex3.rates`, `annex1.equipment`, `annex1.modules`, `annex1.summary`, `summary.scope`, `summary.signatures`): su contenido traducible vive en los nodos anidados.
 - Los catálogos son **borrador generado** pendiente de revisión legal. `tests/test_content.py` exige paridad total: los cuatro catálogos cubren todos los `id` traducibles, con la misma forma (str vs lista) que el origen, la misma cantidad de elementos y sin claves desconocidas.
+
+## Filtro de datos y tarifas por banda
+
+- **Filtro de datos (anexos)**: en las secciones `annex*` el renderer elimina cualquier párrafo, ítem de lista o fila de tabla que contenga un `{{...}}` sin valor (`_missing_tokens`). Las cláusulas descriptivas se mantienen; un anexo solo desaparece si se queda sin contenido. Así el contrato nunca imprime frases con datos vacíos.
+- **Tarifas por banda**: `prices` gana `band1..3_rate_without/with` (migración **0031**), editables en Config → Subsidiary rates con una tabla propia (matriz horas × tipo de día → I/II/III + tarifas con/sin contrato). El bloque `band_rates` del Anexo 3 (Service Support) imprime las dos tablas solo si la filial tiene las bandas configuradas.
 
 ## Banner DRAFT
 
@@ -71,6 +76,6 @@ Si la filial no tiene datos legales (`executor_is_provisional`), la portada mues
 
 ## Verificación
 
-- Backend: 392 tests + ruff limpio (1 fallo preexistente conocido: `test_scope.py::test_equipment_response_includes_physical_site`).
+- Backend: 394 tests + ruff limpio (1 fallo preexistente conocido: `test_scope.py::test_equipment_response_includes_physical_site`).
 - Frontend: `npm run build` (tsc + vite) y `npm run test` (13 tests) verdes.
-- Muestras E2E: PDF de 19 páginas renderizado y verificado (portada, desglose penúltimo y títulos traducidos) en **es/de/pt/it**; banner DRAFT verificado.
+- Muestras E2E: PDF de 16 páginas renderizado y verificado (portada, contrato legacy, anexos con tarifas por banda, desglose y firmas) en **es/de/pt/it**; banner DRAFT verificado.

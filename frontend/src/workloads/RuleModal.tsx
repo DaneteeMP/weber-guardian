@@ -140,7 +140,7 @@ export default function RuleModal({
   return (
     <Modal title={title} onClose={onClose} widthClass="max-w-3xl">
       {loading ? (
-        <div className="text-sm text-gray-500">{t(lang, "dash_loading")}</div>
+        <div className="text-sm text-muted">{t(lang, "dash_loading")}</div>
       ) : (
         <div className="space-y-4">
           <form onSubmit={(event) => void save(event)} className="space-y-3">
@@ -152,7 +152,7 @@ export default function RuleModal({
                 disabled={!canEdit}
                 value={form.name}
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
-                className={`${inputClass} mt-1 disabled:bg-gray-100`}
+                className={`${inputClass} mt-1`}
               />
             </label>
 
@@ -166,7 +166,7 @@ export default function RuleModal({
                   disabled={!canEdit}
                   value={form.workload}
                   onChange={(event) => setForm({ ...form, workload: event.target.value })}
-                  className={`${inputClass} mt-1 disabled:bg-gray-100`}
+                  className={`${inputClass} mt-1`}
                 />
               </label>
 
@@ -177,7 +177,7 @@ export default function RuleModal({
                   disabled={!canEdit}
                   value={form.legacyCode}
                   onChange={(event) => setForm({ ...form, legacyCode: event.target.value })}
-                  className={`${inputClass} mt-1 font-mono disabled:bg-gray-100`}
+                  className={`${inputClass} mt-1 font-mono`}
                 />
               </label>
             </div>
@@ -193,16 +193,16 @@ export default function RuleModal({
             </label>
 
             {detail?.note && (
-              <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 {detail.note}
               </div>
             )}
 
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted">
               {t(lang, "workload_global_note")} {t(lang, "workload_legacy_note")}
             </p>
 
-            {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>}
+            {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>}
 
             {canEdit && (
               <div className="flex items-center justify-end gap-2">

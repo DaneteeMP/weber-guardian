@@ -76,389 +76,267 @@ MESSAGES: dict[str, str | list[str]] = {
         "aparte.",
     ],
 
-    # Master Agreement
-    "master.title": "ACUERDO MARCO WEBER GUARDIAN",
-    "master.kv.agreement_no": "N.º de acuerdo",
-    "master.kv.offer_no": "N.º de oferta",
-    "master.kv.offer_date": "Fecha de la oferta",
-    "master.kv.start_date": "Fecha de inicio del contrato",
-    "master.kv.term": "Duración inicial del contrato",
-    "master.kv.billing": "Frecuencia de facturación",
-    "master.between": "ENTRE",
-    "master.weber_definition": "en adelante, «Weber».",
-    "master.customer_definition": "en adelante, el «Cliente».",
-    "master.parties": "Weber y el Cliente se denominan individualmente «Parte» y conjuntamente «las Partes».",
+    # Master Agreement (legacy maintenance contract: 0 + I-IX)
+    "master.clause0.title": "0. DEFINICIONES",
+    "master.clause0.intro": "Los términos utilizados en este acuerdo tienen los siguientes significados:",
+    "master.clause0.machine.term": "Máquina / Módulos",
+    "master.clause0.machine.definition": (
+        "Unidad funcional, equipo o sistema al que se refieren los servicios que se prestarán en "
+        "virtud del presente contrato."
+    ),
+    "master.clause0.inspection.term": "Inspección",
+    "master.clause0.inspection.definition": (
+        "La determinación y evaluación del estado real de una máquina / módulo, incluida la "
+        "determinación de las causas del desgaste y la derivación de las consecuencias necesarias "
+        "para el uso futuro."
+    ),
+    "master.clause0.maintenance.term": "Mantenimiento",
+    "master.clause0.maintenance.definition": (
+        "Las medidas para retrasar el desmantelamiento de las existencias de desgaste existentes "
+        '("mantenimiento preventivo"), en particular mediante ajustes o mediante la sustitución de '
+        "filtros, sellos y lubricantes, limpieza técnica, etc."
+    ),
+    "master.clause0.replacement.term": "Reposición",
+    "master.clause0.replacement.definition": (
+        "Cualquier medida para devolver una máquina / módulo a la condición acordada, en particular "
+        "mediante la sustitución de piezas, incluidas las piezas de desgaste. Las medidas para "
+        "mantener la condición acordada fuera de los servicios de mantenimiento también son parte "
+        "de la reparación."
+    ),
 
-    # 1. PURPOSE OF THE AGREEMENT
-    "master.clause1.title": "1. OBJETIVO DEL ACUERDO",
+    # I. Objeto del contrato
+    "master.clause1.title": "I. OBJETO DEL CONTRATO",
     "master.clause1.p1": (
-        "El presente Acuerdo Guardian tiene por objeto favorecer la operación fiable, eficiente y "
-        "económicamente sostenible del equipamiento Weber del Cliente durante todo su ciclo de vida."
+        "(0) El Contrato de inspección tiene por objeto la inspección de las máquinas y módulos "
+        "enumerados en el Anexo 1, facturación de estos servicios sobre la base de una tarifa fija "
+        "(Anexo 1). El mantenimiento de las máquinas y componentes, a computar según se incurra en "
+        "el mismo y según tarifas vigentes."
     ),
     "master.clause1.p2": (
-        "Guardian es un programa posventa modular. En función de los módulos seleccionados por el "
-        "Cliente, el Acuerdo puede incluir servicios de inspección y mantenimiento preventivo, "
-        "asistencia técnica, servicios de repuestos, soluciones de cuchillas, servicios de formación "
-        "y optimización y servicios digitales."
+        "El objetivo del Contrato es extender la vida útil de las máquinas y los módulos, reducir "
+        "los tiempos de inactividad y mantener los costos de mantenimiento bajo control mediante "
+        "una inspección y un mantenimiento adecuados."
     ),
-    "master.clause1.p3": "Solo se incluyen los servicios expresamente identificados en los Anexos aplicables del presente Acuerdo.",
-    "master.clause1.goals_intro": "El objetivo del programa Guardian es:",
-    "master.clause1.goals": [
-        "mejorar la fiabilidad y la disponibilidad del equipamiento;",
-        "apoyar el mantenimiento preventivo y la identificación temprana de incidencias técnicas;",
-        "reducir las paradas no planificadas evitables;",
-        "favorecer una planificación y un gasto de mantenimiento previsibles;",
-        "garantizar el acceso a la experiencia técnica de Weber;",
-        "optimizar la gestión de repuestos y cuchillas;",
-        "mejorar las prácticas de operación y mantenimiento; y",
-        "apoyar la optimización continua del equipamiento instalado del Cliente.",
+    "master.clause1.p3": (
+        "(1) En el marco de este Contrato, el Ejecutor asume los siguientes servicios para las "
+        "máquinas y módulos enumerados:"
+    ),
+    "master.clause1.services": [
+        "Servicio de atención telefónica",
+        "Suministro de piezas de repuesto",
+        "Mantenimiento",
+        "Visita de cortesía posterior al mantenimiento",
+        "Programa de Cuchillas (resguardo de stock)",
     ],
-    "master.clause1.exclusion": (
-        "Ningún servicio, descuento, compromiso de respuesta u otro beneficio se considerará incluido "
-        "salvo que se establezca expresamente en el presente Acuerdo o en un Anexo que forme parte del mismo."
+    "master.clause1.p4": "(2) El servicio del Ejecutor comprende, en los siguientes casos:",
+    "master.clause1.p5": "(2.1) En los que se acceda a la línea o centro de atención telefónica:",
+    "master.clause1.hotline": [
+        "El servicio de atención telefónica de lunes a viernes de 07:30 h a 17:30 h.",
+        "Teléfono: 938 23 32 33",
+    ],
+    "master.clause1.p6": (
+        "(2.2) La distribución de piezas de repuesto: El suministro de piezas de repuesto "
+        "existentes (en stock) en almacén (en la Península Ibérica y Alemania) en un plazo de "
+        "24-48 horas. En el caso de no disponer de la pieza de repuesto solicitada en stock, se "
+        "solicitará y se entregará con la mayor brevedad posible."
     ),
+    "master.clause1.p7": "(2.3) La inspección: Inspección de las máquinas en conformidad con el ANEXO 1.",
+    "master.clause1.p8": "(2.4) El mantenimiento: Ejecución de reparaciones de conformidad con el punto I.3 del Contrato.",
+    "master.clause1.p9": (
+        "(2.5) Programa de resguardo de stock de Cuchillas: descuento del 5% a partir de la 1ª caja "
+        "de 3 unidades, en conformidad con el ANEXO 2."
+    ),
+    "master.clause1.p10": (
+        "(3) Cualquier trabajo de mantenimiento u otros servicios (por ejemplo, cambios en las "
+        "máquinas y sistemas) que resulten de la inspección requerirán de una orden de compra "
+        "separada; y se facturará en función de una oferta adicional."
+    ),
+    "master.clause1.p11": (
+        "(4) El número de las máquinas incluidas en el ANEXO 1, así como el alcance de los "
+        "servicios derivados del presente Contrato se verificarán, por parte de las partes "
+        "contratantes, en el último trimestre del Contrato"
+    ),
+    "master.clause1.p12": (
+        "(5) Las modificaciones en referencia al número de máquinas incluidas en el acuerdo y las "
+        "modificaciones del alcance del servicio por parte del Ordenante se harán constar por "
+        "escrito, modificando el Anexo 1. Este acuerdo de servicios es válido por los 12 meses de "
+        "validez de Contrato o hasta la finalización del Contrato"
+    ),
+    "master.clause1.p13": "(6) Visita de cortesía a realizar si el mantenimiento posterior es realizado por el Ejecutor.",
 
-    # 2. CONTRACT DOCUMENTS AND MODULAR STRUCTURE
-    "master.clause2.title": "2. DOCUMENTOS CONTRACTUALES Y ESTRUCTURA MODULAR",
+    # II. Precio y pago
+    "master.clause2.title": "II. PRECIO Y PAGO",
     "master.clause2.p1": (
-        "El presente Acuerdo consta del presente Acuerdo Marco y de los Anexos indicados a "
-        "continuación que han sido seleccionados para el Cliente."
+        "(1) El precio del trabajo de inspección se calcula según el ANEXO 1. La relación se deduce "
+        "del modelo de máquina y de los módulos seleccionados conforme al punto I del Contrato."
     ),
-    "master.clause2.annexes": [
-        "Anexo 1 - Equipos y condiciones comerciales: siempre aplicable.",
-        "Anexo 2 - Mantenimiento e inspección: aplicable solo si se selecciona el módulo de Mantenimiento e inspección.",
-        "Anexo 3 - Soporte de servicio: aplicable solo si se selecciona el módulo de Soporte de servicio.",
-        "Anexo 4 - Repuestos y disponibilidad: aplicable solo si se selecciona el módulo de Repuestos y disponibilidad.",
-        "Anexo 5 - Soluciones de cuchillas: aplicable solo si se selecciona el módulo de Soluciones de cuchillas.",
-        "Anexo 6 - Formación y optimización: aplicable solo si se selecciona el módulo de Formación y optimización.",
-        "Anexo 7 - Servicios digitales: aplicable solo si se selecciona el módulo de Servicios digitales.",
-    ],
-    "master.clause2.p2": "Los Anexos aplicables forman parte integrante del presente Acuerdo.",
-    "master.clause2.p3": (
-        "Los servicios se aplican únicamente a las máquinas, líneas de producción, módulos y "
-        "emplazamientos identificados en el Anexo 1, salvo acuerdo en contrario por escrito."
+    "master.clause2.p2": (
+        '(2) El precio para los módulos "Inspección" y "Mantenimiento" incluye gastos de '
+        "desplazamiento, transporte, alojamiento y dietas. Salvo excepciones acordadas con el "
+        "Ordenante."
     ),
+    "master.clause2.p3": "(3) Las piezas sustituidas se le presentarán al Ordenante para su control.",
     "master.clause2.p4": (
-        "En caso de conflicto entre los documentos que forman el presente Acuerdo, se aplicará el "
-        "siguiente orden de prelación:"
+        "(4) El precio del trabajo del personal de inspección se abonará una vez emitida la "
+        "factura, en el plazo de 30 días. La facturación tiene lugar después de haber realizado "
+        "la inspección."
     ),
-    "master.clause2.precedence": [
-        "Anexo 1 - Equipos y condiciones comerciales;",
-        "el Anexo específico del servicio correspondiente;",
-        "el presente Acuerdo Marco; y",
-        "las Condiciones Generales de Venta aplicables de Weber.",
-    ],
     "master.clause2.p5": (
-        "Las desviaciones específicas del Cliente expresamente establecidas en el Anexo 1 prevalecerán "
-        "sobre las disposiciones estándar relativas a la misma materia."
+        "(5) El Ejecutor tiene derecho a revisar el precio del trabajo conforme a lo establecido en "
+        "el Anexo 1 anualmente. Le notificará dicha revisión al Ordenante al menos 3 meses antes de "
+        "la entrada en vigor. La modificación del precio se aplicará en el siguiente periodo de pago."
+    ),
+    "master.clause2.p6": (
+        "(6) No se acepta la retención de pagos ni la compensación por eventuales contraprestaciones "
+        "alegadas por parte del Ordenante."
+    ),
+    "master.clause2.p7": (
+        "(7) El Ejecutor ofrece un descuento del 15 % para los servicios de asistencia de máquinas y "
+        "un 5% de descuento máximo en recambios no acumulable como indica el ANEXO 1."
     ),
 
-    # 3. DEFINITIONS
-    "master.clause3.title": "3. DEFINICIONES",
-    "master.clause3.definitions": [
-        "Equipamiento: las máquinas, módulos, sistemas u otros equipos expresamente listados en el Anexo 1.",
-        "Inspección: la evaluación del estado real del Equipamiento con el fin de identificar desgastes, anomalías, el mantenimiento requerido y las acciones necesarias para favorecer su futura operación.",
-        "Mantenimiento preventivo: medidas programadas destinadas a reducir la deterioración y el riesgo de avería, incluidos ajuste, lubricación, limpieza, sustitución de piezas de desgaste definidas y otras actividades expresamente incluidas en el ámbito de servicio aplicable.",
-        "Mantenimiento correctivo / Reparación: trabajos destinados a restablecer el estado operativo requerido del Equipamiento tras una falla, avería o defecto identificado.",
-        "Piezas de desgaste: componentes que, por su función prevista y en función de las condiciones de uso, requieren sustitución periódica.",
-        "Repuestos: componentes de sustitución suministrados para el Equipamiento.",
-        "Servicios: los servicios Guardian expresamente seleccionados y descritos en los Anexos aplicables.",
-        "Visita de servicio: una visita física acordada del personal de Weber o de un servicio autorizado de Weber al emplazamiento del Cliente.",
-        "Soporte remoto: asistencia técnica prestada sin visita física, incluidos teléfono, correo electrónico, comunicación digital y, cuando esté disponible y autorizado, conexión remota al Equipamiento.",
-        "Año contractual: cada periodo consecutivo de doce meses comenzando en la Fecha de inicio del contrato.",
+    # III. Participación y contribución técnica del Ordenante
+    "master.clause3.title": "III. PARTICIPACIÓN Y CONTRIBUCIÓN TÉCNICA DEL ORDENANTE",
+    "master.clause3.p1": "(1) El Ordenante velará por qué:",
+    "master.clause3.obligations": [
+        "Los trabajos puedan llevarse a cabo puntualmente a las horas y en las máquinas acordadas "
+        "y garantizará el libre acceso a las máquinas y módulos.",
+        "La máquina se encuentre en estado operativo, esté disponible y limpia (sin restos de producto).",
+        "Una vez finalizados los trabajos, pueda llevarse a cabo una comprobación funcional con los "
+        "productos originales del cliente en una cantidad suficiente.",
+        "Se registren las averías en curso en los planos de máquinas.",
+        "El transcurso de la producción se oriente de tal modo que, durante la inspección, sea "
+        "posible detener el mismo.",
     ],
-
-    # 4. EQUIPMENT COVERED
-    "master.clause4.title": "4. EQUIPAMIENTO CUBIERTO",
-    "master.clause4.p1": "El Acuerdo Guardian se aplica exclusivamente al Equipamiento listado en el Anexo 1.",
-    "master.clause4.p2": "El Anexo 1 identificará, cuando corresponda:",
-    "master.clause4.identify": [
-        "la línea de producción del Cliente;",
-        "la referencia de la máquina Weber;",
-        "el número de serie;",
-        "el tipo de equipamiento;",
-        "los módulos incluidos;",
-        "la frecuencia de servicio;",
-        "el tiempo de inspección o servicio planificado;",
-        "los módulos Guardian seleccionados;",
-        "el precio de servicio aplicable; y",
-        "cualquier condición comercial específica de la máquina.",
-    ],
-    "master.clause4.p3": (
-        "El Cliente notificará por escrito a Weber cualquier traslado, modificación material, "
-        "enajenación o venta del Equipamiento cubierto por el presente Acuerdo."
+    "master.clause3.p2": (
+        "(2.a) El Ordenante correrá con los gastos originados por el personal de inspección durante "
+        "la ejecución de la inspección y del mantenimiento."
     ),
+    "master.clause3.p3": (
+        "El Ordenante tomará las medidas especiales necesarias para la protección personal y "
+        "material en el lugar de inspección/mantenimiento. Asimismo, el Ordenante informará al "
+        "personal de la empresa ejecutora acerca de las medidas especiales de seguridad, siempre "
+        "que estas resulten relevantes para el personal de inspección y mantenimiento. El Ordenante "
+        "notificará al ejecutor las infracciones cometidas por parte del personal que vulneren "
+        "dichas prescripciones de seguridad."
+    ),
+    "master.clause3.p4": (
+        "(b) El Ordenante se compromete a correr con los gastos de la contribución técnica, en "
+        "particular, a ofrecer gratuitamente asistencia, taller, medios auxiliares como el agua y "
+        "la electricidad, incluyendo las conexiones necesarias."
+    ),
+    "master.clause3.p5": (
+        "(c) Para decidir si los trabajos pueden efectuarse y/o las piezas que indica el punto I.3. "
+        "pueden reemplazarse durante el intervalo de inspección, el Ordenante designa a una persona "
+        "con capacidad para la toma de decisiones."
+    ),
+
+    # IV. Cumplimiento de los plazos del contrato
+    "master.clause4.title": "IV. CUMPLIMIENTO DE LOS PLAZOS DEL CONTRATO",
+    "master.clause4.p1": "(1) El Ejecutor se compromete a efectuar una inspección en el marco del intervalo de tiempo acordado en el Anexo 1.",
+    "master.clause4.p2": (
+        "(2) El Ejecutor notifica al Ordenante la fecha exacta de la inspección con al menos con 6 "
+        "semanas de antelación, en caso de que entre las partes del contrato no se haya acordado "
+        "una determinada fecha."
+    ),
+    "master.clause4.p3": "(3) El Ejecutor prestará los servicios en los siguientes periodos:",
+    "master.clause4.service_periods": [
+        "Inspección y mantenimiento de lunes a viernes de 08:00 h a 18:00 h.",
+        "Salvo excepciones de mutuo acuerdo.",
+    ],
     "master.clause4.p4": (
-        "Cuando el Equipamiento se venda o se traslade de forma permanente a otra persona jurídica "
-        "o emplazamiento, la continuación del Acuerdo Guardian quedará sujeta a la confirmación "
-        "por escrito de Weber."
+        "(4) En caso de que al Ordenante o al Ejecutor no le fuese posible llevar a cabo los "
+        "trabajos en la fecha prevista, ambas partes se lo notificarán recíprocamente con al menos "
+        "2 días laborables de antelación. Si el día acordado el Ejecutor no se presenta, el "
+        "Ejecutor no le facturará los gastos de desplazamiento en la siguiente fecha; en caso de "
+        "que la línea no esté disponible el día acordado por parte del Ordenante, este pagará al "
+        "Ejecutor los gastos incurridos del desplazamiento."
     ),
-    "master.clause4.p5": "Las Partes podrán añadir o retirar Equipamiento durante la vigencia del contrato mediante enmienda por escrito al Anexo 1.",
+    "master.clause4.p5": (
+        "(5) Si la inspección/mantenimiento se retrasa por circunstancias originadas por conflictos "
+        "laborales, en particular, huelgas y paros, así como por hechos acaecidos no imputables al "
+        "Ejecutor, tendrá lugar una adecuada prolongación de la inspección/mantenimiento, siempre "
+        "que pueda probarse que dichos impedimentos tienen una notoria repercusión para terminar la "
+        "inspección/mantenimiento. Esto también se aplicará cuando dichas circunstancias se "
+        "produzcan una vez el Ejecutor haya incumplido el plazo de preaviso establecido en el "
+        "párrafo anterior."
+    ),
 
-    # 5. GENERAL SERVICE PRINCIPLES
-    "master.clause5.title": "5. PRINCIPIOS GENERALES DE SERVICIO",
+    # V. Inicio y duración del contrato
+    "master.clause5.title": "V. INICIO Y DURACIÓN DEL CONTRATO",
     "master.clause5.p1": (
-        "Weber prestará los Servicios seleccionados con personal adecuadamente cualificado y de "
-        "conformidad con los estándares técnicos generalmente aceptados y los procedimientos de "
-        "servicio de Weber aplicables al Equipamiento correspondiente."
+        "(1) El Contrato adquiere validez desde la firma de ambas partes. La duración del Contrato "
+        "es de 12 meses, y será revocable por ambas partes."
     ),
-    "master.clause5.p2": "Weber podrá emplear empresas afiliadas cualificadas o servicios autorizados de Weber para la prestación de los Servicios.",
-    "master.clause5.p3": (
-        "Weber determinará el número y la cualificación de los técnicos razonablemente necesarios "
-        "para la actividad de servicio aplicable, teniendo en cuenta la configuración del "
-        "Equipamiento y el alcance del trabajo."
+    "master.clause5.p2": (
+        "(2) El Contrato se prorrogará automáticamente por otros 12 meses, en el caso de que no se "
+        "haya rescindido por escrito 3 meses anteriores a la finalización del mismo."
     ),
-    "master.clause5.p4": "El Acuerdo Guardian no constituye una garantía de que el Equipamiento operará sin interrupciones ni averías.",
-    "master.clause5.excluded_intro": (
-        "Salvo que se incluya expresamente en un Anexo aplicable, no se incluyen en la tarifa "
-        "Guardian fija los siguientes conceptos:"
-    ),
-    "master.clause5.excluded": [
-        "reparaciones correctivas;",
-        "piezas de sustitución;",
-        "piezas de desgaste y consumibles;",
-        "mejoras o modificaciones;",
-        "equipamiento de terceros;",
-        "trabajos fuera de las horas de servicio acordadas;",
-        "intervenciones de urgencia;",
-        "desplazamientos adicionales;",
-        "equipos de acceso especiales;",
-        "materiales de producción;",
-        "herramientas especiales no requeridas habitualmente para el Equipamiento Weber correspondiente; y",
-        "trabajos derivados de un uso indebido, daños, causas externas o modificaciones no aprobadas por Weber.",
-    ],
-    "master.clause5.p5": "Dichos servicios podrán presupuestarse y pedirse por separado.",
 
-    # 6. CUSTOMER COOPERATION
-    "master.clause6.title": "6. COLABORACIÓN DEL CLIENTE",
-    "master.clause6.p1": "El Cliente prestará la colaboración razonablemente requerida para que Weber pueda prestar los Servicios.",
-    "master.clause6.p2": "En particular, el Cliente se asegurará de que:",
-    "master.clause6.obligations": [
-        "el personal de Weber tenga acceso seguro y puntual al Equipamiento correspondiente;",
-        "el Equipamiento esté disponible en la hora acordada;",
-        "el Equipamiento se encuentre en un estado razonablemente limpio y accesible;",
-        "la producción pueda interrumpirse cuando sea necesario para el trabajo acordado;",
-        "estén disponibles los servicios auxiliares y las conexiones técnicas requeridas para el trabajo, incluidos electricidad, aire comprimido, agua, acceso a red o acceso VPN cuando corresponda;",
-        "haya personal del Cliente adecuado disponible cuando se requiera asistencia;",
-        "haya suficiente producto original disponible cuando se requiera una prueba de producción o funcionalidad;",
-        "se informe a Weber por adelantado de las fallas conocidas, condiciones de operación anormales o requisitos de seguridad;",
-        "se comuniquen a Weber todos los requisitos de seguridad y salud específicos del emplazamiento antes de comenzar los trabajos; y",
-        "haya disponible un representante del Cliente con autoridad suficiente para aprobar trabajos adicionales o la sustitución de componentes cuando sea necesario.",
-    ],
+    # VI. Garantía y responsabilidad
+    "master.clause6.title": "VI. GARANTÍA Y RESPONSABILIDAD",
+    "master.clause6.p1": (
+        "(1) En caso de que la inspección / el mantenimiento no se haya completado en su totalidad, "
+        "Ejecutor la revisará o rectificará sin coste alguno."
+    ),
+    "master.clause6.p2": (
+        "(2) El Ejecutor subsanará gratuitamente todos los daños que él o sus agentes hayan "
+        "provocado en las máquinas e instalaciones a las que debía efectuarse el mantenimiento. La "
+        "cuantía de la obligación de reparación se limita a la cuota anual estipulada por contrato."
+    ),
     "master.clause6.p3": (
-        "Cualquier retraso, tiempo de espera o gasto adicional derivado del incumplimiento por el "
-        "Cliente de estas obligaciones podrá facturarse por separado de conformidad con las tarifas "
-        "aplicables de Weber."
+        "(3) En el caso de que el Ejecutor incumpla su deber de reparación, mejora o reparación del "
+        "daño, el Ordenante podrá establecer una prórroga adecuada. Si por la culpa del Ejecutor, "
+        "este plazo transcurre sin obtenerse resultado, el Ordenante podrá, a su elección, exigir "
+        "una reducción de las cuotas de mantenimiento e inspección o bien rescindir de inmediato el "
+        "Contrato. Tanto el ejecutor como el Ordenante acuerdan expresamente que el ejecutor será "
+        "responsable de los daños únicamente cuando pueda demostrarse dolo o negligencia grave por "
+        "su parte o por parte de sus agentes. En particular, las partes acuerdan expresamente la "
+        "exclusión de la responsabilidad derivada de daños o pérdidas indirectas."
     ),
+    "master.clause6.p4": (
+        "(4) Cualquier otro derecho a reclamación del Ordenante se aplicará únicamente en caso de "
+        "dolo o negligencia grave. Además de esto, el Ordenante no podrá hacer valer ningún otro "
+        "derecho de compensación ante el Ejecutor, en particular, ningún derecho a compensación por "
+        "daños ni otros derechos por eventuales inconvenientes relacionados con el Contrato de "
+        "inspección, independientemente de las razones que se aduzcan."
+    ),
+    "master.clause6.p5": "(5) Cualquier daño o desperfecto causado por piezas no originales, el Ejecutor no se hará responsable.",
 
-    # 7. SCHEDULING
-    "master.clause7.title": "7. PLANIFICACIÓN",
+    # VII. Período de prescripción
+    "master.clause7.title": "VII. PERÍODO DE PRESCRIPCIÓN",
     "master.clause7.p1": (
-        "Las inspecciones planificadas, visitas de mantenimiento, formación y otros Servicios "
-        "planificados se coordinarán entre Weber y el Cliente."
-    ),
-    "master.clause7.p2": "Weber hará esfuerzos razonables para comunicar al Cliente con antelación la fecha prevista.",
-    "master.clause7.p3": "El plazo de preaviso aplicable, cuando se acuerde específicamente, se indicará en el Anexo correspondiente o en el Anexo 1.",
-    "master.clause7.p4": "Si alguna de las Partes no puede realizar una actividad acordada en la fecha planificada, informará a la otra Parte lo antes razonablemente posible.",
-    "master.clause7.p5": (
-        "Cuando una visita planificada no pueda realizarse por motivos atribuibles al Cliente, "
-        "Weber podrá facturar los costes razonablemente incurridos, incluidos desplazamiento, "
-        "alojamiento, tiempo de espera y capacidad de personal reservada."
+        "Los derechos de garantía del Ordenante pierden su validez a los doce meses, a contar desde "
+        "la aceptación del correspondiente servicio de inspección/mantenimiento. El plazo de "
+        "garantía se prolongará mientras duren los trabajos de subsanación."
     ),
 
-    # 8. ADDITIONAL WORK IDENTIFIED DURING A SERVICE ACTIVITY
-    "master.clause8.title": "8. TRABAJOS ADICIONALES IDENTIFICADOS DURANTE UNA ACTIVIDAD DE SERVICIO",
-    "master.clause8.p1": "Cuando una inspección, actividad de mantenimiento, auditoría u otro servicio Guardian identifique trabajos adicionales, Weber informará al Cliente.",
-    "master.clause8.p2": "Salvo que el Anexo 1 disponga expresamente lo contrario, dichos trabajos adicionales no formarán automáticamente parte de la tarifa fija Guardian.",
-    "master.clause8.p3": (
-        "El mantenimiento correctivo, las reparaciones, las modificaciones, las mejoras y la "
-        "sustitución de piezas identificadas durante una inspección requerirán la autorización del Cliente."
+    # VIII. Otras disposiciones
+    "master.clause8.title": "VIII. OTRAS DISPOSICIONES",
+    "master.clause8.p1": (
+        "(1) Al personal de inspección/mantenimiento se le facilitará el acceso a las máquinas e "
+        "instalaciones durante las horas habituales de trabajo/tiempo de servicio con la finalidad "
+        "de que pueda efectuar los trabajos de inspección y mantenimiento anunciados. El Ordenante "
+        "aportará toda la información necesaria acerca de las máquinas y módulos indicados en el "
+        "(Anexo 1) y proveerá la documentación correspondiente."
     ),
-    "master.clause8.p4": "Cuando proceda, Weber podrá emitir un presupuesto por separado o una recomendación de repuestos tras la actividad de servicio.",
+    "master.clause8.p2": (
+        "(2) Si el Ordenante cede máquinas e instalaciones a terceros, sigue permaneciendo obligado "
+        "al pago de las cuotas, a menos que el tercero se adhiera al contrato, previa autorización "
+        "del ejecutor. El ejecutor únicamente podrá denegar el consentimiento por causa justificada."
+    ),
+    "master.clause8.p3": "(3) El Ejecutor tiene derecho a transferir a terceros los derechos y deberes contraídos con el presente contrato.",
+    "master.clause8.p4": "(4) Los acuerdos adicionales y las modificaciones del contrato deben efectuarse por escrito.",
     "master.clause8.p5": (
-        "No se realizará intencionadamente ningún trabajo adicional facturable sin la autorización "
-        "del Cliente, salvo cuando sea razonablemente necesario actuar de inmediato para prevenir "
-        "un riesgo de seguridad inminente y dicha acción esté permitida por la legislación aplicable "
-        "y las normas del emplazamiento."
+        "(5) En el caso de que una de las disposiciones del presente contrato deje de ser válida, "
+        "todas las demás disposiciones o acuerdos seguirán manteniendo su validez."
     ),
 
-    # 9. PRICES AND PAYMENT
-    "master.clause9.title": "9. PRECIOS Y PAGO",
-    "master.clause9.p1": "Los precios aplicables al Acuerdo Guardian se indican en el Anexo 1.",
-    "master.clause9.p2": "Salvo que se establezca expresamente lo contrario, todos los precios no incluyen el IVA ni otros impuestos aplicables.",
-    "master.clause9.p3": (
-        "La moneda aplicable, la frecuencia de facturación, las condiciones de pago, las condiciones "
-        "de desplazamiento, las condiciones de porte, los descuentos y las tarifas de servicio "
-        "adicionales serán las especificadas en el Anexo 1 o en el Anexo del servicio correspondiente."
-    ),
-    "master.clause9.p4": "Las tarifas recurrentes de Guardian se facturarán según la frecuencia de facturación indicada en el Anexo 1.",
-    "master.clause9.p5": (
-        "Los servicios, materiales y gastos no incluidos en la tarifa Guardian acordada se "
-        "facturarán por separado a las tarifas acordadas aplicables."
-    ),
-    "master.clause9.p6": "Weber podrá ajustar los precios recurrentes de conformidad con el mecanismo de ajuste anual de precios indicado en el Anexo 1.",
-    "master.clause9.p7": (
-        "Cualquier descuento acordado se aplicará únicamente a las categorías expresamente "
-        "identificadas en el Anexo correspondiente y no se acumulará con otros descuentos salvo "
-        "acuerdo expreso."
-    ),
-
-    # 10. PARTS AND MATERIALS
-    "master.clause10.title": "10. PIEZAS Y MATERIALES",
-    "master.clause10.p1": (
-        "Salvo que se incluyan específicamente en el Anexo 1 o en un Anexo de servicio aplicable, "
-        "los repuestos, piezas de desgaste, cuchillas, lubricantes y otros materiales no están "
-        "incluidos en la tarifa de servicio Guardian."
-    ),
-    "master.clause10.p2": (
-        "Las piezas suministradas por Weber se facturarán al precio aplicable en la fecha de "
-        "suministro, menos cualquier descuento Guardian expresamente acordado en virtud del Anexo 4 "
-        "o del Anexo 5."
-    ),
-    "master.clause10.p3": (
-        "Cuando los componentes sustituidos se pongan a disposición del Cliente para su inspección, "
-        "el Cliente será responsable de su posterior eliminación, salvo acuerdo en contrario."
-    ),
-    "master.clause10.p4": (
-        "Weber no responderá de los defectos, daños, rendimiento reducido o efectos consecuentes "
-        "causados por componentes no originales, modificaciones no autorizadas o trabajos realizados "
-        "por terceros, en la medida permitida por la legislación aplicable."
-    ),
-    "master.clause10.p5": (
-        "La propiedad de los bienes suministrados permanecerá en Weber hasta el pago íntegro, "
-        "cuando esté permitido por las condiciones locales y la legislación aplicable."
-    ),
-
-    # 11. ACCEPTANCE AND SERVICE REPORTING
-    "master.clause11.title": "11. ACEPTACIÓN E INFORMES DE SERVICIO",
-    "master.clause11.p1": (
-        "Cuando la naturaleza de un Servicio permita la verificación funcional, el Cliente "
-        "facilitará a Weber una oportunidad razonable de probar el Equipamiento tras la "
-        "finalización de la actividad."
-    ),
-    "master.clause11.p2": (
-        "Cuando el Cliente identifique una deficiencia material en la prestación de un Servicio, "
-        "notificará a Weber sin dilación indebida y facilitará información suficiente para que "
-        "Weber pueda evaluar el asunto."
-    ),
-    "master.clause11.p3": (
-        "Si un Servicio ha quedado demostrablemente realizado al margen del alcance acordado y "
-        "Weber es responsable de la deficiencia, Weber deberá, como remedio principal, represtar o "
-        "corregir el Servicio afectado dentro de un plazo razonable."
-    ),
-    "master.clause11.p4": (
-        "Los informes de servicio, informes de inspección, informes de auditoría y recomendaciones "
-        "documentan el estado observado en el momento de la actividad y no constituyen una garantía "
-        "del rendimiento futuro de la máquina."
-    ),
-
-    # 12. WARRANTY AND LIABILITY
-    "master.clause12.title": "12. GARANTÍA Y RESPONSABILIDAD",
-    "master.clause12.p1": "Weber prestará los Servicios con el cuidado y la competencia profesional razonables.",
-    "master.clause12.p2": (
-        "La responsabilidad de Weber se regirá por las disposiciones imperantes de la legislación "
-        "aplicable y por las Condiciones Generales aplicables de Weber."
-    ),
-    "master.clause12.p3": (
-        "En la máxima medida permitida por la ley, Weber no responderá de los daños indirectos o "
-        "consecuentes, incluidas la pérdida de producción, la pérdida de beneficios, la pérdida de "
-        "negocios u otros perjuicios comerciales indirectos, salvo que dicha limitación esté "
-        "prohibida por la legislación aplicable."
-    ),
-    "master.clause12.p4": "Nada en el presente Acuerdo excluirá la responsabilidad que legalmente no pueda excluirse ni limitarse.",
-    "master.clause12.p5": (
-        "Cuando un incumplimiento o retraso resulte de circunstancias fuera del control razonable "
-        "de Weber, incluido el incumplimiento o retraso de proveedores, alteraciones del transporte, "
-        "conflictos laborales, acontecimientos naturales, medidas gubernamentales, incidentes "
-        "cibernéticos, epidemias u otros acontecimientos de fuerza mayor, el periodo de prestación "
-        "afectado se ampliará en la medida razonablemente necesaria."
-    ),
-
-    # 13. CONTRACT TERM AND RENEWAL
-    "master.clause13.title": "13. VIGENCIA Y RENOVACIÓN DEL CONTRATO",
-    "master.clause13.p1": "El presente Acuerdo entra en vigor en la Fecha de inicio del contrato indicada en el Anexo 1.",
-    "master.clause13.term": "Duración inicial",
-    "master.clause13.renewal": "Duración de renovación",
-    "master.clause13.notice": "Plazo de preaviso",
-    "master.clause13.p2": (
-        "Salvo que se indique lo contrario en el Anexo 1, el Acuerdo se renovará automáticamente "
-        "por sucesivos periodos de renovación, salvo denuncia por escrito dentro del plazo de "
-        "preaviso aplicable."
-    ),
-    "master.clause13.p3": (
-        "La terminación o expiración del Acuerdo Marco dará por terminados todos los Anexos de "
-        "servicio, salvo acuerdo expreso en contrario."
-    ),
-    "master.clause13.p4": "Los servicios opcionales individuales pueden tener fechas de inicio o expiración diferentes cuando se establezca expresamente en el Anexo correspondiente.",
-
-    # 14. CHANGES TO THE AGREEMENT
-    "master.clause14.title": "14. MODIFICACIONES DEL ACUERDO",
-    "master.clause14.p1": (
-        "Las modificaciones del Equipamiento cubierto, la frecuencia de servicio, los módulos "
-        "Guardian, los descuentos, los niveles de servicio, los precios u otras condiciones "
-        "contractuales materiales deberán documentarse por escrito."
-    ),
-    "master.clause14.p2": "Un Anexo actualizado generado y aceptado por ambas Partes podrá constituir dicha enmienda por escrito.",
-
-    # 15. CONFIDENTIALITY
-    "master.clause15.title": "15. CONFIDENCIALIDAD",
-    "master.clause15.p1": (
-        "Cada Parte mantendrá confidencial toda la información comercial, técnica y operativa no "
-        "pública recibida de la otra Parte en relación con el presente Acuerdo."
-    ),
-    "master.clause15.p2": "Dicha información se utilizará únicamente para la prestación y administración de la relación Guardian.",
-    "master.clause15.p3": "Esta obligación no se aplicará a la información que:",
-    "master.clause15.exceptions": [
-        "ya forme lícitamente parte del dominio público;",
-        "fuera lícitamente conocida por la Parte receptora antes de su divulgación;",
-        "se reciba lícitamente de un tercero sin restricciones de confidencialidad; o",
-        "deba divulgarse por mandato legal o de una autoridad competente.",
-    ],
-
-    # 16. INTELLECTUAL PROPERTY
-    "master.clause16.title": "16. PROPIEDAD INTELECTUAL",
-    "master.clause16.p1": (
-        "Todos los derechos de propiedad intelectual sobre la documentación de Weber, los "
-        "métodos de servicio, las listas de verificación, el software, la información técnica, "
-        "los materiales de formación, los análisis y otros contenidos propietarios de Weber "
-        "permanecerán propiedad de Weber o del titular de los derechos correspondientes."
-    ),
-    "master.clause16.p2": "El Cliente podrá utilizar internamente la documentación facilitada en virtud del presente Acuerdo para la operación y el mantenimiento de su Equipamiento.",
-    "master.clause16.p3": "No se transfiere al Cliente ningún derecho de propiedad intelectual salvo acuerdo expreso por escrito.",
-
-    # 17. ASSIGNMENT AND SERVICE PARTNERS
-    "master.clause17.title": "17. CESIÓN Y SOCIOS DE SERVICIO",
-    "master.clause17.p1": "Weber podrá cumplir sus obligaciones a través de empresas del grupo Weber o de socios de servicio cualificados y autorizados de Weber.",
-    "master.clause17.p2": "Weber podrá ceder los derechos y obligaciones derivados del presente Acuerdo a otra empresa del grupo Weber, sujeto a la legislación aplicable.",
-    "master.clause17.p3": (
-        "El Cliente no podrá ceder el presente Acuerdo a un tercero sin el consentimiento previo "
-        "por escrito de Weber, el cual no se denegará injustificadamente cuando la continuación de "
-        "la relación contractual sea comercial y técnicamente viable."
-    ),
-
-    # 18. GOVERNING LAW AND JURISDICTION
-    "master.clause18.title": "18. LEY APLICABLE Y JURISDICCIÓN",
-    "master.clause18.law": "Ley aplicable",
-    "master.clause18.jurisdiction": "Jurisdicción",
-    "master.clause18.p1": "Las disposiciones anteriores quedan sujetas en cada caso a la legislación imperante aplicable.",
-
-    # 19. GENERAL PROVISIONS
-    "master.clause19.title": "19. DISPOSICIONES GENERALES",
-    "master.clause19.p1": (
-        "Si alguna disposición del presente Acuerdo se declarase inválida o inaplicable, las "
-        "disposiciones restantes seguirán vigentes."
-    ),
-    "master.clause19.p2": "El hecho de que una de las Partes no ejerza un derecho contractual no constituirá la renuncia a dicho derecho.",
-    "master.clause19.p3": (
-        "El presente Acuerdo y sus Anexos aplicables constituyen el acuerdo entre las Partes "
-        "respecto a los Servicios Guardian aquí descritos y sustituyen las propuestas o "
-        "entendimientos previos relativos específicamente al mismo alcance de servicio, salvo que "
-        "se incorporen expresamente."
-    ),
-    "master.clause19.p4": "Las enmiendas se formalizarán por escrito.",
-    "master.clause19.p5": (
-        "Podrán utilizarse firmas electrónicas cuando legalmente esté permitido y tendrán los "
-        "mismos efectos que las firmas manuscritas."
+    # IX. Lugar de jurisdicción
+    "master.clause9.title": "IX. LUGAR DE JURISDICCIÓN",
+    "master.clause9.p1": (
+        "En la medida en que lo permita la ley, el lugar de cumplimiento y jurisdicción será el "
+        "domicilio social del Ejecutor. Se aplicará exclusivamente la legislación de España."
     ),
 
     # Annex 1 - Equipment & Commercial Schedule
@@ -504,7 +382,7 @@ MESSAGES: dict[str, str | list[str]] = {
 
     # Annex 2 - Maintenance & Inspection
     "annex2.title": "ANEXO 2 - MANTENIMIENTO E INSPECCIÓN",
-    "annex2.tagline": "Inspección, mantenimiento preventivo y servicios de estado de la máquina.",
+    "annex2.tagline": "Servicios de inspección, mantenimiento preventivo y estado de la máquina.",
     "annex2.purpose.title": "1. Objeto",
     "annex2.purpose.p1": (
         "El módulo de Mantenimiento e Inspección tiene por objeto evaluar y mantener el estado del "
@@ -512,147 +390,148 @@ MESSAGES: dict[str, str | list[str]] = {
         "favorecer la operación fiable y la planificación del mantenimiento."
     ),
     "annex2.purpose.p2": "Las actividades exactas incluidas dependen de las opciones seleccionadas en la configuración Guardian.",
-    "annex2.inspection.title": "2. Inspección",
-    "annex2.inspection.p1": "Weber realizará inspecciones del Equipamiento seleccionado con la frecuencia indicada en el Anexo 1.",
-    "annex2.inspection.p2": "Una inspección podrá incluir, cuando sea aplicable al Equipamiento seleccionado:",
-    "annex2.inspection.includes": [
-        "revisión del estado general de la máquina;",
-        "inspección basada en la lista de verificación específica de Weber para la máquina o el módulo;",
-        "revisión de los sensores y componentes eléctricos relevantes;",
-        "inspección de transmisiones, correas y componentes mecánicos;",
-        "inspección de componentes neumáticos;",
-        "inspección de juntas y carcasas de la máquina;",
-        "verificación y ajuste de componentes mecánicamente móviles cuando sea razonablemente necesario;",
-        "revisión de los ajustes relevantes de la máquina;",
-        "identificación de desgastes o anomalías visibles;",
-        "identificación de reparaciones o necesidades de mantenimiento pendientes;",
-        "exposición de las incidencias conocidas con el personal responsable del Cliente; y",
-        "verificación funcional tras la inspección cuando proceda.",
+    "annex2.inspection.title": "S301 Inspección Técnica Programada",
+    "annex2.inspection.p1": (
+        "Una inspección evalúa el estado del equipamiento seleccionado en el intervalo acordado "
+        "mediante la lista de verificación aplicable basada en la línea o el módulo. El alcance "
+        "técnico se adaptará al tipo y la configuración del equipamiento."
+    ),
+    "annex2.inspection.p2": (
+        "Antes de la inspección, Weber y el Cliente revisarán las incidencias de funcionamiento "
+        "conocidas, el historial del equipamiento y la disponibilidad de producción prevista. Tras "
+        "la inspección, los hallazgos se comentarán con el representante designado del Cliente y se "
+        "registrarán en un informe de inspección."
+    ),
+    "annex2.checklist.title": "Lista de Verificación de la Máquina",
+    "annex2.checklist.p1": (
+        "Para las líneas de corte, la lista de verificación estándar podrá incluir lo siguiente, "
+        "cuando sea técnicamente aplicable y accesible de forma segura:"
+    ),
+    "annex2.checklist.items": [
+        "prueba de funcionamiento con el producto original cuando esté disponible; observaciones "
+        "sobre el estado del equipamiento y la seguridad;",
+        "sensores, electrónica, ajustes de la máquina, funciones eléctricas y neumáticas; "
+        "transmisiones, correas de distribución y trenes de accionamiento seleccionados;",
+        "ajustes mecánicos, carcasas y juntas, transportadores y elementos móviles; módulos de "
+        "línea y componentes auxiliares de Weber;",
+        "identificación de desgaste, reparaciones pendientes, anomalías de la máquina y "
+        "recomendaciones para acciones adicionales;",
+        "acceso a las carcasas de báscula o de cabeza de corte únicamente cuando se acuerde "
+        "expresamente y se autorice de forma segura;",
+        "preparación de una lista de verificación de inspección basada en módulos, informe y "
+        "presupuesto opcional de repuestos de seguimiento.",
     ],
-    "annex2.inspection.p3": (
-        "Cuando sea útil y operativamente posible, Weber podrá revisar el proceso de producción "
-        "utilizando el producto original del Cliente."
+    "annex2.checklist.p2": (
+        "Para las máquinas de envasado de Weber, la lista de verificación de inspección también "
+        "podrá incluir comprobaciones de estado específicas de envasado definidas. Las "
+        "etiquetadoras, bombas y dispositivos de fin de línea de terceros quedan excluidos salvo "
+        "que se relacionen expresamente."
     ),
-    "annex2.inspection.p4": (
-        "La apertura de zonas específicas protegidas de la máquina, como carcasas de báscula o de "
-        "cabezas de corte, se realizará cuando sea técnicamente apropiado y esté acordado."
+    "annex2.report.title": "S305 Visita de Seguimiento e Informes",
+    "annex2.report.p1": (
+        "Cuando se acuerde, Weber realizará un seguimiento definido tras una inspección o un evento "
+        "de mantenimiento, que podrá ser presencial o remoto según el servicio acordado."
     ),
-    "annex2.checklist.title": "3. Lista de verificación de la máquina",
-    "annex2.checklist.p1": "Weber documentará la inspección mediante la lista de verificación de inspección aplicable de Weber.",
-    "annex2.checklist.p2": "La lista de verificación registra los elementos inspeccionados y su estado observado en el momento de la inspección.",
-    "annex2.checklist.p3": (
-        "La lista de verificación tiene carácter de registro técnico de servicio y no constituye "
-        "una certificación de que el Equipamiento esté libre de defectos ni de que no pueda ocurrir "
-        "ninguna avería futura."
+    "annex2.report.p2": (
+        "Una visita de seguimiento no se incluye automáticamente con una inspección y podrá estar "
+        "condicionada a que Weber realice los trabajos de mantenimiento especificados, según lo "
+        "indicado en el calendario del Cliente."
     ),
-    "annex2.report.title": "4. Informe de inspección",
-    "annex2.report.p1": "Tras la inspección, Weber facilitará un informe de inspección que resuma los hallazgos principales.",
-    "annex2.report.p2": "El informe podrá incluir:",
-    "annex2.report.includes": [
-        "hallazgos sobre el estado;",
-        "desgastes identificados;",
-        "mantenimiento o reparaciones recomendados;",
-        "repuestos recomendados;",
-        "observaciones técnicas;",
-        "riesgos identificados que requieren atención adicional; y",
-        "prioridades o acciones siguientes recomendadas.",
-    ],
-    "annex2.report.p3": (
-        "Cuando proceda, Weber podrá preparar un presupuesto por separado para las piezas, "
-        "reparaciones, mejoras u otras actividades derivadas de la inspección."
+    "annex2.preventive.title": "S303 Mantenimiento Preventivo",
+    "annex2.preventive.p1": (
+        "El mantenimiento preventivo consiste en ajustes planificados, lubricación, limpieza de "
+        "componentes técnicos definidos y sustitución de piezas de desgaste especificadas de "
+        "acuerdo con la lista de actividades acordada y las limitaciones del equipamiento."
     ),
-    "annex2.preventive.title": "5. Mantenimiento preventivo",
-    "annex2.preventive.p1": "Weber realizará las actividades de mantenimiento preventivo expresamente definidas para el Equipamiento en el Anexo 1.",
-    "annex2.preventive.p2": "El mantenimiento preventivo podrá incluir:",
-    "annex2.preventive.includes": [
-        "ajuste mecánico;",
-        "lubricación;",
-        "limpieza de componentes técnicamente relevantes;",
-        "sustitución de filtros, juntas o componentes de desgaste definidos;",
-        "comprobación y ajuste de transmisiones y correas;",
-        "comprobación de elementos neumáticos;",
-        "comprobación de componentes eléctricos y sensores; y",
-        "otras tareas de mantenimiento preventivo específicas de la máquina identificadas en el plan de mantenimiento aplicable de Weber.",
-    ],
+    "annex2.preventive.p2": (
+        "El alcance de las piezas suministradas, las piezas instaladas, la mano de obra prevista, la "
+        "frecuencia y el tiempo de inactividad requerido se especificarán por máquina en el Anexo 1."
+    ),
     "annex2.preventive.p3": (
-        "Las piezas de sustitución, las piezas de desgaste y los consumibles no están incluidos "
-        "salvo que se establezca expresamente en el Anexo 1 o en un kit de mantenimiento acordado."
+        "El mantenimiento preventivo es distinto de una reparación correctiva; los servicios fuera "
+        "de la lista de tareas planificadas se autorizan y facturan por separado salvo que se "
+        "incluyan expresamente."
     ),
-    "annex2.kit.title": "6. Repuestos / kit de mantenimiento",
+    "annex2.kit.title": "S402 Kit Básico de Repuestos - Solo Suministro",
     "annex2.kit.p1": (
-        "El kit de mantenimiento contendrá únicamente las piezas expresamente identificadas en el "
-        "presupuesto aplicable o en el programa de equipamiento."
+        "El Kit Básico de Repuestos está compuesto por los artículos y cantidades exactos que "
+        "figuran en el Programa de Kits firmado. Sirve de apoyo a la sustitución planificada o al "
+        "stock en poder del Cliente, pero no constituye un derecho ilimitado a consumibles."
     ),
-    "annex2.kit.p2": "El precio del kit se mostrará por separado en el Anexo 1.",
-    "annex2.kit.p3": "Las piezas no utilizadas quedan sujetas a las condiciones comerciales indicadas en el Anexo 1.",
-    "annex2.repairs.title": "7. Mantenimiento adicional y reparaciones",
+    "annex2.kit.p2": (
+        "Weber suministra los artículos relacionados conforme a las condiciones de pedido, entrega "
+        "y precio especificadas. La instalación no está incluida en un kit de solo suministro."
+    ),
+    "annex2.repairs.title": "S304 Mantenimiento Correctivo / Reparación",
     "annex2.repairs.p1": (
-        "Las reparaciones y el mantenimiento correctivo identificados durante una inspección no "
-        "están incluidos en el precio estándar de inspección, salvo que se establezca específicamente lo contrario."
+        "El trabajo de reparación se realiza tras un fallo, avería o defecto identificado y tiene "
+        "por objeto restablecer un estado acordado, sujeto a acceso, viabilidad técnica y "
+        "disponibilidad de repuestos."
     ),
-    "annex2.repairs.p2": "Cuando se recomienden trabajos adicionales, Weber obtendrá la aprobación del Cliente o emitirá un presupuesto por separado.",
-    "annex2.frequency.title": "8. Frecuencia de inspección",
+    "annex2.repairs.p2": (
+        "Salvo que una asignación de reparación esté expresamente valorada y seleccionada, la mano "
+        "de obra correctiva, las piezas de repuesto, los desplazamientos y otros costes se "
+        "presupuestarán o facturarán según las tarifas de servicio seleccionadas y la autorización "
+        "del Cliente."
+    ),
+    "annex2.repairs.p3": (
+        "Una asistencia, un diagnóstico de averías o una tarea de reparación no se considerará una "
+        "restauración garantizada de la producción en un plazo determinado salvo que se acuerde "
+        "expresamente por escrito."
+    ),
+    "annex2.frequency.title": "Frecuencia de Inspección",
     "annex2.frequency.value": "Frecuencia",
-    "annex2.frequency.planned": "Inspecciones planificadas por año contractual",
     "annex2.frequency.p1": "El calendario real se coordinará entre Weber y el Cliente.",
-    "annex2.hours.title": "9. Horas de servicio",
-    "annex2.hours.p1": "Los servicios se realizarán normalmente durante: {{Standard_Service_Hours}}",
-    "annex2.hours.p2": "Los trabajos solicitados fuera de estas horas podrán conllevar cargos adicionales.",
 
     # Annex 3 - Service Support
     "annex3.title": "ANEXO 3 - SOPORTE DE SERVICIO",
-    "annex3.tagline": "Línea directa, soporte remoto y respuesta técnica prioritaria.",
+    "annex3.tagline": "Atención al cliente y soporte técnico.",
     "annex3.purpose.title": "1. Objeto",
     "annex3.purpose.p1": (
-        "El módulo de Soporte de servicio facilita al Cliente acceso a la asistencia técnica de "
+        "El módulo de Soporte de Servicio proporciona al Cliente acceso al soporte técnico de "
         "Weber para el Equipamiento cubierto por el presente Acuerdo."
     ),
     "annex3.purpose.p2": "El nivel de servicio exacto depende de las opciones seleccionadas a continuación.",
-    "annex3.hotline.title": "2. Línea directa estándar",
-    "annex3.hotline.p1": "El Cliente tendrá acceso a la línea directa de servicio de Weber durante las horas de soporte aplicables.",
-    "annex3.hotline.hours": "Horas de soporte",
-    "annex3.hotline.phone": "Teléfono",
+    "annex3.rates.title": "2. Tarifas de Servicio",
+    "annex3.rates.hours": "Horario",
+    "annex3.rates.weekdays": "Lunes - Viernes",
+    "annex3.rates.saturday": "Sábado",
+    "annex3.rates.sunday": "Domingo / festivo",
+    "annex3.rates.band": "Banda",
+    "annex3.rates.without": "Sin contrato",
+    "annex3.rates.with": "Con contrato",
+    "annex3.hotline.title": "S101 Línea Directa Estándar",
+    "annex3.hotline.p1": (
+        "Weber proporcionará acceso al canal de contacto técnico estándar seleccionado durante la "
+        "ventana de disponibilidad acordada. Se trata de un servicio de comunicación; no implica "
+        "tiempo de respuesta en sitio."
+    ),
+    "annex3.hotline.phone": "Punto de contacto",
     "annex3.hotline.email": "Correo electrónico",
-    "annex3.hotline.p2": "La línea directa proporciona soporte técnico de primer nivel y coordinación.",
-    "annex3.hotline.p3": (
-        "Cuando la incidencia no pueda resolverse a través de la línea directa, Weber podrá "
-        "recomendar Soporte remoto, una visita de servicio en sitio, repuestos u otra acción técnica."
+    "annex3.hotline.hours": "Lunes - Viernes",
+    "annex3.hotline.p2": (
+        "La disponibilidad para la aceptación de llamadas no constituye, por sí misma, una "
+        "resolución de diagnóstico garantizada, una asistencia en sitio ni el envío de repuestos."
     ),
-    "annex3.hotline.p4": (
-        "El servicio en sitio no queda incluido por el solo hecho de contar con soporte de Línea "
-        "directa estándar, salvo que se establezca expresamente en el Anexo 1."
-    ),
-    "annex3.remote.title": "3. Soporte remoto",
+    "annex3.remote.title": "S103 Soporte Técnico Remoto",
     "annex3.remote.p1": (
-        "Cuando esté técnicamente disponible y autorizado por el Cliente, Weber podrá prestar "
-        "diagnóstico y asistencia técnica remotos."
+        "Weber podrá proporcionar un análisis inicial de fallos por teléfono, correo electrónico, "
+        "conexión remota admitida o comunicación por vídeo, sujeto al acuerdo sobre el acceso "
+        "seguro y la asistencia del Cliente."
     ),
     "annex3.remote.p2": (
-        "El Cliente facilitará las conexiones de red, el acceso VPN, la autorización de usuarios y "
-        "las demás condiciones técnicas razonablemente necesarias para el acceso remoto."
+        "Las condiciones de conexión, red y ciberseguridad deberán acordarse antes de la "
+        "activación. El soporte remoto no sustituye a un servicio en sitio necesario."
     ),
-    "annex3.remote.p3": "El soporte remoto podrá incluir:",
-    "annex3.remote.includes": [
-        "análisis remoto de fallos;",
-        "revisión del estado de la máquina o de la información de diagnóstico;",
-        "asistencia en comprobaciones de parámetros o configuración;",
-        "apoyo al personal de mantenimiento del Cliente; y",
-        "recomendaciones de acciones siguientes.",
-    ],
-    "annex3.remote.p4": "El Soporte remoto no garantiza que un fallo pueda corregirse sin una intervención en sitio.",
-    "annex3.priority.title": "4. Respuesta prioritaria",
+    "annex3.priority.title": "S104 Servicio en Sitio y Respuesta Prioritaria",
     "annex3.priority.p1": (
-        "Las solicitudes relativas al Equipamiento cubierto por el presente Acuerdo recibirán un "
-        "trato prioritario dentro de la organización de servicio de Weber en comparación con las "
-        "solicitudes estándar sin contrato, sujeto a la disponibilidad de técnicos y al nivel de "
-        "servicio aplicable."
+        "La asistencia técnica en sitio está disponible en el territorio acordado, sujeto a la "
+        "disponibilidad de técnicos y a las condiciones aplicables de envío y reserva. Cualquier "
+        "clasificación de prioridad deberá acordarse expresamente."
     ),
-    "annex3.priority.target": "Respuesta inicial objetivo",
     "annex3.priority.p2": (
-        "La Respuesta prioritaria se refiere a la priorización de la solicitud de soporte. No "
-        "constituye un tiempo de reparación garantizado, una disponibilidad de la máquina garantizada "
-        "ni un tiempo de llegada en sitio garantizado, salvo que se establezca expresamente lo "
-        "contrario en el Anexo 1."
+        "Los cargos por desplazamiento, mano de obra, viajes, tiempo de espera, horas "
+        "extraordinarias, alojamiento y materiales se calcularán conforme al tarifario aprobado."
     ),
 
     # Annex 4 - Parts & Availability
@@ -660,326 +539,186 @@ MESSAGES: dict[str, str | list[str]] = {
     "annex4.tagline": "Condiciones comerciales de repuestos, trato prioritario y stock recomendado.",
     "annex4.purpose.title": "1. Objeto",
     "annex4.purpose.p1": (
-        "El módulo de Repuestos y disponibilidad respalda la planificación estructurada de "
+        "El módulo de Repuestos y Disponibilidad respalda la planificación estructurada de "
         "repuestos y el acceso a los repuestos originales de Weber para el Equipamiento cubierto "
         "por el presente Acuerdo."
     ),
-    "annex4.discount.title": "2. Descuento sobre repuestos",
+    "annex4.discount.title": "S201 Condiciones Comerciales de Repuestos",
     "annex4.discount.p1": (
-        "El Cliente recibirá el siguiente descuento sobre los repuestos originales elegibles de "
-        "Weber para el Equipamiento cubierto por el Acuerdo Guardian:"
+        "Las categorías de repuestos seleccionadas se suministran a los precios y descuentos "
+        "acordados, con las exclusiones y el tratamiento de piezas de recambio, cuchillas, pedidos "
+        "especiales y equipamiento actualizado expresamente indicados."
     ),
-    "annex4.discount.amount": "Descuento Guardian sobre repuestos {{Parts_Discount}} %",
-    "annex4.discount.p2": "El descuento se aplica a los repuestos originales de Weber, salvo que se indique lo contrario.",
-    "annex4.discount.p3": "Los siguientes conceptos pueden quedar excluidos:",
-    "annex4.discount.excluded": [
-        "piezas de recambio (exchange);",
-        "cuchillas;",
-        "artículos de precio especial;",
-        "productos de terceros;",
-        "gastos de porte y urgencia;",
-        "servicios y mano de obra; y",
-        "artículos ya sujetos a otro precio especial o descuento.",
-    ],
-    "annex4.discount.p4": "Los descuentos no son acumulables salvo acuerdo expreso.",
-    "annex4.handling.title": "3. Trato prioritario",
+    "annex4.discount.p2": "Los descuentos no son acumulables salvo acuerdo expreso.",
+    "annex4.handling.title": "S203 Trato Prioritario de Repuestos",
     "annex4.handling.p1": (
-        "Las consultas y pedidos de piezas relativos al Equipamiento cubierto por el presente "
-        "Acuerdo recibirán trato prioritario dentro de la organización de repuestos aplicable de Weber."
+        "Sujeto a la disponibilidad y a las condiciones acordadas para la realización de pedidos, "
+        "los pedidos elegibles podrán recibir procesamiento prioritario o envío prioritario "
+        "conforme al acuerdo local."
     ),
-    "annex4.handling.p2": "El trato prioritario incluye una aceleración del procesamiento interno cuando sea razonablemente posible.",
-    "annex4.handling.p3": (
-        "No constituye un tiempo de entrega garantizado cuando la pieza solicitada no esté "
-        "disponible en stock o cuando la entrega dependa de proveedores externos, la producción o "
-        "el transporte."
-    ),
-    "annex4.parts_list.title": "4. Lista de repuestos recomendados",
+    "annex4.parts_list.title": "S202 Lista de Repuestos Recomendados",
     "annex4.parts_list.p1": (
-        "Weber facilitará, cuando esté disponible técnica y comercialmente, una lista de repuestos "
-        "recomendados para el Equipamiento seleccionado."
+        "Weber podrá preparar una lista de repuestos recomendados específica para cada máquina, "
+        "distinguiendo las piezas de desgaste planificadas de los repuestos de alto riesgo "
+        "recomendados para el stock del Cliente. Las listas se revisarán conforme a la antigüedad, "
+        "especificación y mantenibilidad del equipamiento."
+    ),
+    "annex4.parts_list.p2": (
+        "Cuando la filial local aplique la clasificación de estilo Benelux, A/B designan las "
+        "piezas de desgaste/críticas recomendadas y C/D/E pueden identificar stock local, otro "
+        "stock de Weber o fabricación bajo pedido; una misma pieza puede tener a la vez una "
+        "recomendación y un estado de disponibilidad."
     ),
     "annex4.parts_list.categories": [
-        "A - Artículos locales / de disponibilidad inmediata: Piezas normalmente disponibles en la organización responsable de Weber.",
-        "B - Artículos de stock central: Piezas normalmente disponibles en el stock central de Weber.",
-        "C - Artículos recomendados en stock del Cliente: repuestos críticos o de mayor riesgo que Weber recomienda mantener localmente al Cliente.",
-        "D - Piezas de desgaste: Piezas que requieren sustitución en función del uso.",
-        "E - Piezas a medida / de largo plazo: Piezas que normalmente no se mantienen en stock y pueden requerir fabricación o plazos de suministro prolongados.",
+        "A - Piezas de desgaste recomendadas.",
+        "B - Repuestos críticos / de mayor riesgo de avería propuestos para stock en sitio.",
+        "C - Disponibles en el stock local de Weber (sujeto a confirmación).",
+        "D - Disponibles en otra ubicación de Weber (sujeto a confirmación).",
+        "E - Fabricados bajo pedido / sin stock actual.",
     ],
-    "annex4.parts_list.p2": (
-        "La lista de repuestos recomendados constituye una recomendación basada en la "
-        "configuración de la máquina y la información de servicio disponibles. No es una garantía "
-        "de que esté cubierto cada posible escenario de avería."
+    "annex4.parts_list.p3": (
+        "La lista es orientativa, no constituye una garantía de disponibilidad de stock, de "
+        "idoneidad para todas las configuraciones ni un compromiso de suministrar automáticamente "
+        "las cantidades recomendadas."
     ),
-    "annex4.delivery.title": "5. Condiciones de entrega",
-    "annex4.delivery.p1": "La disponibilidad de stock y las condiciones de entrega quedan sujetas al Anexo 1.",
-    "annex4.delivery.condition": "Condición de entrega estándar",
-    "annex4.delivery.threshold": "Umbral de porte gratuito",
-    "annex4.delivery.courier": "Costes de urgencia / mensajería",
-    "annex4.delivery.courier.value": "Se facturan por separado, salvo acuerdo en contrario.",
+    "annex4.parts_list.p4": (
+        "Weber suministra una lista de repuestos orientativa específica para cada máquina, sin "
+        "suministro de materiales ni instalación salvo pedido separado."
+    ),
 
     # Annex 5 - Blade Solutions
     "annex5.title": "ANEXO 5 - SOLUCIONES DE CUCHILLAS",
-    "annex5.tagline": "Condiciones comerciales, disponibilidad y asistencia técnica de los programas de cuchillas de Weber.",
+    "annex5.tagline": "Consultoría de aplicación de cuchillas, afilado y programa de cuchillas.",
     "annex5.intro": (
-        "El módulo de Soluciones de cuchillas tiene por objeto favorecer la selección correcta, la "
-        "disponibilidad, el uso y la gestión de las cuchillas de Weber, incluido el principio "
-        "«Cuchilla correcta, aplicación correcta»."
+        "El módulo de Soluciones de Cuchillas favorece la selección, la disponibilidad, el uso y "
+        "la gestión correctos de las cuchillas de Weber, incluido el principio «cuchilla correcta, "
+        "aplicación correcta»."
     ),
-    "annex5.discount.title": "1. Descuento sobre cuchillas",
-    "annex5.discount.p1": "El Cliente recibirá el siguiente descuento Guardian sobre las cuchillas elegibles de Weber:",
-    "annex5.discount.amount": "Descuento sobre cuchillas {{Blade_Discount}} %",
+    "annex5.discount.title": "S603 Programa de Suministro de Cuchillas",
+    "annex5.discount.p1": (
+        "Si el Cliente selecciona la opción de Programa de Cuchillas, las partes acuerdan un "
+        "catálogo definido de referencias de cuchillas, cantidades, precios, calendario de pedidos "
+        "y plazo comercial en el Programa de Cuchillas."
+    ),
     "annex5.discount.p2": (
-        "Las cuchillas aplicables, los emplazamientos del Cliente, las máquinas, las cantidades "
-        "comprometidas y cualquier precio especial se listarán en el programa comercial cuando sea necesario."
+        "Cualquier presupuesto mensual fijo o plan de cuotas, previsión de consumo, compromiso "
+        "mínimo, plazo de fijación de precios, bonificación, pedido de liberación, programa de "
+        "devoluciones o acuerdo especial de entrega se aplicará únicamente si se especifica en "
+        "dicho programa."
     ),
-    "annex5.discount.p3": (
-        "Los descuentos sobre cuchillas no se acumulan con otras promociones de cuchillas o "
-        "precios especiales salvo acuerdo expreso."
+    "annex5.stock.title": "Acuerdo de Stock de Cuchillas",
+    "annex5.stock.p1": (
+        "Cuando se selecciona un Acuerdo de Stock de Cuchillas, las partes definen las referencias, "
+        "cantidades, método de reposición, ubicación del stock y titularidad en el programa firmado."
     ),
-    "annex5.discount.p4": (
-        "Cuando se acuerden precios de cuchillas a plazo fijo, el plazo aplicable y las condiciones "
-        "de precio se indicarán en el Anexo 1."
+    "annex5.stock.p2": (
+        "Las cantidades compradas o entregadas deben contabilizarse de forma distinta del consumo "
+        "estimado o del stock interno de cuchillas."
     ),
-    "annex5.stock.title": "2. Acuerdo de stock",
-    "annex5.stock.p1": "Weber y el Cliente podrán establecer un concepto de stock de cuchillas acordado en función del consumo previsto.",
-    "annex5.stock.p2": "El acuerdo de stock definirá, cuando corresponda:",
-    "annex5.stock.defines": [
-        "las referencias de cuchillas;",
-        "la cantidad de stock acordada;",
-        "el stock mínimo;",
-        "el stock máximo;",
-        "el consumo anual previsto;",
-        "el método de reposición;",
-        "la ubicación del stock;",
-        "la titularidad del stock;",
-        "las condiciones de entrega; y",
-        "el tratamiento del stock obsoleto o no utilizado.",
-    ],
-    "annex5.stock.p3": (
-        "El Cliente facilitará información de consumo razonablemente precisa y notificará a Weber "
-        "los cambios materiales en la producción o la demanda de cuchillas."
+    "annex5.sharpening.title": "S602 Evaluación del Afilado",
+    "annex5.sharpening.p1": (
+        "Weber evalúa el enfoque de afilado actual del Cliente, sus procesos, parámetros de máquina "
+        "y posibles mejoras de control de calidad o manipulación dentro del alcance acordado."
     ),
-    "annex5.stock.p4": (
-        "El acuerdo de stock tiene por objeto mejorar la disponibilidad pero no constituye una "
-        "garantía incondicional de suministro ininterrumpido en circunstancias fuera del control "
-        "razonable de Weber."
-    ),
-    "annex5.sharpening.title": "3. Evaluación del afilado",
-    "annex5.sharpening.p1": "Weber evaluará el proceso y la capacidad de afilado de cuchillas del Cliente según lo acordado.",
-    "annex5.sharpening.p2": "La evaluación podrá incluir:",
-    "annex5.sharpening.includes": [
-        "el equipo de afilado;",
-        "el proceso de afilado;",
-        "el manejo de cuchillas;",
-        "el estado de las cuchillas;",
-        "los parámetros de rectificado;",
-        "las prácticas de mantenimiento;",
-        "el almacenamiento de cuchillas;",
-        "la consistencia del proceso; y",
-        "oportunidades de mejora.",
-    ],
-    "annex5.sharpening.p3": "Weber podrá emitir recomendaciones tras la evaluación.",
-    "annex5.sharpening.p4": (
-        "Salvo inclusión específica, no se incluyen la implantación de esas recomendaciones, las "
-        "reparaciones o modificaciones del equipo de afilado ni la formación adicional."
-    ),
-    "annex5.application.title": "4. Revisión de la aplicación de cuchillas",
+    "annex5.application.title": "S601 Consultoría de Aplicación de Cuchillas",
     "annex5.application.p1": (
-        "Cuando esté incluido en el programa de cuchillas seleccionado, Weber podrá revisar la "
-        "combinación cuchilla-producto con el objetivo de favorecer el principio «Cuchilla "
-        "correcta, aplicación correcta»."
+        "Weber revisa con el Cliente la aplicación de corte seleccionada, las características del "
+        "producto, la configuración de corte y la geometría o especificación de cuchilla pertinente."
     ),
     "annex5.application.p2": (
-        "Las recomendaciones podrán tener en cuenta el tipo de producto, las condiciones de "
-        "corte, la configuración de la máquina, la geometría de la cuchilla y los requisitos operativos."
+        "Entregable: un conjunto documentado de recomendaciones técnicas para una combinación "
+        "adecuada de cuchilla y aplicación, sujeto a verificación en la aplicación real."
     ),
 
     # Annex 6 - Training & Optimization
     "annex6.title": "ANEXO 6 - FORMACIÓN Y OPTIMIZACIÓN",
-    "annex6.tagline": "Formación de operadores, formación de mantenimiento, optimización de línea y auditorías EPIP.",
+    "annex6.tagline": (
+        "Formación de operadores y de técnicos de mantenimiento, optimización de línea y "
+        "auditorías EPIP."
+    ),
     "annex6.intro": (
-        "El módulo de Formación y optimización ofrece actividades seleccionadas destinadas a "
+        "El módulo de Formación y Optimización ofrece actividades seleccionadas destinadas a "
         "mejorar la operación de las máquinas, la capacidad de mantenimiento y el rendimiento de "
         "la producción."
     ),
-    "annex6.operator.title": "1. Formación de operadores",
-    "annex6.operator.p1": "Weber impartirá formación dirigida a los operadores para el Equipamiento seleccionado.",
-    "annex6.operator.p2": "El contenido de la formación podrá incluir, en función de la máquina y de los objetivos acordados:",
-    "annex6.operator.includes": [
-        "la operación correcta de la máquina;",
-        "los ajustes básicos de la máquina;",
-        "las rutinas de operación;",
-        "el cambio de producto;",
-        "las comprobaciones a nivel de operador;",
-        "las consideraciones de limpieza e inspección;",
-        "la identificación de comportamientos anormales de la máquina; y",
-        "las buenas prácticas de operación.",
-    ],
-    "annex6.operator.quantity": "Número de sesiones / días",
-    "annex6.operator.p3": "La formación se impartirá al personal designado por el Cliente.",
-    "annex6.operator.p4": (
-        "Salvo que se establezca expresamente lo contrario, la formación no constituye una "
-        "certificación formal del personal del Cliente."
+    "annex6.operator.title": "S501 Formación de Operadores",
+    "annex6.operator.p1": (
+        "Formación para operadores sobre el uso seguro y eficiente del Equipamiento definido, "
+        "incluidos procedimientos de operación, ajustes, prácticas de limpieza y comprobaciones "
+        "básicas de operación seleccionados, en la medida en que resulte apropiado."
     ),
-    "annex6.maintenance.title": "2. Formación de mantenimiento",
-    "annex6.maintenance.p1": "Weber impartirá formación técnica al personal de mantenimiento del Cliente.",
-    "annex6.maintenance.p2": "La formación podrá incluir:",
-    "annex6.maintenance.includes": [
-        "la construcción de la máquina y sus principios funcionales;",
-        "el mantenimiento preventivo;",
-        "los puntos de inspección;",
-        "la identificación de piezas de desgaste;",
-        "la metodología de resolución de problemas;",
-        "el ajuste mecánico;",
-        "los componentes eléctricos o neumáticos relevantes;",
-        "la documentación de mantenimiento; y",
-        "las prácticas de mantenimiento recomendadas.",
-    ],
-    "annex6.maintenance.quantity": "Número de sesiones / días",
-    "annex6.optimization.title": "3. Optimización de línea",
+    "annex6.maintenance.title": "S502 Formación de Técnicos de Mantenimiento",
+    "annex6.maintenance.p1": (
+        "Formación para el equipo de mantenimiento del Cliente sobre la arquitectura de la "
+        "máquina, las comprobaciones preventivas, la identificación de averías, la resolución "
+        "segura de problemas y los procedimientos de mantenimiento, dentro de los permisos de "
+        "acceso acordados."
+    ),
+    "annex6.optimization.title": "S702 Optimización de Línea",
     "annex6.optimization.p1": (
-        "Weber realizará una revisión acordada de la línea de producción seleccionada con el "
-        "objetivo de identificar oportunidades de mejora del rendimiento."
+        "Weber revisa las restricciones técnicas y de producción identificadas y podrá recomendar "
+        "o realizar mejoras acordadas en la configuración de la máquina o en el proceso, dentro "
+        "del alcance aceptado."
     ),
-    "annex6.optimization.p2": "La actividad podrá incluir:",
-    "annex6.optimization.includes": [
-        "la revisión de los parámetros de la máquina;",
-        "la observación de la producción;",
-        "el análisis de las condiciones de operación;",
-        "la revisión de la interacción entre líneas;",
-        "la identificación de restricciones de rendimiento;",
-        "el ajuste de parámetros seleccionados cuando proceda; y",
-        "recomendaciones de mejora adicional.",
-    ],
-    "annex6.optimization.quantity": "Número de actividades de optimización",
-    "annex6.optimization.p3": (
-        "La Optimización de línea no constituye una garantía de una producción, rendimiento, OEE, "
-        "reducción de giveaway u otra mejora del rendimiento determinados, salvo que se acuerde "
-        "expresamente por escrito un compromiso de rendimiento específico."
+    "annex6.optimization.p2": (
+        "Cualquier mejora de capital o partida de reparación permanece separada."
     ),
-    "annex6.epip.title": "4. Auditoría EPIP",
-    "annex6.epip.p1": "Weber realizará una auditoría EPIP en el Equipamiento o las líneas especificadas en el Anexo 1.",
+    "annex6.epip.title": "S701 Auditoría EPIP / Equipos",
+    "annex6.epip.p1": (
+        "Weber realiza la evaluación exhaustiva del equipamiento seleccionado / auditoría de tipo "
+        "EPIP sobre las líneas de producción especificadas y proporciona un informe de evaluación."
+    ),
     "annex6.epip.p2": (
-        "La auditoría incluirá una evaluación de la línea seleccionada y un informe que identifique "
-        "los hallazgos, oportunidades y acciones prioritarias relevantes."
+        "El informe distinguirá la condición observada, las acciones prioritarias, las "
+        "reparaciones recomendadas y las oportunidades de mejora."
     ),
-    "annex6.epip.p3": (
-        "Cuando corresponda, los resultados se revisarán con el Cliente y se integrarán en el plan "
-        "de acción Guardian en curso."
-    ),
-    "annex6.epip.quantity": "Número de auditorías EPIP",
-    "annex6.epip.lines": "Líneas cubiertas",
-    "annex6.epip.p4": (
-        "Las acciones correctivas, reparaciones, mejoras o piezas derivadas de la auditoría no "
-        "están incluidos salvo que se establezca expresamente."
-    ),
-    "annex6.followup.title": "5. Seguimiento",
-    "annex6.followup.p1": (
-        "Cuando esté incluido en el paquete seleccionado, Weber podrá realizar reuniones o "
-        "llamadas de seguimiento antes y después de las actividades seleccionadas para revisar:"
-    ),
-    "annex6.followup.items": [
-        "los objetivos acordados;",
-        "las actividades realizadas;",
-        "el impacto observado;",
-        "las acciones pendientes;",
-        "las prioridades técnicas; y",
-        "las acciones siguientes.",
-    ],
 
     # Annex 7 - Digital Services
     "annex7.title": "ANEXO 7 - SERVICIOS DIGITALES",
-    "annex7.tagline": "Factory Cockpit, revisión de rendimiento, revisión MRO y gestión dedicada de cuenta.",
+    "annex7.tagline": (
+        "Factory Cockpit, revisiones de rendimiento, revisiones MRO y gestión de cuenta dedicada."
+    ),
     "annex7.intro": (
-        "El módulo de Servicios digitales ofrece servicios seleccionados de monitorización digital, "
+        "El módulo de Servicios Digitales ofrece servicios seleccionados de monitorización digital, "
         "revisión de rendimiento y gestión de cuenta."
     ),
-    "annex7.cockpit.title": "1. Factory Cockpit",
+    "annex7.cockpit.title": "S801 Factory Cockpit / Monitorización",
     "annex7.cockpit.p1": (
-        "Cuando el Equipamiento seleccionado sea técnicamente compatible, Weber facilitará la "
-        "conexión del Equipamiento acordado a Factory Cockpit de conformidad con las condiciones "
-        "del servicio digital aplicable."
+        "Cuando esté disponible y haya sido seleccionado, Weber proporcionará la conexión o el "
+        "acceso acordados a la funcionalidad Factory Cockpit designada o a la funcionalidad de "
+        "monitorización digital soportada para el Equipamiento elegible."
     ),
-    "annex7.cockpit.lines": "Línea(s) conectada(s)",
     "annex7.cockpit.p2": (
-        "Factory Cockpit podrá utilizarse para recopilar y visualizar los datos de rendimiento "
-        "disponibles de las máquinas con el fin de la revisión y la optimización del rendimiento."
+        "La arquitectura de conexión, la disponibilidad del servicio, la retención, los derechos de "
+        "acceso y las responsabilidades en materia de ciberseguridad se definirán en las condiciones "
+        "del servicio digital."
     ),
-    "annex7.cockpit.p3": (
-        "El Cliente facilitará la infraestructura de red, los permisos y el acceso técnico "
-        "razonablemente requeridos para la conexión."
+    "annex7.performance.title": "S802 Revisión de Rendimiento e Informes de Tendencias",
+    "annex7.performance.p1": (
+        "Weber podrá preparar o revisar la información acordada sobre el rendimiento del "
+        "Equipamiento, las tendencias de operación y las áreas de seguimiento identificadas, sobre "
+        "la base de los datos puestos a disposición."
     ),
-    "annex7.cockpit.p4": (
-        "La disponibilidad de datos específicos depende de la generación de la máquina, el "
-        "software instalado y la conectividad del Equipamiento correspondiente."
+    "annex7.performance.p2": (
+        "Los valores podrán verse afectados por la calidad de los datos, las prácticas de "
+        "operación, la combinación de productos y sistemas de terceros. Los informes son "
+        "analíticos y no constituyen garantías de rendimiento de producción."
     ),
-    "annex7.cockpit.p5": (
-        "Cualquier licencia de software por separado o condiciones del servicio digital aplicables "
-        "a Factory Cockpit seguirán siendo aplicables."
-    ),
-    "annex7.performance.title": "2. Revisión de rendimiento",
-    "annex7.performance.p1": "Weber y el Cliente realizarán revisiones periódicas de los datos de rendimiento disponibles del Equipamiento.",
-    "annex7.performance.frequency": "Frecuencia de revisión",
-    "annex7.performance.p2": "La revisión podrá incluir:",
-    "annex7.performance.includes": [
-        "los KPI seleccionados de la máquina;",
-        "tendencias de rendimiento;",
-        "observaciones técnicas recurrentes;",
-        "oportunidades de mejora identificadas;",
-        "actividades realizadas;",
-        "acciones pendientes; y",
-        "prioridades del siguiente periodo de revisión.",
-    ],
-    "annex7.performance.p3": "Las Partes podrán acordar KPI y valores objetivo específicos del Cliente.",
-    "annex7.performance.p4": (
-        "Salvo acuerdo expreso en contrario, dichos valores objetivo son objetivos de gestión y no "
-        "garantías contractuales de rendimiento."
-    ),
-    "annex7.mro.title": "3. Revisión MRO",
+    "annex7.mro.title": "S803 Revisión MRO de Servicio / Repuestos",
     "annex7.mro.p1": (
-        "Weber revisará periódicamente la información disponible sobre el gasto de Mantenimiento, "
-        "Reparación y Operaciones (MRO) del Equipamiento cubierto."
+        "Weber podrá revisar el gasto acordado en servicio y el uso de repuestos frente a una "
+        "referencia MRO definida o a un objetivo de planificación acordado."
     ),
-    "annex7.mro.p2": "La revisión podrá incluir:",
-    "annex7.mro.includes": [
-        "el gasto en repuestos;",
-        "el gasto en servicio;",
-        "el gasto en cuchillas cuando sea relevante;",
-        "el histórico de actividad de mantenimiento;",
-        "la información de la base instalada;",
-        "tendencias de mantenimiento;",
-        "los impulsores de coste identificados; y",
-        "la comparación con un objetivo de planificación MRO acordado.",
-    ],
-    "annex7.mro.frequency": "Frecuencia de revisión MRO",
-    "annex7.mro.target": "Objetivo MRO acordado, si aplica",
-    "annex7.mro.p3": (
-        "El propósito de la revisión es respaldar la planificación del mantenimiento e identificar "
-        "oportunidades de mejora. No constituye una garantía de que se alcance un nivel "
-        "determinado de gasto MRO."
+    "annex7.mro.p2": (
+        "Las cuotas fijas de Guardian, las intervenciones de mantenimiento efectivas y los "
+        "repuestos consumidos permanecerán como elementos de datos separados; sin duplicación de "
+        "costes y sin inferir averías a partir de los importes de factura."
     ),
-    "annex7.account.title": "4. Equipo de cuenta dedicado",
-    "annex7.account.p1": "Weber asignará una estructura de gestión de cuenta Guardian para el Cliente.",
-    "annex7.account.p2": (
-        "El equipo coordinará las actividades Guardian seleccionadas y actuará como punto central "
-        "para la revisión periódica del programa."
-    ),
-    "annex7.account.p3": "El proceso de gestión de cuenta podrá incluir:",
-    "annex7.account.includes": [
-        "revisiones periódicas del Cliente;",
-        "la coordinación entre las funciones relevantes de Weber;",
-        "la revisión de acciones abiertas;",
-        "la revisión de las próximas actividades de servicio;",
-        "la revisión de las necesidades de repuestos y cuchillas;",
-        "discusiones de rendimiento;",
-        "oportunidades de optimización; y",
-        "el seguimiento de las acciones acordadas.",
-    ],
-    "annex7.account.cadence": "Cadencia de revisión",
-    "annex7.account.p4": (
-        "El equipo de cuenta dedicado complementa, pero no sustituye, los canales operativos "
-        "normales de Weber para solicitudes urgentes de servicio, pedidos de repuestos o asistencia "
-        "de emergencia."
+    "annex7.account.title": "S105 Revisiones de Cuenta Dedicada",
+    "annex7.account.p1": (
+        "Cuando se haya seleccionado, un contacto de cuenta o de Posventa asignado coordinará "
+        "revisiones periódicas de la prestación de servicio acordada, las actividades completadas, "
+        "las acciones abiertas y las necesidades próximas."
     ),
 
     # Configuration Summary and Signatures

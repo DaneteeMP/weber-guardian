@@ -15,6 +15,12 @@ class PriceOut(BaseModel):
     diet_half_rate: Decimal
     hotel_rate: Decimal
     discount_rate: Decimal
+    band1_rate_without: Decimal | None
+    band1_rate_with: Decimal | None
+    band2_rate_without: Decimal | None
+    band2_rate_with: Decimal | None
+    band3_rate_without: Decimal | None
+    band3_rate_with: Decimal | None
 
 
 class PriceUpdate(BaseModel):
@@ -27,3 +33,10 @@ class PriceUpdate(BaseModel):
     diet_half_rate: Decimal = Field(ge=Decimal("0"))
     hotel_rate: Decimal = Field(ge=Decimal("0"))
     discount_rate: Decimal = Field(ge=Decimal("0"), le=Decimal("1"))
+    # Optional: NULL means "not configured", so the PDF omits the rates block.
+    band1_rate_without: Decimal | None = Field(default=None, ge=Decimal("0"))
+    band1_rate_with: Decimal | None = Field(default=None, ge=Decimal("0"))
+    band2_rate_without: Decimal | None = Field(default=None, ge=Decimal("0"))
+    band2_rate_with: Decimal | None = Field(default=None, ge=Decimal("0"))
+    band3_rate_without: Decimal | None = Field(default=None, ge=Decimal("0"))
+    band3_rate_with: Decimal | None = Field(default=None, ge=Decimal("0"))

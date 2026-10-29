@@ -94,9 +94,9 @@ def test_render_selectable_text_and_resolved_tokens():
     assert pdf.startswith(b"%PDF")
     text = _pdf_text(pdf)
 
-    # Master agreement body (section titles are verbatim)
-    assert "PURPOSE OF THE AGREEMENT" in text
-    assert "WEBER GUARDIAN MASTER AGREEMENT" in text
+    # Master agreement body (legacy contract: 0 + I-IX)
+    assert "I. PURPOSE OF THE CONTRACT" in text
+    assert "IX. PLACE OF JURISDICTION" in text
     # Tokens resolved from the document data
     assert "OFF-2026-001" in text
     assert "ACME Foods S.L." in text
@@ -117,15 +117,35 @@ def test_module_and_option_gating():
 
     # Module and option both selected: annex and subsection present
     assert "ANNEX 2 - MAINTENANCE & INSPECTION" in text
-    assert "2. Inspection" in text
+    assert "S301 Scheduled Technical Inspection" in text
     assert "ANNEX 3 - SERVICE SUPPORT" in text
-    assert "2. Standard Hotline" in text
+    assert "S101 Standard Hotline" in text
     # Module selected but option absent inside it: subsection dropped
     assert "3. Remote Support" not in text
-    assert "5. Preventive Maintenance" not in text
+    assert "S303 Preventive Maintenance" not in text
     # Module not selected: the whole annex is dropped
     assert "ANNEX 4 - PARTS & AVAILABILITY" not in text
     assert "ANNEX 7 - DIGITAL SERVICES" not in text
+
+
+def test_empty_billing_section_heading_is_hidden():
+    """The billing rows have no data yet, so the whole section (heading and
+    rows) is omitted instead of printing an empty title."""
+    text = _pdf_text(renderer.render_document(_doc()))
+    assert "5. Billing" not in text
+
+
+def test_special_conditions_heading_hidden_when_empty():
+    text = _pdf_text(renderer.render_document(_doc(general_comments="")))
+    assert "6. Special Commercial Conditions" not in text
+
+
+def test_rate_table_heading_hidden_without_band_rates():
+    """The rates heading and table disappear together when the subsidiary has
+    no band rates configured (the fixture has none)."""
+    text = _pdf_text(renderer.render_document(_doc()))
+    assert "S101 Standard Hotline" in text
+    assert "2. Service Rates" not in text
 
 
 def test_selected_scope_and_checklist_marks():

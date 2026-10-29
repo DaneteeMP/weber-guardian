@@ -53,17 +53,17 @@ export default function WorkloadCatalog({ lang, canEdit }: { lang: Lang; canEdit
     <main className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-hidden p-4">
         <div className="flex h-full min-h-0 flex-col">
-          <h1 className="mb-3 shrink-0 text-2xl font-bold text-gray-900">{t(lang, "workload_title")}</h1>
+          <h1 className="mb-2 shrink-0 text-[22px] font-bold leading-tight text-ink">{t(lang, "workload_title")}</h1>
 
           <SectionCard className="flex min-h-0 flex-1 flex-col">
-            <div className="mb-3 flex shrink-0 overflow-hidden rounded border text-sm">
+            <div className="-mt-2 mb-3 flex shrink-0 overflow-x-auto border-b border-line">
               {tabs.map((item) => (
                 <button
                   key={item.key}
                   type="button"
                   onClick={() => setTab(item.key)}
-                  className={`px-3 py-1.5 ${
-                    tab === item.key ? "bg-weber-blue font-semibold text-white" : "bg-white hover:bg-gray-50"
+                  className={`ui-tab mr-0 inline-flex items-center whitespace-nowrap px-3 ${
+                    tab === item.key ? "ui-tab-active" : ""
                   }`}
                 >
                   {item.label}

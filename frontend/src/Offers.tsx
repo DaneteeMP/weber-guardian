@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   closeOffer,
   deleteOffer,
@@ -10,11 +10,7 @@ import {
   type OfferListItem,
   type OffersSummary,
 } from "./api";
-// Charts (and all of recharts) load on demand: they are hidden behind
-// SHOW_CHARTS and must not weigh down the first paint.
-const CustomerRankingChart = lazy(() => import("./components/charts/CustomerRankingChart"));
-const MonthlyOffersChart = lazy(() => import("./components/charts/MonthlyOffersChart"));
-const StatusDonutChart = lazy(() => import("./components/charts/StatusDonutChart"));
+import OffersDashboard from "./components/offers/OffersDashboard";
 import { statusTone } from "./statusTone";
 import { ToastStack, useToasts } from "./components/Toasts";
 import PrintPdfModal from "./components/PrintPdfModal";
@@ -22,22 +18,28 @@ import { t, type Lang } from "./i18n";
 import DataTable from "./components/DataTable";
 import type { ColumnDef } from "@tanstack/react-table";
 
-// Dense monitoring home: status/monthly/ranking panels on top, full offer table
-// below with the whole scope and row actions (close, reopen, PDF, delete).
-// Editing an existing offer happens in OfferBuilder, so we only pass the id.
-// The charts live in components/charts; this file only feeds them.
-//
-// Charts are hidden for now (they add visual noise on the home screen); the
-// JSX stays behind a flag so restoring them is flipping one constant.
-const SHOW_CHARTS = false;
+// Monitoring home: the aggregate dashboard is the default view; the full
+// offer table (row actions: close, reopen, PDF, delete) lives behind the
+// "List" toggle. Editing an existing offer still happens in OfferBuilder.
+type OffersView = "dashboard" | "list";
+
+const VIEW_LABEL = {
+  es: { overview: "Resumen", list: "Listado" },
+  en: { overview: "Overview", list: "List" },
+  de: { overview: "Übersicht", list: "Liste" },
+  pt: { overview: "Resumo", list: "Lista" },
+  it: { overview: "Panoramica", list: "Elenco" },
+} as const;
 export default function OffersHome({
   lang,
   onNew,
   onEdit,
+  onNewForCustomer,
 }: {
   lang: Lang;
   onNew: () => void;
   onEdit: (offerId: string) => void;
+  onNewForCustomer: (customerId: string) => void;
 }) {
   const [offers, setOffers] = useState<OfferListItem[]>([]);
   const [summary, setSummary] = useState<OffersSummary | null>(null);
@@ -49,6 +51,7 @@ export default function OffersHome({
   const [notice, setNotice] = useState<string | null>(null);
   // Print PDF dialog for the row's PDF action (scope/language/annexes+preview).
   const [printOfferId, setPrintOfferId] = useState<string | null>(null);
+  const [view, setView] = useState<OffersView>("dashboard");
   const { toasts, push, dismiss } = useToasts();
 
   useEffect(() => {
@@ -166,7 +169,7 @@ export default function OffersHome({
         accessorKey: "status",
         header: t(lang, "home_col_status"),
         cell: ({ row }) => (
-          <span className={`px-1.5 py-0.5 rounded font-semibold whitespace-nowrap ${statusTone(row.original.status)}`}>
+          <span className={`whitespace-nowrap rounded-md px-1.5 py-0.5 text-[12px] font-semibold leading-none ${statusTone(row.original.status)}`}>
             {row.original.status || "Pending response"}
           </span>
         ),
@@ -233,7 +236,7 @@ export default function OffersHome({
                 onClick={() => setPrintOfferId(o.id)}
                 title={t(lang, "mp_title")}
                 aria-label={t(lang, "mp_title")}
-                className="px-1.5 py-0.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 inline-flex items-center justify-center"
+                className="inline-flex items-center justify-center rounded-md border border-line-strong px-1.5 py-0.5 text-ink hover:bg-canvas"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5" aria-hidden="true">
                   <path d="M12 3v12" strokeLinecap="round" strokeLinejoin="round" />
@@ -243,28 +246,28 @@ export default function OffersHome({
               </button>
               <button
                 onClick={() => onEdit(o.id)}
-                className="px-1.5 py-0.5 rounded border border-gray-300 text-[11px] hover:bg-gray-100"
+                className="rounded-md border border-line-strong px-1.5 py-0.5 text-[11px] hover:bg-canvas"
               >
                 {t(lang, "home_edit")}
               </button>
               {o.status === "Finished" ? (
                 <button
                   onClick={() => run(setOfferStatus(o.id, "Pending response"), t(lang, "home_updated"))}
-                  className="px-1.5 py-0.5 rounded border border-gray-300 text-[11px] hover:bg-gray-100"
+                  className="rounded-md border border-line-strong px-1.5 py-0.5 text-[11px] hover:bg-canvas"
                 >
                   {t(lang, "home_reopen")}
                 </button>
               ) : (
                 <button
                   onClick={() => askClose(o)}
-                  className="px-1.5 py-0.5 rounded border border-gray-300 text-[11px] hover:bg-gray-100"
+                  className="rounded-md border border-line-strong px-1.5 py-0.5 text-[11px] hover:bg-canvas"
                 >
                   {t(lang, "home_close")}
                 </button>
               )}
               <button
                 onClick={() => askDelete(o)}
-                className="px-1.5 py-0.5 rounded border border-red-300 text-[11px] text-red-700 hover:bg-red-50"
+                className="rounded-md border border-red-200 px-1.5 py-0.5 text-[11px] text-red-700 hover:bg-red-50"
               >
                 {t(lang, "home_delete")}
               </button>
@@ -276,31 +279,43 @@ export default function OffersHome({
     [lang, names, onEdit, run, askClose, askDelete]
   );
 
+  const viewText = VIEW_LABEL[lang];
+
   return (
-    <div className="p-3 w-full space-y-3">
-      <div className="flex items-center gap-3">
-        <h1 className="text-xl font-bold text-gray-900">{t(lang, "home_list")}</h1>
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t(lang, "home_search_ph")}
-          className="flex-1 max-w-md px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-weber-blue"
-        />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-2.5 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-weber-blue"
-        >
-          <option value="">{t(lang, "home_filter_all")}</option>
-          {statuses.map((s) => (
-            <option key={s.status} value={s.status}>
-              {s.status} ({s.count})
-            </option>
+    <div className="flex h-full min-h-0 w-full flex-col gap-3 p-4">
+      <div className="flex shrink-0 items-center gap-3">
+        <h1 className="text-[22px] font-bold leading-tight text-ink">{t(lang, "home_list")}</h1>
+        <div className="flex items-center rounded-lg border border-line bg-white p-0.5">
+          {(["dashboard", "list"] as const).map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setView(item)}
+              title={item === "dashboard" ? viewText.overview : viewText.list}
+              aria-label={item === "dashboard" ? viewText.overview : viewText.list}
+              aria-pressed={view === item}
+              className={`inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+                view === item ? "bg-primary text-white" : "text-muted hover:bg-canvas"
+              }`}
+            >
+              {item === "dashboard" ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+                  <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                  <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                  <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                  <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+                  <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
+                </svg>
+              )}
+            </button>
           ))}
-        </select>
+        </div>
         <button
           onClick={onNew}
-          className="ml-auto px-4 py-2 rounded-md text-sm font-bold bg-weber-blue text-white hover:opacity-90"
+          className="ml-auto h-9 rounded-lg border border-primary bg-primary px-3.5 text-sm font-medium text-white transition hover:bg-primary/90"
         >
           + {t(lang, "home_new")}
         </button>
@@ -308,48 +323,54 @@ export default function OffersHome({
 
       <ToastStack toasts={toasts} onClose={dismiss} />
 
-      {SHOW_CHARTS && (
-        <Suspense fallback={<p className="p-3 text-sm text-gray-500">{t(lang, "dash_loading")}</p>}>
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 items-stretch">
-          <div className="bg-white rounded-lg border border-gray-200 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              {t(lang, "home_panel_donut")}
-            </p>
-            <StatusDonutChart rows={statuses} selected={statusFilter} onSelect={setStatusFilter} />
-          </div>
-
-          <div className="bg-white rounded-lg border border-gray-200 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              {t(lang, "home_panel_monthly")}
-            </p>
-            <MonthlyOffersChart rows={(summary?.monthly ?? []).slice(-24)} />
-          </div>
-
-          <div className="bg-white rounded-lg border border-gray-200 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              {t(lang, "home_panel_ranking")}
-            </p>
-            <CustomerRankingChart
-              rows={(summary?.ranking ?? []).slice(0, 8).map((r) => ({
-                label: names[r.customer_id] ?? r.customer_id,
-                count: r.count,
-              }))}
-            />
-          </div>
+      {view === "dashboard" ? (
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <OffersDashboard
+            lang={lang}
+            summary={summary}
+            loading={loading}
+            onStatusSelect={(status) => {
+              setStatusFilter(status);
+              setView("list");
+            }}
+            onOfferSelect={onEdit}
+            onNewForCustomer={onNewForCustomer}
+          />
         </div>
-        </Suspense>
+      ) : (
+        <>
+          <div className="flex shrink-0 flex-wrap items-center gap-3">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t(lang, "home_search_ph")}
+              className="ui-input max-w-md flex-1"
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="ui-input"
+            >
+              <option value="">{t(lang, "home_filter_all")}</option>
+              {statuses.map((s) => (
+                <option key={s.status} value={s.status}>
+                  {s.status} ({s.count})
+                </option>
+              ))}
+            </select>
+          </div>
+          <DataTable
+            data={visible}
+            columns={columns}
+            loading={loading}
+            loadingText={t(lang, "dash_loading")}
+            emptyText={t(lang, "home_no_results")}
+            getRowId={(o) => o.id}
+            className="min-h-0 flex-1 bg-white"
+            tableClassName="min-w-[1250px]"
+          />
+        </>
       )}
-
-      <DataTable
-        data={visible}
-        columns={columns}
-        loading={loading}
-        loadingText={t(lang, "dash_loading")}
-        emptyText={t(lang, "home_no_results")}
-        getRowId={(o) => o.id}
-        className="max-h-[calc(100vh-430px)] rounded-lg border-gray-200 bg-white"
-        tableClassName="min-w-[1250px]"
-      />
 
       {printOfferId && (
         <PrintPdfModal

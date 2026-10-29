@@ -19,7 +19,7 @@ export default function CustomerDetail({
 }: CustomerDetailProps) {
   if (loading) {
     return (
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-muted">
         {t(lang, "cust_loading")}
       </p>
     );
@@ -41,12 +41,12 @@ export default function CustomerDetail({
     <div className="space-y-3">
       {/* Address */}
       <div>
-        <div className="text-xs font-bold text-gray-500 uppercase mb-1">
+        <div className="text-xs font-bold text-muted uppercase mb-1">
           {t(lang, "cust_addr_title")}
         </div>
 
         {detail.sites.length === 0 ? (
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted">
             {t(lang, "cust_no_addr")}
           </p>
         ) : (
@@ -72,19 +72,19 @@ export default function CustomerDetail({
 
       {/* Machines */}
       <div>
-        <div className="text-xs font-bold text-gray-500 uppercase mb-1">
+        <div className="text-xs font-bold text-muted uppercase mb-1">
           {t(lang, "cust_machines_title")} ({detail.machines.length})
         </div>
 
         {detail.machines.length === 0 ? (
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted">
             {t(lang, "cust_no_machines")}
           </p>
         ) : (
-          <div className="overflow-auto max-h-96 bg-white rounded border">
+          <div className="max-h-96 overflow-auto rounded-xl border border-line bg-white">
             <table className="w-full text-xs">
               <thead className="sticky top-0">
-                <tr className="bg-gray-100 text-left">
+                <tr className="bg-head text-left text-[11.5px] text-muted">
                   <th className="px-2 py-1.5 font-semibold">
                     {t(lang, "cust_col_machine")}
                   </th>
@@ -105,7 +105,7 @@ export default function CustomerDetail({
                   machine.components.map((component, index) => (
                     <tr
                       key={`${machine.equipment_name}-${index}`}
-                      className="border-b last:border-0"
+                      className="border-b border-soft last:border-0"
                     >
                       <td className="px-2 py-1 font-mono font-semibold text-weber-blue">
                         {index === 0

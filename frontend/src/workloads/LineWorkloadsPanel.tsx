@@ -153,7 +153,7 @@ export default function LineWorkloadsPanel({ lang, canEdit }: { lang: Lang; canE
             onChange={(event) =>
               setDrafts((prev) => ({ ...prev, [entry.id]: event.target.value }))
             }
-            className="ml-auto block w-28 rounded border px-2 py-1 text-right text-sm font-mono disabled:opacity-50"
+            className="ui-input ml-auto block w-28 text-right font-mono"
           />
         );
       },
@@ -166,7 +166,7 @@ export default function LineWorkloadsPanel({ lang, canEdit }: { lang: Lang; canE
         const unconfirmed = row.original.matches.filter((match) => !match.is_confirmed);
         return (
           <span className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="font-mono text-gray-600">
+            <span className="font-mono text-muted">
               {row.original.matches.map((match) => match.match_value).join(", ") || "—"}
             </span>
             {unconfirmed.length > 0 && (
@@ -212,7 +212,7 @@ export default function LineWorkloadsPanel({ lang, canEdit }: { lang: Lang; canE
               type="button"
               onClick={() => void remove(entry)}
               disabled={busyId === entry.id}
-              className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
+              className="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
             >
               {t(lang, "home_delete")}
             </button>
@@ -225,7 +225,7 @@ export default function LineWorkloadsPanel({ lang, canEdit }: { lang: Lang; canE
   return (
     <>
       <div className="mb-2 shrink-0 space-y-1.5">
-        <p className="text-xs text-gray-600">{t(lang, "workload_lines_help")}</p>
+        <p className="text-xs text-muted">{t(lang, "workload_lines_help")}</p>
         <div className="flex items-center gap-2">
           <SearchInput
             value={search}
@@ -233,7 +233,7 @@ export default function LineWorkloadsPanel({ lang, canEdit }: { lang: Lang; canE
             placeholder={t(lang, "workload_search")}
             className="min-w-0 flex-1"
           />
-          <span className="shrink-0 text-sm text-gray-500">
+          <span className="shrink-0 text-sm text-muted">
             {search.trim() ? `${filtered.length} / ${rows.length}` : rows.length}
           </span>
         </div>

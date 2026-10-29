@@ -81,12 +81,12 @@ export default function RuleMaterials({
       {
         accessorKey: "name_en",
         header: t(lang, "workload_material_name"),
-        cell: ({ row }) => <span className="text-gray-700">{row.original.name_en ?? "—"}</span>,
+        cell: ({ row }) => <span className="text-ink">{row.original.name_en ?? "—"}</span>,
       },
       {
         accessorKey: "type_code",
         header: t(lang, "workload_legacy_code"),
-        cell: ({ row }) => <span className="font-mono text-gray-600">{row.original.type_code ?? "—"}</span>,
+        cell: ({ row }) => <span className="font-mono text-muted">{row.original.type_code ?? "—"}</span>,
       },
       {
         accessorKey: "customers",
@@ -121,7 +121,7 @@ export default function RuleMaterials({
 
   return (
     <div className="space-y-2">
-      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted">
         {t(lang, "workload_linked_materials")} ({materials.length})
       </div>
 
@@ -131,7 +131,7 @@ export default function RuleMaterials({
             value={materialNo}
             onChange={(event) => setMaterialNo(event.target.value)}
             placeholder={t(lang, "workload_material_placeholder")}
-            className="min-w-0 flex-1 rounded border px-2 py-1.5 text-sm"
+            className="ui-input min-w-0 flex-1"
           />
           <button
             type="submit"
@@ -143,10 +143,10 @@ export default function RuleMaterials({
         </form>
       )}
 
-      {error && <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>}
-      {info && <div className="rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-900">{info}</div>}
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>}
+      {info && <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-900">{info}</div>}
 
-      <div className="max-h-72 overflow-auto rounded border">
+      <div className="max-h-72 overflow-auto rounded-lg border border-line">
         <DataTable
           data={materials}
           columns={columns}

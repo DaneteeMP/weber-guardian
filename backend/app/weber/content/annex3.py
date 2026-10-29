@@ -1,8 +1,13 @@
-"""Annex 3 - Service Support (master pages 15-16).
+"""Annex 3 - Service Support (Global Appendix 1 content, gated by options).
 
-Responsibility: English source of the service-support annex, gated by the
-``service_support`` module in content.SECTIONS. Sections 1 is always included;
-subsections are gated by their Guardian option.
+Responsibility: English source of the service-support annex. The module is
+gated by ``service_support`` in content.SECTIONS; each service clause is gated
+by its Guardian option. Paragraphs that depend on data the system does not
+hold yet are not written here: the renderer also drops any paragraph whose
+{{Token}} has no value.
+
+The service-rate tables (time bands + with/without contract) print only when
+the subsidiary has configured its band rates.
 """
 
 from __future__ import annotations
@@ -12,7 +17,7 @@ BLOCKS = [
     {
         "type": "p",
         "id": "annex3.tagline",
-        "text": "Hotline, remote support and prioritized technical response.",
+        "text": "Customer service and technical support.",
     },
 
     # 1. Purpose (always when the module is selected)
@@ -21,40 +26,61 @@ BLOCKS = [
         "type": "p",
         "id": "annex3.purpose.p1",
         "text": (
-            "The Service Support module provides the Customer with access to Weber technical "
-            "support for Equipment covered by this Agreement."
+            "The Service Support module provides the Customer with access to Weber "
+            "technical support for Equipment covered by this Agreement."
         ),
     },
-    {"type": "p", "id": "annex3.purpose.p2", "text": "The exact service level depends on the options selected below."},
+    {
+        "type": "p",
+        "id": "annex3.purpose.p2",
+        "text": "The exact service level depends on the options selected below.",
+    },
+
+    # Service rates (subsidiary configuration; omitted when not configured)
+    {"type": "h2", "id": "annex3.rates.title", "text": "2. Service Rates", "requires_band_rates": True},
+    {
+        "type": "band_rates",
+        "id": "annex3.rates",
+        "matrix_headers": [
+            {"id": "annex3.rates.hours", "text": "Hours"},
+            {"id": "annex3.rates.weekdays", "text": "Monday - Friday"},
+            {"id": "annex3.rates.saturday", "text": "Saturday"},
+            {"id": "annex3.rates.sunday", "text": "Sunday / holiday"},
+        ],
+        "matrix_rows": [
+            ["06:00 - 18:00", "I", "II", "III"],
+            ["18:00 - 06:00", "II", "III", "III"],
+        ],
+        "rate_headers": [
+            {"id": "annex3.rates.band", "text": "Band"},
+            {"id": "annex3.rates.without", "text": "Without contract"},
+            {"id": "annex3.rates.with", "text": "With contract"},
+        ],
+    },
 
     {
         "type": "sub",
         "option": "standard_hotline",
         "blocks": [
-            {"type": "h2", "id": "annex3.hotline.title", "text": "2. Standard Hotline"},
+            {"type": "h2", "id": "annex3.hotline.title", "text": "S101 Standard Hotline"},
             {
                 "type": "p",
                 "id": "annex3.hotline.p1",
-                "text": "The Customer shall have access to the Weber service hotline during the applicable support hours.",
-            },
-            {"type": "kv", "id": "annex3.hotline.hours", "label": "Support Hours", "token": "Hotline_Service_Hours"},
-            {"type": "kv", "id": "annex3.hotline.phone", "label": "Telephone", "token": "Hotline_Number"},
-            {"type": "kv", "id": "annex3.hotline.email", "label": "Email", "token": "Service_Email"},
-            {"type": "p", "id": "annex3.hotline.p2", "text": "The hotline provides first-level technical support and coordination."},
-            {
-                "type": "p",
-                "id": "annex3.hotline.p3",
                 "text": (
-                    "Where the issue cannot be resolved through the hotline, Weber may recommend "
-                    "Remote Support, an on-site service visit, replacement parts or other technical action."
+                    "Weber shall provide access to the selected standard technical service "
+                    "contact channel during the agreed availability window. This is a "
+                    "communication service; no onsite response time is implied."
                 ),
             },
+            {"type": "kv", "id": "annex3.hotline.phone", "label": "Contact point", "token": "Hotline_Number"},
+            {"type": "kv", "id": "annex3.hotline.email", "label": "Email", "token": "Service_Email"},
+            {"type": "kv", "id": "annex3.hotline.hours", "label": "Monday - Friday", "token": "Hotline_Service_Hours"},
             {
                 "type": "p",
-                "id": "annex3.hotline.p4",
+                "id": "annex3.hotline.p2",
                 "text": (
-                    "On-site service is not included merely by reason of having Standard Hotline "
-                    "support unless expressly stated in Annex 1."
+                    "Availability for call acceptance is not, by itself, a guaranteed "
+                    "diagnostic resolution, onsite attendance or spare-part dispatch."
                 ),
             },
         ],
@@ -64,39 +90,23 @@ BLOCKS = [
         "type": "sub",
         "option": "remote_support",
         "blocks": [
-            {"type": "h2", "id": "annex3.remote.title", "text": "3. Remote Support"},
+            {"type": "h2", "id": "annex3.remote.title", "text": "S103 Remote Technical Support"},
             {
                 "type": "p",
                 "id": "annex3.remote.p1",
                 "text": (
-                    "Where technically available and authorized by the Customer, Weber may provide "
-                    "remote diagnostic and technical support."
+                    "Weber may provide initial fault analysis by telephone, email, supported "
+                    "remote connection or video communication, subject to agreement on secure "
+                    "access and customer assistance."
                 ),
             },
             {
                 "type": "p",
                 "id": "annex3.remote.p2",
                 "text": (
-                    "The Customer shall provide the network connections, VPN access, user "
-                    "authorization and other technical conditions reasonably necessary for remote access."
+                    "Connection, network and cybersecurity arrangements must be agreed before "
+                    "activation. Remote support does not replace a required onsite service."
                 ),
-            },
-            {"type": "p", "id": "annex3.remote.p3", "text": "Remote Support may include:"},
-            {
-                "type": "ul",
-                "id": "annex3.remote.includes",
-                "items": [
-                    "remote fault analysis;",
-                    "review of machine status or diagnostic information;",
-                    "assistance with parameter or configuration checks;",
-                    "support to Customer maintenance personnel; and",
-                    "recommendations for further action.",
-                ],
-            },
-            {
-                "type": "p",
-                "id": "annex3.remote.p4",
-                "text": "Remote Support does not guarantee that a fault can be corrected without an on-site intervention.",
             },
         ],
     },
@@ -105,30 +115,22 @@ BLOCKS = [
         "type": "sub",
         "option": "priority_response",
         "blocks": [
-            {"type": "h2", "id": "annex3.priority.title", "text": "4. Priority Response"},
+            {"type": "h2", "id": "annex3.priority.title", "text": "S104 On-site Service & Priority Response"},
             {
                 "type": "p",
                 "id": "annex3.priority.p1",
                 "text": (
-                    "Requests relating to Equipment covered by this Agreement shall receive "
-                    "prioritized handling within Weber's service organization compared with standard "
-                    "non-contract requests, subject to technician availability and the applicable "
-                    "service level."
+                    "Onsite technical assistance is available in the agreed territory subject "
+                    "to technician availability and applicable dispatch and booking conditions. "
+                    "Any priority ranking must be expressly agreed."
                 ),
-            },
-            {
-                "type": "kv",
-                "id": "annex3.priority.target",
-                "label": "Target First Response",
-                "token": "Priority_Response_Target",
             },
             {
                 "type": "p",
                 "id": "annex3.priority.p2",
                 "text": (
-                    "Priority Response refers to prioritization of the support request. It does not "
-                    "constitute a guaranteed repair time, guaranteed machine uptime or guaranteed "
-                    "on-site arrival time unless expressly stated otherwise in Annex 1."
+                    "Service callout charges, labour, travel, waiting time, overtime, "
+                    "accommodation and materials are calculated under the approved rate schedule."
                 ),
             },
         ],

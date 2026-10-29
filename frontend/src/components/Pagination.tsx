@@ -16,25 +16,27 @@ export default function Pagination({
 
   const hasPrevious = page > 0;
   const hasNext = end < total;
+  const button =
+    "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line-strong bg-white text-ink transition hover:bg-canvas disabled:opacity-40";
 
   return (
     <div className="flex items-center justify-between text-sm">
       <button
         disabled={!hasPrevious}
         onClick={() => onPageChange(page - 1)}
-        className="px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-40"
+        className={button}
       >
         ←
       </button>
 
-      <span className="text-gray-500">
+      <span className="text-muted">
         {start}–{end} / {total.toLocaleString()}
       </span>
 
       <button
         disabled={!hasNext}
         onClick={() => onPageChange(page + 1)}
-        className="px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-40"
+        className={button}
       >
         →
       </button>
